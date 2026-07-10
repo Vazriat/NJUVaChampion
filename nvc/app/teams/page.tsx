@@ -59,7 +59,7 @@ export default function TeamsPage() {
                 </div>
               </div>
               <p className="line-clamp-2 text-sm text-zinc-400">
-                {team.description || "暂无简介"}
+                {team.description || ""}
               </p>
               <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
                 <span>队员 {team.memberCount}/5</span>
@@ -69,7 +69,7 @@ export default function TeamsPage() {
         </div>
 
         {!loading && teams.length === 0 && (
-          <p className="text-center text-zinc-500">暂无战队，快来创建第一个吧！</p>
+          <p className="text-center text-zinc-500">还没有战队，去创建或加入一个吧</p>
         )}
       </main>
     </div>

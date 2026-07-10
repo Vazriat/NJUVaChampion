@@ -69,6 +69,7 @@ export const teamApi = {
     api.post("/teams", data),
   list: () => api.get("/teams"),
   myTeam: () => api.get("/teams/my"),
+  myCaptainedTeams: () => api.get("/teams/captain"),
   detail: (id: number) => api.get(`/teams/${id}`),
   join: (id: number) => api.post(`/teams/${id}/join`),
   leave: (id: number) => api.post(`/teams/${id}/leave`),
@@ -106,6 +107,67 @@ export const adminApi = {
   getTeam: (id: number) => api.get(`/admin/teams/${id}`),
   updateTeam: (id: number, data: Record<string, any>) => api.put(`/admin/teams/${id}`, data),
   deleteTeam: (id: number) => api.delete(`/admin/teams/${id}`),
+};
+
+// ====== 赛事接口 ======
+export const tournamentApi = {
+  list: () => api.get("/tournaments"),
+  detail: (id: number) => api.get(`/tournaments/${id}`),
+  register: (tournamentId: number, teamId: number) =>
+    api.post(`/tournaments/${tournamentId}/register`, { teamId }),
+  unregister: (tournamentId: number, teamId: number) =>
+    api.post(`/tournaments/${tournamentId}/unregister`, { teamId }),
+};
+
+export interface TournamentVO {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  maxTeams: number;
+  bracketType: string;
+  registeredCount: number;
+  championTeamId: number | null;
+  championTeamName: string | null;
+  createdAt: string;
+  registeredTeams?: RegisteredTeamInfo[];
+  matches?: MatchVO[];
+}
+
+export interface RegisteredTeamInfo {
+  id: number;
+  teamId: number;
+  teamName: string;
+  teamLogo: string | null;
+  captainName: string | null;
+  description: string | null;
+  memberCount: number;
+  seed: number;
+  registeredAt: string;
+}
+
+export interface MatchVO {
+  id: number;
+  round: number;
+  position: number;
+  team1Id: number | null;
+  team1Name: string | null;
+  team2Id: number | null;
+  team2Name: string | null;
+  winnerId: number | null;
+  status: string;
+}
+
+// ====== 管理员赛事接口 ======
+export const adminTournamentApi = {
+  create: (data: { name: string; description?: string; maxTeams?: number }) =>
+    api.post("/admin/tournaments", data),
+  publish: (id: number) => api.post(`/admin/tournaments/${id}/publish`),
+  start: (id: number) => api.post(`/admin/tournaments/${id}/start`),
+  setMatchWinner: (tournamentId: number, matchId: number, winnerTeamId: number) =>
+    api.put(`/admin/tournaments/${tournamentId}/matches/${matchId}`, { winnerTeamId }),
+  detail: (id: number) => api.get(`/admin/tournaments/${id}`),
+  delete: (id: number) => api.delete(`/admin/tournaments/${id}`),
 };
 
 export default api;

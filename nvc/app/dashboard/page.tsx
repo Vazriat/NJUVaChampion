@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -105,11 +105,11 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm text-zinc-500">查看个人资料和公开信息</p>
           </Link>
 
-          <div className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 opacity-50">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-800 text-xl text-zinc-600">🎮</div>
-            <h3 className="text-lg font-semibold text-zinc-500">赛事中心</h3>
-            <p className="mt-1 text-sm text-zinc-600">即将开放</p>
-          </div>
+          <Link href="/tournaments" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🎮</div>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">赛事中心</h3>
+            <p className="mt-1 text-sm text-zinc-500">浏览赛事、报名参赛、查看对阵</p>
+          </Link>
         </div>
 
         {myTeam && (

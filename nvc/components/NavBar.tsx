@@ -1,21 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { removeToken, getUser } from "@/lib/auth";
 
 export default function NavBar() {
   const pathname = usePathname();
-  const user = getUser();
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState(getUser());
 
-  // 不在这些页面显示导航栏
-  if (!user || ["/", "/login", "/register", "/admin"].includes(pathname)) {
+  useEffect(() => {
+    setMounted(true);
+    setUser(getUser());
+  }, []);
+
+  if (!mounted || !user || ["/", "/login", "/register", "/admin"].includes(pathname)) {
     return null;
   }
 
   const links = [
     { href: "/hall", label: "用户大厅" },
     { href: "/teams", label: "战队管理" },
+    { href: "/tournaments", label: "赛事中心" },
   ];
 
   const isActive = (href: string) => pathname.startsWith(href);

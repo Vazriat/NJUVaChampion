@@ -37,6 +37,11 @@ public class TeamController {
         return Result.success(team);
     }
 
+    @GetMapping("/captain")
+    public Result<List<TeamVO>> myCaptainedTeams(@AuthenticationPrincipal User user) {
+        return Result.success(teamService.getMyCaptainedTeams(user.getId()));
+    }
+
     @GetMapping("/{id}")
     public Result<TeamVO> detail(@PathVariable Long id) {
         return Result.success(teamService.getById(id));
