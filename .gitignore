@@ -1,0 +1,66 @@
+﻿# ============ Java / Maven / Spring Boot ============
+target/
+*.jar
+*.war
+*.ear
+*.class
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ============ Node / Next.js ============
+node_modules/
+.next/
+out/
+build/
+coverage/
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+*.tsbuildinfo
+next-env.d.ts
+
+# ============ IDE / Editor ============
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated
+.springBeans
+.sts4-cache
+/bin/
+
+# ============ OS ============
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ============ Env & Secrets ============
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# ============ Logs ============
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ============ Misc ============
+HELP.md
+.vercel
