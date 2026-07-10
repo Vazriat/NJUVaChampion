@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { adminApi } from "@/lib/api";
-import { getUser, removeToken, isLoggedIn } from "@/lib/auth";
 import Link from "next/link";
+import { adminApi, adminTournamentApi, TournamentVO, MatchVO } from "@/lib/api";
+import { getUser, removeToken, isLoggedIn } from "@/lib/auth";
+import CreateTournamentModal from "@/components/CreateTournamentModal";
 
-type Tab = "overview" | "users" | "teams";
+type Tab = "overview" | "users" | "teams" | "tournaments";
 
 interface AdminUser {
   id: number; username: string; gameId: string | null; displayGameId: string | null;
@@ -18,16 +19,27 @@ interface AdminTeam {
   captainId: number; status: number; memberCount: number; createdAt: string;
 }
 
+const STATUS_MAP: Record<string, string> = {
+  SETUP: "筹备中", REGISTRATION: "报名中", PROGRESSION: "进行中", ENDED: "已结束",
+};
+
+const ROUND_NAMES: Record<number, string> = { 0: "1/4 决赛", 1: "半决赛", 2: "决赛" };
+
 export default function AdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentVO[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [editUser, setEditUser] = useState<AdminUser | null>(null);
   const [editTeam, setEditTeam] = useState<AdminTeam | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
+
+  const [showCreateTournament, setShowCreateTournament] = useState(false);
+  const [selectedTournament, setSelectedTournament] = useState<TournamentVO | null>(null);
+  const [tournamentMatches, setTournamentMatches] = useState<MatchVO[]>([]);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
 
@@ -44,8 +56,39 @@ export default function AdminPage() {
       const [uRes, tRes] = await Promise.all([adminApi.listUsers(), adminApi.listTeams()]);
       setUsers(uRes.data.data);
       setTeams(tRes.data.data);
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/tournaments", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.code === 200) setTournaments(json.data);
     } catch { removeToken(); router.replace("/login"); }
     finally { setLoading(false); }
+  };
+
+  const fetchTournaments = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/tournaments", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.code === 200) setTournaments(json.data);
+    } catch {}
+  };
+
+  const loadTournamentDetail = async (t: TournamentVO) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/tournaments/${t.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (json.code === 200) {
+        setSelectedTournament(json.data);
+        setTournamentMatches(json.data.matches || []);
+      }
+    } catch {}
   };
 
   const handleDeleteUser = async (id: number) => {
@@ -72,15 +115,38 @@ export default function AdminPage() {
     catch (err: any) { showMsg(err.response?.data?.message || "更新失败"); }
   };
 
+  const handlePublish = async (id: number) => {
+    try { await adminTournamentApi.publish(id); showMsg("赛事已发布"); fetchTournaments(); loadTournamentDetail({ ...selectedTournament!, id } as TournamentVO); }
+    catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+  };
+
+  const handleDeleteTournament = async (id: number) => {
+    if (!confirm("确定删除该赛事？此操作不可恢复！")) return;
+    try { await adminTournamentApi.delete(id); showMsg("赛事已删除"); fetchTournaments(); setSelectedTournament(null); }
+    catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+  };
+
+  const handleStart = async (id: number) => {
+    try { await adminTournamentApi.start(id); showMsg("赛事已开始"); fetchTournaments(); }
+    catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+  };
+
+  const handleSetWinner = async (tournamentId: number, matchId: number) => {
+    const winner = prompt("请输入获胜队伍ID：");
+    if (!winner) return;
+    try {
+      await adminTournamentApi.setMatchWinner(tournamentId, matchId, Number(winner));
+      showMsg("比赛结果已记录");
+      fetchTournaments();
+      loadTournamentDetail({ ...selectedTournament!, id: tournamentId } as TournamentVO);
+    } catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+  };
+
   const openEditUser = (u: AdminUser) => {
     setEditUser(u);
     setForm({
-      username: u.username ?? "",
-      email: u.email ?? "",
-      gameId: u.gameId ?? "",
-      role: u.role,
-      status: u.status,
-      resetPassword: false,
+      username: u.username ?? "", email: u.email ?? "", gameId: u.gameId ?? "",
+      role: u.role, status: u.status, resetPassword: false,
     });
   };
 
@@ -91,6 +157,8 @@ export default function AdminPage() {
 
   const activeUsers = users.filter((u) => u.status === 1 && u.role !== "ADMIN").length;
   const activeTeams = teams.filter((t) => t.status === 1).length;
+  const activeTournaments = tournaments.filter((t) => t.status !== "ENDED").length;
+  const currentUser = getUser();
 
   const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -104,11 +172,12 @@ export default function AdminPage() {
     </div>
   );
 
-  const currentUser = getUser();
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-zinc-950"><p className="text-zinc-400">加载中...</p></div>;
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {/* 顶栏 */}
       <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold text-red-500">VALORANT</h1>
@@ -118,182 +187,222 @@ export default function AdminPage() {
           <span className="rounded bg-red-600/20 px-3 py-1 text-sm text-red-400">管理员</span>
           <span className="text-zinc-400">{currentUser?.username}</span>
           <Link href="/login" onClick={() => { removeToken(); }}
-            className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-400 transition hover:border-red-500 hover:text-red-400">
-            退出
-          </Link>
+            className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-400 transition hover:border-red-500 hover:text-red-400">退出</Link>
         </div>
       </header>
 
-      {msg && <div className="mx-8 mt-4 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-400">{msg}</div>}
+      {msg && (
+        <div className="mx-8 mt-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>
+      )}
 
-      <main className="mx-auto max-w-6xl px-8 py-10">
-        {/* 标签导航 */}
+      <main className="mx-auto max-w-6xl px-8 py-8">
         <div className="mb-8 flex gap-6 border-b border-zinc-800">
-          <button onClick={() => setTab("overview")}
-            className={`pb-3 text-sm font-semibold transition ${tab === "overview" ? "border-b-2 border-red-500 text-red-400" : "text-zinc-500 hover:text-white"}`}>
-            概览
-          </button>
-          <button onClick={() => setTab("users")}
-            className={`pb-3 text-sm font-semibold transition ${tab === "users" ? "border-b-2 border-red-500 text-red-400" : "text-zinc-500 hover:text-white"}`}>
-            用户管理
-          </button>
-          <button onClick={() => setTab("teams")}
-            className={`pb-3 text-sm font-semibold transition ${tab === "teams" ? "border-b-2 border-red-500 text-red-400" : "text-zinc-500 hover:text-white"}`}>
-            战队管理
-          </button>
+          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["tournaments", "赛事管理"]] as [Tab, string][]).map(([key, label]) => (
+            <button key={key} onClick={() => { setTab(key); setSelectedTournament(null); }}
+              className={`pb-3 text-sm font-medium transition border-b-2 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
+          ))}
         </div>
 
-        {/* ====== 概览 ====== */}
-        {tab === "overview" && !loading && (
+        {tab === "overview" && (
+          <div className="grid gap-5 sm:grid-cols-3">
+            {[
+              { label: "活跃用户", value: activeUsers, color: "text-blue-400" },
+              { label: "活跃战队", value: activeTeams, color: "text-green-400" },
+              { label: "进行中赛事", value: activeTournaments, color: "text-red-400" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+                <p className="text-sm text-zinc-500">{item.label}</p>
+                <p className={`mt-2 text-4xl font-bold ${item.color}`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "users" && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-zinc-800 text-left text-zinc-500">
+                <th className="pb-3 pr-4">ID</th><th className="pb-3 pr-4">用户名</th><th className="pb-3 pr-4">游戏ID</th>
+                <th className="pb-3 pr-4">角色</th><th className="pb-3 pr-4">状态</th><th className="pb-3 pr-4">操作</th>
+              </tr></thead>
+              <tbody>{users.map((u) => (
+                <tr key={u.id} className="border-b border-zinc-800/50">
+                  <td className="py-3 pr-4">{u.id}</td>
+                  <td className="py-3 pr-4">{u.username}</td>
+                  <td className="py-3 pr-4 text-zinc-400">{u.displayGameId || "-"}</td>
+                  <td className="py-3 pr-4">{u.role}</td>
+                  <td className="py-3 pr-4"><span className={`rounded px-2 py-0.5 text-xs ${u.status === 1 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>{u.status === 1 ? "正常" : "禁用"}</span></td>
+                  <td className="py-3 pr-4 flex gap-2">
+                    <button onClick={() => openEditUser(u)} className="text-xs text-blue-400 hover:underline">编辑</button>
+                    <button onClick={() => handleDeleteUser(u.id)} className="text-xs text-red-400 hover:underline">禁用</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === "teams" && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-zinc-800 text-left text-zinc-500">
+                <th className="pb-3 pr-4">ID</th><th className="pb-3 pr-4">战队名</th><th className="pb-3 pr-4">人数</th>
+                <th className="pb-3 pr-4">状态</th><th className="pb-3 pr-4">操作</th>
+              </tr></thead>
+              <tbody>{teams.map((t) => (
+                <tr key={t.id} className="border-b border-zinc-800/50">
+                  <td className="py-3 pr-4">{t.id}</td>
+                  <td className="py-3 pr-4">{t.name}</td>
+                  <td className="py-3 pr-4">{t.memberCount}</td>
+                  <td className="py-3 pr-4"><span className={`rounded px-2 py-0.5 text-xs ${t.status === 1 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>{t.status === 1 ? "正常" : "已解散"}</span></td>
+                  <td className="py-3 pr-4 flex gap-2">
+                    <button onClick={() => openEditTeam(t)} className="text-xs text-blue-400 hover:underline">编辑</button>
+                    <button onClick={() => handleDeleteTeam(t.id)} className="text-xs text-red-400 hover:underline">解散</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === "tournaments" && (
           <div>
-            <h2 className="mb-6 text-xl font-semibold">系统概览</h2>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-                <p className="text-sm text-zinc-500">活跃用户</p>
-                <p className="mt-2 text-3xl font-bold text-red-400">{activeUsers}</p>
-              </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-                <p className="text-sm text-zinc-500">总用户数</p>
-                <p className="mt-2 text-3xl font-bold">{users.length}</p>
-              </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-                <p className="text-sm text-zinc-500">活跃战队</p>
-                <p className="mt-2 text-3xl font-bold text-red-400">{activeTeams}</p>
-              </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-                <p className="text-sm text-zinc-500">总战队数</p>
-                <p className="mt-2 text-3xl font-bold">{teams.length}</p>
-              </div>
+            <div className="mb-6 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">全部赛事</h3>
+              <button onClick={() => setShowCreateTournament(true)}
+                className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold hover:bg-red-700">+ 创建赛事</button>
             </div>
 
-            <div className="mt-8 grid gap-5 sm:grid-cols-2">
-              <button onClick={() => setTab("users")}
-                className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-left transition hover:border-red-500/50">
-                <h3 className="text-lg font-semibold group-hover:text-red-400">用户管理 →</h3>
-                <p className="mt-1 text-sm text-zinc-500">查看、编辑、禁用用户账号，重置密码</p>
-              </button>
-              <button onClick={() => setTab("teams")}
-                className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-left transition hover:border-red-500/50">
-                <h3 className="text-lg font-semibold group-hover:text-red-400">战队管理 →</h3>
-                <p className="mt-1 text-sm text-zinc-500">查看、编辑、解散战队</p>
-              </button>
+            <div className="space-y-3">
+              {tournaments.map((t) => (
+                <div key={t.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold">{t.name}</h4>
+                      <p className="mt-1 text-xs text-zinc-500">{STATUS_MAP[t.status]} · {t.registeredCount}/{t.maxTeams} 队 · 单场淘汰</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleDeleteTournament(t.id)} className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除</button>
+                      <button onClick={() => loadTournamentDetail(t)}
+                        className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:border-red-500 hover:text-red-400">详情</button>
+                      {t.status === "SETUP" && (
+                        <button onClick={() => handlePublish(t.id)}
+                          className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">发布</button>
+                      )}
+                      {t.status === "REGISTRATION" && (
+                        <button onClick={() => handleStart(t.id)}
+                          className="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-700">开始</button>
+                      )}
+                    </div>
+                  </div>
+                  {t.championTeamName && (
+                    <p className="mt-2 text-xs text-yellow-400">🏆 冠军：{t.championTeamName}</p>
+                  )}
+                </div>
+              ))}
+              {tournaments.length === 0 && <p className="text-center text-zinc-500 py-8">暂无赛事</p>}
             </div>
-          </div>
-        )}
 
-        {/* ====== 用户管理 ====== */}
-        {tab === "users" && !loading && (
-          <div className="overflow-x-auto">
-            <h2 className="mb-4 text-lg font-semibold">用户列表</h2>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-zinc-500">
-                  <th className="py-3 pr-4">ID</th>
-                  <th className="py-3 pr-4">用户名</th>
-                  <th className="py-3 pr-4">游戏 ID</th>
-                  <th className="py-3 pr-4">邮箱</th>
-                  <th className="py-3 pr-4">角色</th>
-                  <th className="py-3 pr-4">状态</th>
-                  <th className="py-3">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-zinc-800/50 hover:bg-zinc-900">
-                    <td className="py-3 pr-4 text-zinc-500">{u.id}</td>
-                    <td className="py-3 pr-4 font-medium">{u.username}</td>
-                    <td className="py-3 pr-4 text-zinc-400">{u.displayGameId || "-"}</td>
-                    <td className="py-3 pr-4 text-zinc-400">{u.email || "-"}</td>
-                    <td className="py-3 pr-4">
-                      <span className={`rounded px-2 py-0.5 text-xs ${u.role === "ADMIN" ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-400"}`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className={`text-xs ${u.status === 1 ? "text-green-400" : "text-red-400"}`}>
-                        {u.status === 1 ? "正常" : "禁用"}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <div className="flex gap-2">
-                        <button onClick={() => openEditUser(u)}
-                          className="rounded bg-zinc-800 px-3 py-1 text-xs text-zinc-400 hover:text-white">编辑</button>
-                        {u.role !== "ADMIN" && (
-                          <button onClick={() => handleDeleteUser(u.id)}
-                            className="rounded bg-red-600/10 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">禁用</button>
-                        )}
+            {showCreateTournament && (
+              <CreateTournamentModal
+                onClose={() => setShowCreateTournament(false)}
+                onSuccess={(msg) => { showMsg(msg); fetchTournaments(); }}
+              />
+            )}
+
+            {selectedTournament && (
+              <Modal title={selectedTournament.name} onClose={() => setSelectedTournament(null)}>
+                <div className="space-y-4">
+                  <p className="text-sm text-zinc-400">
+                    状态：{STATUS_MAP[selectedTournament.status]} · 报名 {selectedTournament.registeredCount}/{selectedTournament.maxTeams}
+                  </p>
+
+                  {selectedTournament.status === "SETUP" && (
+                    <button onClick={() => { handlePublish(selectedTournament.id); setSelectedTournament(null); }}
+                      className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold hover:bg-blue-700">发布赛事（进入报名阶段）</button>
+                  )}
+                  {selectedTournament.status === "REGISTRATION" && (
+                    <button onClick={() => { handleStart(selectedTournament.id); setSelectedTournament(null); }}
+                      className="w-full rounded-lg bg-green-600 py-2 text-sm font-semibold hover:bg-green-700">开始比赛（生成对阵表）</button>
+                  )}
+                  {selectedTournament.status === "PROGRESSION" && tournamentMatches.length > 0 && (
+                    <div>
+                      <p className="mb-3 text-sm font-semibold">对阵表</p>
+                      {[0, 1, 2].map((r) => {
+                        const ms = tournamentMatches.filter((m) => m.round === r);
+                        if (ms.length === 0) return null;
+                        return (
+                          <div key={r} className="mb-4">
+                            <p className="mb-2 text-xs text-zinc-500">{ROUND_NAMES[r] || `第${r + 1}轮`}</p>
+                            {ms.map((m) => (
+                              <div key={m.id} className="mb-2 rounded border border-zinc-700 bg-zinc-800 p-3">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className={m.winnerId === m.team1Id ? "text-green-400" : m.status === "COMPLETED" && m.team1Id ? "text-red-400" : ""}>
+                                    {m.team1Name || "待定"}
+                                  </span>
+                                  <span className="text-xs text-zinc-600">VS</span>
+                                  <span className={m.winnerId === m.team2Id ? "text-green-400" : m.status === "COMPLETED" && m.team2Id ? "text-red-400" : ""}>
+                                    {m.team2Name || "待定"}
+                                  </span>
+                                </div>
+                                {m.status === "PENDING" && m.team1Id && m.team2Id && (
+                                  <button onClick={() => handleSetWinner(selectedTournament.id, m.id)}
+                                    className="mt-2 w-full rounded bg-yellow-600/20 py-1 text-xs text-yellow-400 hover:bg-yellow-600/30">
+                                    记录胜负
+                                  </button>
+                                )}
+                                {m.status === "COMPLETED" && (
+                                  <p className="mt-1 text-center text-xs text-green-400">已结束</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedTournament.status === "ENDED" && (
+                    <div>
+                      {selectedTournament.championTeamName ? (
+                        <div className="rounded-lg bg-yellow-500/10 p-6 text-center">
+                          <p className="text-sm text-yellow-500">🏆 冠军</p>
+                          <p className="mt-2 text-2xl font-bold text-yellow-400">{selectedTournament.championTeamName}</p>
+                        </div>
+                      ) : <p className="text-zinc-500">赛事已结束</p>}
+                    </div>
+                  )}
+
+                  {selectedTournament.registeredTeams && selectedTournament.registeredTeams.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold">报名队伍</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTournament.registeredTeams.map((rt) => (
+                          <span key={rt.id} className="rounded bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
+                            {rt.teamName} <span className="text-zinc-500">#{rt.seed}</span>
+                          </span>
+                        ))}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  )}
+                </div>
+              </Modal>
+            )}
           </div>
         )}
 
-        {/* ====== 战队管理 ====== */}
-        {tab === "teams" && !loading && (
-          <div className="overflow-x-auto">
-            <h2 className="mb-4 text-lg font-semibold">战队列表</h2>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-zinc-500">
-                  <th className="py-3 pr-4">ID</th>
-                  <th className="py-3 pr-4">战队名</th>
-                  <th className="py-3 pr-4">简介</th>
-                  <th className="py-3 pr-4">人数</th>
-                  <th className="py-3 pr-4">状态</th>
-                  <th className="py-3">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((t) => (
-                  <tr key={t.id} className="border-b border-zinc-800/50 hover:bg-zinc-900">
-                    <td className="py-3 pr-4 text-zinc-500">{t.id}</td>
-                    <td className="py-3 pr-4 font-medium">{t.name}</td>
-                    <td className="py-3 pr-4 text-zinc-400 max-w-xs truncate">{t.description || "-"}</td>
-                    <td className="py-3 pr-4 text-zinc-400">{t.memberCount}</td>
-                    <td className="py-3 pr-4">
-                      <span className={`text-xs ${t.status === 1 ? "text-green-400" : "text-red-400"}`}>
-                        {t.status === 1 ? "正常" : "已解散"}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <div className="flex gap-2">
-                        <button onClick={() => openEditTeam(t)}
-                          className="rounded bg-zinc-800 px-3 py-1 text-xs text-zinc-400 hover:text-white">编辑</button>
-                        <button onClick={() => handleDeleteTeam(t.id)}
-                          className="rounded bg-red-600/10 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">解散</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* 编辑用户弹窗 */}
         {editUser && (
           <Modal title="编辑用户" onClose={() => setEditUser(null)}>
             <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">用户名</label>
+              <div><label className="mb-1 block text-xs text-zinc-500">用户名</label>
                 <input type="text" value={form.username || ""} onChange={(e) => setForm({...form, username: e.target.value})}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">游戏 ID</label>
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" /></div>
+              <div><label className="mb-1 block text-xs text-zinc-500">游戏 ID</label>
                 <input type="text" value={form.gameId || ""} onChange={(e) => setForm({...form, gameId: e.target.value})}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">邮箱</label>
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" /></div>
+              <div><label className="mb-1 block text-xs text-zinc-500">邮箱</label>
                 <input type="text" value={form.email || ""} onChange={(e) => setForm({...form, email: e.target.value})}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">角色</label>
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" /></div>
+              <div><label className="mb-1 block text-xs text-zinc-500">角色</label>
                 {editUser.role === "ADMIN" ? (
                   <p className="text-sm text-zinc-400">ADMIN（不可修改）</p>
                 ) : (
@@ -304,8 +413,7 @@ export default function AdminPage() {
                   </select>
                 )}
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">状态</label>
+              <div><label className="mb-1 block text-xs text-zinc-500">状态</label>
                 <select value={form.status ?? 1} onChange={(e) => setForm({...form, status: Number(e.target.value)})}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500">
                   <option value={1}>正常</option>
@@ -325,22 +433,16 @@ export default function AdminPage() {
           </Modal>
         )}
 
-        {/* 编辑战队弹窗 */}
         {editTeam && (
           <Modal title="编辑战队" onClose={() => setEditTeam(null)}>
             <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">战队名</label>
+              <div><label className="mb-1 block text-xs text-zinc-500">战队名</label>
                 <input type="text" value={form.name || ""} onChange={(e) => setForm({...form, name: e.target.value})}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">简介</label>
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" /></div>
+              <div><label className="mb-1 block text-xs text-zinc-500">简介</label>
                 <textarea value={form.description || ""} onChange={(e) => setForm({...form, description: e.target.value})}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" rows={3} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-zinc-500">状态</label>
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" rows={3} /></div>
+              <div><label className="mb-1 block text-xs text-zinc-500">状态</label>
                 <select value={form.status ?? 1} onChange={(e) => setForm({...form, status: Number(e.target.value)})}
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500">
                   <option value={1}>正常</option>

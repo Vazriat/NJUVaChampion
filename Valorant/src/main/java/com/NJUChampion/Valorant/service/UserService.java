@@ -21,15 +21,20 @@ public class UserService {
         if (userRepository.existsByUsername(req.getUsername())) {
             throw new IllegalArgumentException("用户名已存在");
         }
-        if (req.getEmail() != null && !req.getEmail().isBlank() && userRepository.existsByEmail(req.getEmail())) {
+
+        // 空字符串转为 null，避免唯一索引冲突
+        String email = (req.getEmail() != null && !req.getEmail().isBlank()) ? req.getEmail() : null;
+        String gameId = (req.getGameId() != null && !req.getGameId().isBlank()) ? req.getGameId() : null;
+
+        if (email != null && userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("邮箱已被使用");
         }
 
         User user = User.builder()
                 .username(req.getUsername())
                 .password(passwordEncoder.encode(req.getPassword()))
-                .gameId(req.getGameId())
-                .email(req.getEmail())
+                .gameId(gameId)
+                .email(email)
                 .build();
 
         return userRepository.save(user);

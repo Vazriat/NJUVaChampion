@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -119,6 +120,14 @@ public class TeamService {
         Team team = teamRepository.findById(memberships.get(0).getTeamId())
                 .orElseThrow(() -> new IllegalArgumentException("战队不存在"));
         return toVODetail(team);
+    }
+
+    public List<TeamVO> getMyCaptainedTeams(Long userId) {
+        return teamRepository.findByCaptainId(userId)
+                .filter(t -> t.getStatus() == 1)
+                .map(this::toVO)
+                .map(List::of)
+                .orElse(Collections.emptyList());
     }
 
     private TeamVO toVO(Team team) {

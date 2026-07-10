@@ -102,7 +102,7 @@ export default function TeamDetailPage() {
 
         <div className="mb-8">
           <h2 className="mb-2 text-sm font-semibold text-zinc-500">战队简介</h2>
-          <p className="text-zinc-300">{team.description || "暂无简介"}</p>
+          <p className="text-zinc-300">{team.description || ""}</p>
         </div>
 
         <div>
