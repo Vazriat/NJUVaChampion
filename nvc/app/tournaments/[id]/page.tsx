@@ -20,6 +20,25 @@ const STATUS_COLOR: Record<string, string> = {
   ENDED: "text-yellow-400",
 };
 
+const FORMAT_LABEL: Record<string, string> = {
+  SINGLE_ELIM: "单败淘汰",
+  DOUBLE_ELIM: "双败淘汰",
+  SWISS_ELIM: "瑞士轮",
+  SINGLE_RR: "单循环",
+  DOUBLE_RR: "双循环",
+};
+const STAGE_LABEL: Record<string, string> = {
+  WINNERS: "胜者组",
+  LOSERS: "败者组",
+  GRAND_FINAL: "总决赛",
+};
+const STAGE_COLOR: Record<string, string> = {
+  WINNERS: "border-emerald-800/50 bg-emerald-900/10",
+  LOSERS: "border-red-800/50 bg-red-900/10",
+  GRAND_FINAL: "border-yellow-600/50 bg-yellow-600/10",
+};
+
+
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -110,6 +129,45 @@ export default function TournamentDetailPage() {
     (rt) => currentUser?.id && rt.captainName === currentUser.username
   );
 
+
+function getRoundLabel(ri: number, matchCount: number, totalMatches: number) {
+  if (matchCount >= 8) return `1/8 决赛`;
+  if (matchCount >= 4) return `1/4 决赛`;
+  if (matchCount >= 2) return "半决赛";
+  return "决赛";
+}
+
+function renderMatchCard(m: MatchVO, setDetail: (m: MatchVO | null) => void) {
+  return (
+    <button key={m.id} onClick={() => m.team1Id && m.team2Id && setDetail(m)}
+      className={`rounded-xl border p-4 text-left transition ${
+        m.status === "COMPLETED"
+          ? "border-green-800/50 bg-green-900/10"
+          : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
+      }`}>
+      <div className="flex items-center justify-between">
+        <span className={`text-sm font-medium ${m.winnerId === m.team1Id ? "text-green-400" : "text-zinc-300"}`}>
+          {m.team1Name || "待定"}
+        </span>
+        <span className="text-xs text-zinc-600">VS</span>{m.gamesPerMatch && m.gamesPerMatch > 1 ? <span className="ml-1 text-[10px] text-zinc-600">(BO{m.gamesPerMatch})</span> : null}
+        <span className={`text-sm font-medium ${m.winnerId === m.team2Id ? "text-green-400" : "text-zinc-300"}`}>
+          {m.team2Name || "待定"}
+        </span>
+      </div>
+      <div className="mt-2 text-center">
+        {m.status === "COMPLETED" && (
+          <span className="text-xs text-green-500">已结束</span>
+        )}
+        {m.status === "PENDING" && m.team1Id && m.team2Id && (
+          <span className="text-xs text-zinc-500">等待比赛</span>
+        )}
+        {m.status === "PENDING" && (!m.team1Id || !m.team2Id) && (
+          <span className="text-xs text-zinc-600">等待对手确定</span>
+        )}
+      </div>
+    </button>
+  );
+}
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <NavBar />
@@ -128,7 +186,7 @@ export default function TournamentDetailPage() {
               </span>
               <div className="flex items-center gap-4 text-xs text-zinc-500">
                 <span>{tournament.registeredCount}/{tournament.maxTeams} 队</span>
-                <span>单败淘汰</span>
+                <span>{FORMAT_LABEL[tournament.format] || tournament.format}</span>
                 <span>{new Date(tournament.createdAt).toLocaleDateString("zh-CN")}</span>
               </div>
             </div>

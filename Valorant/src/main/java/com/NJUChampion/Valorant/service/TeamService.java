@@ -131,7 +131,7 @@ public class TeamService {
     }
 
     private TeamVO toVO(Team team) {
-        User captain = userRepository.findById(team.getCaptainId()).orElse(null);
+        User captain = team.getCaptainId() != null && team.getCaptainId() != 0L ? userRepository.findById(team.getCaptainId()).orElse(null) : null;
         long count = teamMemberRepository.countByTeamId(team.getId());
 
         return TeamVO.builder()

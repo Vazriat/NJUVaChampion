@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,11 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 const ROUND_NAMES: Record<number, string> = { 0: "1/4 决赛", 1: "半决赛", 2: "决赛" };
+const STAGE_LABEL: Record<string, string> = {
+  WINNERS: "胜者组",
+  LOSERS: "败者组",
+  GRAND_FINAL: "总决赛",
+};
 
 export default function AdminPage() {
   const router = useRouter();
@@ -40,6 +45,26 @@ export default function AdminPage() {
   const [showCreateTournament, setShowCreateTournament] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<TournamentVO | null>(null);
   const [tournamentMatches, setTournamentMatches] = useState<MatchVO[]>([]);
+  const [showCreateEmptyTeam, setShowCreateEmptyTeam] = useState(false);
+  const [emptyTeamName, setEmptyTeamName] = useState("");
+  const [emptyTeamDesc, setEmptyTeamDesc] = useState("");
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [addTeamId, setAddTeamId] = useState("");
+  const [allTeamsList, setAllTeamsList] = useState<AdminTeam[]>([]);
+  const [recordingMatch, setRecordingMatch] = useState<{ tournamentId: number; matchId: number; team1Name: string; team2Name: string; team1Id: number; team2Id: number } | null>(null);
+  const [boSelection, setBoSelection] = useState(1);
+  const matchGroups: { stage: string; round: number; matches: MatchVO[] }[] = (() => {
+    const stages = [...new Set(tournamentMatches.map(m => m.stage))];
+    const groups: { stage: string; round: number; matches: MatchVO[] }[] = [];
+    for (const stage of stages) {
+      const rounds = [...new Set(tournamentMatches.filter(m => m.stage === stage).map(m => m.round))].sort((a, b) => a - b);
+      for (const r of rounds) {
+        const ms = tournamentMatches.filter(m => m.stage === stage && m.round === r);
+        if (ms.length > 0) groups.push({ stage, round: r, matches: ms });
+      }
+    }
+    return groups;
+  })();
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
 
@@ -132,14 +157,30 @@ export default function AdminPage() {
   };
 
   const handleSetWinner = async (tournamentId: number, matchId: number) => {
-    const winner = prompt("请输入获胜队伍ID：");
-    if (!winner) return;
+    const t = selectedTournament;
+    if (!t) return;
+    const m = tournamentMatches.find(x => x.id === matchId);
+    if (!m || !m.team1Id || !m.team2Id) return;
+    setBoSelection(1);
+    setRecordingMatch({
+      tournamentId,
+      matchId,
+      team1Name: m.team1Name || '队伍1',
+      team2Name: m.team2Name || '队伍2',
+      team1Id: m.team1Id,
+      team2Id: m.team2Id,
+    });
+  };
+
+  const confirmSetWinner = async (winnerTeamId: number) => {
+    if (!recordingMatch) return;
     try {
-      await adminTournamentApi.setMatchWinner(tournamentId, matchId, Number(winner));
-      showMsg("比赛结果已记录");
+      await adminTournamentApi.setMatchWinner(recordingMatch.tournamentId, recordingMatch.matchId, winnerTeamId, boSelection);
+      showMsg('比赛结果已记录 (BO' + boSelection + ')');
+      setRecordingMatch(null);
       fetchTournaments();
-      loadTournamentDetail({ ...selectedTournament!, id: tournamentId } as TournamentVO);
-    } catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+      loadTournamentDetail({ ...selectedTournament!, id: recordingMatch.tournamentId } as TournamentVO);
+    } catch (err: any) { showMsg(err.response?.data?.message || '操作失败'); }
   };
 
   const openEditUser = (u: AdminUser) => {
@@ -160,7 +201,74 @@ export default function AdminPage() {
   const activeTournaments = tournaments.filter((t) => t.status !== "ENDED").length;
   const currentUser = getUser();
 
-  const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
+  const handleAddTeamToTournament = async (teamId?: number) => {
+    const finalTeamId = teamId || (addTeamId ? Number(addTeamId) : 0);
+    if (!selectedTournament || !finalTeamId) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/tournaments/" + selectedTournament.id + "/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ teamId: finalTeamId }),
+      });
+      const json = await res.json();
+      if (json.code === 200) {
+        showMsg("队伍已添加到赛事");
+        setShowAddTeam(false);
+        setAddTeamId("");
+        loadTournamentDetail(selectedTournament);
+      } else {
+        showMsg(json.message || "添加失败");
+      }
+    } catch (err: any) {
+      showMsg(err.response?.data?.message || "添加失败");
+    }
+  };
+
+    const handleRemoveTeam = async (teamId: number) => {
+    if (!selectedTournament || !confirm("确定从赛事中移除该队伍？")) return;
+    try {
+      const token = localStorage.getItem("token");
+      await fetch("/api/admin/tournaments/" + selectedTournament.id + "/unregister", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ teamId }),
+      });
+      showMsg("队伍已移除");
+      loadTournamentDetail(selectedTournament);
+    } catch (err: any) {
+      showMsg(err.response?.data?.message || "移除失败");
+    }
+  };
+
+  const openCreateEmptyTeam = () => {
+    setEmptyTeamName("");
+    setEmptyTeamDesc("");
+    setShowCreateEmptyTeam(true);
+  };
+
+  const handleCreateEmptyTeam = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ name: emptyTeamName.trim(), description: emptyTeamDesc.trim() || undefined }),
+      });
+      const json = await res.json();
+      if (json.code === 200) {
+        showMsg("战队已创建");
+        setShowCreateEmptyTeam(false);
+        fetchData();
+      } else {
+        showMsg(json.message || "创建失败");
+      }
+    } catch (err: any) {
+      showMsg("创建失败");
+    }
+
+  };
+    const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
@@ -243,6 +351,7 @@ export default function AdminPage() {
         )}
 
         {tab === "teams" && (
+          <div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-zinc-800 text-left text-zinc-500">
@@ -263,8 +372,14 @@ export default function AdminPage() {
               ))}</tbody>
             </table>
           </div>
+            <div className="mt-6">
+              <button onClick={openCreateEmptyTeam}
+                className="rounded-lg border border-dashed border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:border-red-500 hover:text-red-400 transition">
+                + 创建无人战队（测试用）
+              </button>
+            </div>
+          </div>
         )}
-
         {tab === "tournaments" && (
           <div>
             <div className="mb-6 flex items-center justify-between">
@@ -328,37 +443,35 @@ export default function AdminPage() {
                   {selectedTournament.status === "PROGRESSION" && tournamentMatches.length > 0 && (
                     <div>
                       <p className="mb-3 text-sm font-semibold">对阵表</p>
-                      {[0, 1, 2].map((r) => {
-                        const ms = tournamentMatches.filter((m) => m.round === r);
-                        if (ms.length === 0) return null;
-                        return (
-                          <div key={r} className="mb-4">
-                            <p className="mb-2 text-xs text-zinc-500">{ROUND_NAMES[r] || `第${r + 1}轮`}</p>
-                            {ms.map((m) => (
-                              <div key={m.id} className="mb-2 rounded border border-zinc-700 bg-zinc-800 p-3">
-                                <div className="flex items-center justify-between text-sm">
-                                  <span className={m.winnerId === m.team1Id ? "text-green-400" : m.status === "COMPLETED" && m.team1Id ? "text-red-400" : ""}>
-                                    {m.team1Name || "待定"}
-                                  </span>
-                                  <span className="text-xs text-zinc-600">VS</span>
-                                  <span className={m.winnerId === m.team2Id ? "text-green-400" : m.status === "COMPLETED" && m.team2Id ? "text-red-400" : ""}>
-                                    {m.team2Name || "待定"}
-                                  </span>
-                                </div>
-                                {m.status === "PENDING" && m.team1Id && m.team2Id && (
-                                  <button onClick={() => handleSetWinner(selectedTournament.id, m.id)}
-                                    className="mt-2 w-full rounded bg-yellow-600/20 py-1 text-xs text-yellow-400 hover:bg-yellow-600/30">
-                                    记录胜负
-                                  </button>
-                                )}
-                                {m.status === "COMPLETED" && (
-                                  <p className="mt-1 text-center text-xs text-green-400">已结束</p>
-                                )}
+                      {matchGroups.map((g) => (
+                        <div key={g.stage + "-" + g.round} className="mb-4">
+                          <p className="mb-2 text-xs text-zinc-500">
+                            {selectedTournament?.format === "DOUBLE_ELIM" ? `${STAGE_LABEL[g.stage] || g.stage} - ` : ""}{ROUND_NAMES[g.round] || `第${g.round + 1}轮`}
+                          </p>
+                          {g.matches.map((m) => (
+                            <div key={m.id} className="mb-2 rounded border border-zinc-700 bg-zinc-800 p-3">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className={m.winnerId === m.team1Id ? "text-green-400" : m.status === "COMPLETED" && m.team1Id ? "text-red-400" : ""}>
+                                  {m.team1Name || "待定"}
+                                </span>
+                                <span className="text-xs text-zinc-600">VS</span>
+                                <span className={m.winnerId === m.team2Id ? "text-green-400" : m.status === "COMPLETED" && m.team2Id ? "text-red-400" : ""}>
+                                  {m.team2Name || "待定"}
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                        );
-                      })}
+                              {m.status === "PENDING" && m.team1Id && m.team2Id && (
+                                <button onClick={() => handleSetWinner(selectedTournament.id, m.id)}
+                                  className="mt-2 w-full rounded bg-yellow-600/20 py-1 text-xs text-yellow-400 hover:bg-yellow-600/30">
+                                  记录胜负
+                                </button>
+                              )}
+                              {m.status === "COMPLETED" && (
+                                <p className="mt-1 text-center text-xs text-green-400">已结束</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
                     </div>
                   )}
                   {selectedTournament.status === "ENDED" && (
@@ -377,16 +490,88 @@ export default function AdminPage() {
                       <p className="mb-2 text-sm font-semibold">报名队伍</p>
                       <div className="flex flex-wrap gap-2">
                         {selectedTournament.registeredTeams.map((rt) => (
-                          <span key={rt.id} className="rounded bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
-                            {rt.teamName} <span className="text-zinc-500">#{rt.seed}</span>
-                          </span>
+                          <div key={rt.id} className="inline-flex items-center gap-1 rounded bg-zinc-800 px-3 py-1">
+                            <span className="text-xs text-zinc-300">
+                              {rt.teamName} <span className="text-zinc-500">#{rt.seed}</span>
+                            </span>
+                            {(selectedTournament.status === "SETUP" || selectedTournament.status === "REGISTRATION") && (
+                              <button onClick={() => handleRemoveTeam(rt.teamId)}
+                                className="ml-1 text-red-500 hover:text-red-400 text-xs leading-none">&times;</button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
+                  {(selectedTournament.status === "SETUP" || selectedTournament.status === "REGISTRATION") && (
+                    <button onClick={async () => { setAddTeamId(""); setShowAddTeam(true); try { const res = await adminApi.listTeams(); setAllTeamsList(res.data.data || []); } catch {} }}
+                      className="mt-3 rounded-lg border border-dashed border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-blue-500 hover:text-blue-400 transition">
+                      + 添加队伍（测试用）
+                    </button>
+                  )}
+                  {showAddTeam && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+                      <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+                        <div className="mb-4 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold">添加队伍到赛事</h3>
+                          <button onClick={() => setShowAddTeam(false)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-zinc-500">选择要添加的队伍：</p>
+                          {allTeamsList
+                            .filter(t => t.status === 1 && !(selectedTournament?.registeredTeams || []).some(rt => rt.teamId === t.id))
+                            .map(t => (
+                              <button key={t.id} onClick={() => handleAddTeamToTournament(t.id)}
+                                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-left transition hover:border-blue-500 hover:bg-zinc-700 text-sm">
+                                <span className="font-medium text-zinc-200">{t.name}</span>
+                                <span className="ml-2 text-xs text-zinc-500">ID:{t.id} · {t.memberCount}人</span>
+                                {t.captainId === 0 && <span className="ml-2 text-[10px] text-zinc-600">无人战队</span>}
+                              </button>
+                            ))}
+                          {allTeamsList.filter(t => t.status === 1 && !(selectedTournament?.registeredTeams || []).some(rt => rt.teamId === t.id)).length === 0 && (
+                            <p className="py-4 text-center text-xs text-zinc-500">没有可添加的队伍</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
               </Modal>
             )}
+          </div>
+        )}
+
+
+        {recordingMatch && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold">记录比赛结果</h3>
+                <button onClick={() => setRecordingMatch(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
+              </div>
+              <p className="mb-4 text-sm text-zinc-400">选择胜者与局数</p>
+              <div className="space-y-3">
+                <button onClick={() => confirmSetWinner(recordingMatch.team1Id)}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 p-4 text-left transition hover:border-green-500 hover:bg-zinc-700">
+                  <span className="font-medium text-green-400">🏆 {recordingMatch.team1Name}</span>
+                </button>
+                <button onClick={() => confirmSetWinner(recordingMatch.team2Id)}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 p-4 text-left transition hover:border-green-500 hover:bg-zinc-700">
+                  <span className="font-medium text-green-400">🏆 {recordingMatch.team2Name}</span>
+                </button>
+              </div>
+              <div className="mt-4">
+                <label className="mb-2 block text-xs text-zinc-500">每场局数</label>
+                <div className="flex gap-3">
+                  {[1, 3, 5].map((n) => (
+                    <button key={n} type="button" onClick={() => setBoSelection(n)}
+                      className={'flex-1 rounded-lg border py-2 text-sm font-medium transition ' + (boSelection === n ? 'border-red-500 bg-red-600/20 text-red-400' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600')}>
+                      BO{n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -431,6 +616,27 @@ export default function AdminPage() {
                 className="w-full rounded-lg bg-red-600 py-2 text-sm font-semibold hover:bg-red-700">保存</button>
             </div>
           </Modal>
+        )}
+
+
+        {showCreateEmptyTeam && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <button onClick={() => setShowCreateEmptyTeam(false)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
+              </div>
+              <div className="space-y-4">
+                <div><label className="mb-1 block text-xs text-zinc-500">战队名</label>
+                  <input type="text" value={emptyTeamName} onChange={(e) => setEmptyTeamName(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" placeholder="测试战队" /></div>
+                <div><label className="mb-1 block text-xs text-zinc-500">简介（选填）</label>
+                  <textarea value={emptyTeamDesc} onChange={(e) => setEmptyTeamDesc(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" rows={2} /></div>
+                <button onClick={handleCreateEmptyTeam} disabled={!emptyTeamName.trim()}
+                  className="w-full rounded-lg bg-red-600 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">创建</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {editTeam && (

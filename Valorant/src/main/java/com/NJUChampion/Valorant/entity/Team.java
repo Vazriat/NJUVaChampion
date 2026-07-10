@@ -29,7 +29,7 @@ public class Team {
     @Column(length = 500)
     private String description;
 
-    @Column(name = "captain_id", nullable = false)
+    @Column(name = "captain_id")
     private Long captainId;
 
     @Column(nullable = false)

@@ -8,16 +8,74 @@ interface Props {
   onSuccess: (msg: string) => void;
 }
 
+const TYPE_OPTIONS = [
+  { value: "CUP", label: "杯赛" },
+  { value: "LEAGUE", label: "联赛" },
+] as const;
+
+const FORMAT_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  CUP: [
+    { value: "SINGLE_ELIM", label: "单败淘汰" },
+    { value: "DOUBLE_ELIM", label: "双败淘汰" },
+    { value: "SWISS_ELIM", label: "瑞士轮 + 八强淘汰赛" },
+  ],
+  LEAGUE: [
+    { value: "SINGLE_RR", label: "单循环" },
+    { value: "DOUBLE_RR", label: "双循环" },
+  ],
+};
+
+const MAX_TEAMS_OPTIONS: Record<string, number[]> = {
+  "CUP_SINGLE_ELIM": [2, 4, 8, 16],
+  "CUP_DOUBLE_ELIM": [4, 8],
+  "CUP_SWISS_ELIM": [16],
+};
+
 export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [type, setType] = useState("CUP");
+  const [format, setFormat] = useState("SINGLE_ELIM");
   const [maxTeams, setMaxTeams] = useState(2);
   const [submitting, setSubmitting] = useState(false);
+
+  const isLeague = type === "LEAGUE";
+  const availableFormats = FORMAT_OPTIONS[type] || FORMAT_OPTIONS.CUP;
+  const teamOptions = isLeague ? null : (MAX_TEAMS_OPTIONS[`${type}_${format}`] || [2]);
+
+  // Reset format when type changes
+  const handleTypeChange = (newType: string) => {
+    setType(newType);
+    const firstFormat = FORMAT_OPTIONS[newType]?.[0]?.value || "SINGLE_ELIM";
+    setFormat(firstFormat);
+    if (newType === "LEAGUE") {
+      setMaxTeams(2);
+    } else {
+      const opts = MAX_TEAMS_OPTIONS[`${newType}_${firstFormat}`] || [2];
+      setMaxTeams(opts[0]);
+    }
+  };
+
+  const handleFormatChange = (newFormat: string) => {
+    setFormat(newFormat);
+    if (!isLeague) {
+      const opts = MAX_TEAMS_OPTIONS[`${type}_${newFormat}`] || [2];
+      if (!opts.includes(maxTeams)) {
+        setMaxTeams(opts[0]);
+      }
+    }
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await adminTournamentApi.create({ name, description, maxTeams });
+      await adminTournamentApi.create({
+        name,
+        description: description || undefined,
+        type,
+        format,
+        maxTeams,
+      });
       onSuccess("赛事已创建");
       onClose();
     } catch (err: any) {
@@ -39,30 +97,70 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
             <label className="mb-1 block text-xs text-zinc-500">赛事名称</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500"
-              placeholder="如：无畏契约锦标赛" />
+              placeholder="例如：无畏契约锦标赛" />
           </div>
+
           <div>
-            <label className="mb-1 block text-xs text-zinc-500">赛事简介</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500"
-              rows={3} placeholder="选填" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500">参赛队伍数</label>
+            <label className="mb-1 block text-xs text-zinc-500">赛事类型</label>
             <div className="flex gap-3">
-              {[2].map((n) => (
-                <button key={n} type="button" onClick={() => setMaxTeams(n)}
+              {TYPE_OPTIONS.map((opt) => (
+                <button key={opt.value} type="button" onClick={() => handleTypeChange(opt.value)}
                   className={`flex-1 rounded-lg border py-2 text-sm font-medium transition ${
-                    maxTeams === n
+                    type === opt.value
                       ? "border-red-500 bg-red-600/20 text-red-400"
                       : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"
                   }`}>
-                  {n} 队
+                  {opt.label}
                 </button>
               ))}
             </div>
           </div>
-          <p className="text-xs text-zinc-500">赛制：单场淘汰</p>
+
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">赛制</label>
+            <div className="flex flex-wrap gap-2">
+              {availableFormats.map((opt) => (
+                <button key={opt.value} type="button" onClick={() => handleFormatChange(opt.value)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                    format === opt.value
+                      ? "border-red-500 bg-red-600/20 text-red-400"
+                      : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">参赛队伍数</label>
+            <div className="flex gap-3">
+              {teamOptions ? (
+                teamOptions.map((n) => (
+                  <button key={n} type="button" onClick={() => setMaxTeams(n)}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-medium transition ${
+                      maxTeams === n
+                        ? "border-red-500 bg-red-600/20 text-red-400"
+                        : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600"
+                    }`}>
+                    {n} 队
+                  </button>
+                ))
+              ) : (
+                <input type="number" min={2} max={100} value={maxTeams}
+                  onChange={(e) => setMaxTeams(Math.max(2, parseInt(e.target.value) || 2))}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500" />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">赛事简介（选填）</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-white outline-none focus:border-red-500"
+              rows={2} placeholder="选填" />
+          </div>
+
           <button onClick={handleSubmit} disabled={submitting || !name.trim()}
             className="w-full rounded-lg bg-red-600 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
             {submitting ? "创建中..." : "创建"}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -40,7 +40,7 @@ export default function TeamDetailPage() {
   };
 
   const handleLeave = async () => {
-    if (!confirm("确定退出该战队？")) return;
+    if (!confirm("确认退出该战队？")) return;
     setActionLoading(true);
     try { await teamApi.leave(Number(id)); router.push("/teams"); }
     catch (err: any) { alert(err.response?.data?.message || "操作失败"); }

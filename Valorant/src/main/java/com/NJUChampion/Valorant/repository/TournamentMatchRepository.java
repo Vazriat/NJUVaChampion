@@ -8,4 +8,6 @@ import java.util.List;
 public interface TournamentMatchRepository extends JpaRepository<TournamentMatch, Long> {
     List<TournamentMatch> findByTournamentIdOrderByRoundAscPositionAsc(Long tournamentId);
     List<TournamentMatch> findByTournamentIdAndRound(Long tournamentId, Integer round);
+    List<TournamentMatch> findByTournamentIdAndStageOrderByRoundAscPositionAsc(Long tournamentId, String stage);
+    List<TournamentMatch> findByTournamentIdAndStageAndRound(Long tournamentId, String stage, Integer round);
 }

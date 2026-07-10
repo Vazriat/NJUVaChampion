@@ -1,4 +1,4 @@
-﻿# 系统架构与算法文档
+# 系统架构与算法文档
 
 ## 数据库表结构
 
@@ -24,7 +24,7 @@
 | name | VARCHAR(100) UNIQUE | 战队名 |
 | logo | VARCHAR(500) | 队标 URL |
 | description | VARCHAR(500) | 描述 |
-| captain_id | BIGINT | 队长 User ID |
+| captain_id | BIGINT | 队长 User ID（可为 null，管理员可创建无人战队） |
 | status | INT | 1=正常，0=解散 |
 | created_at / updated_at | DATETIME | 时间戳 |
 
@@ -46,8 +46,11 @@
 | name | VARCHAR(100) | 赛事名称 |
 | description | VARCHAR(500) | 描述 |
 | status | VARCHAR(20) | SETUP / REGISTRATION / PROGRESSION / ENDED |
-| max_teams | INT | 最大报名队伍数（默认 2） |
-| bracket_type | VARCHAR(30) | 赛制类型（仅 SINGLE_ELIMINATION） |
+| max_teams | INT | 最大报名队伍数 |
+| bracket_type | VARCHAR(30) | 兼容旧字段，现由 type+format 派生 |
+| type | VARCHAR(10) | CUP / LEAGUE |
+| format | VARCHAR(20) | CUP: SINGLE_ELIM / DOUBLE_ELIM / SWISS_ELIM；LEAGUE: SINGLE_RR / DOUBLE_RR |
+| current_stage | INT | 多阶段赛事当前阶段（null/0/1） |
 | champion_team_id | BIGINT | 冠军战队 ID |
 | status_flag | INT | 1=正常，0=删除（软删） |
 | created_at / updated_at | DATETIME | 时间戳 |
@@ -70,12 +73,14 @@
 |------|------|------|
 | id | BIGINT PK AUTO | 主键 |
 | tournament_id | BIGINT | 赛事 ID |
-| round | INT | 轮次（0=第一轮） |
+| stage | VARCHAR(20) | WINNERS（胜者组）/ LOSERS（败者组）/ GRAND_FINAL（总决赛） |
+| round | INT | 轮次 |
 | position | INT | 本轮中的位置索引 |
 | team1_id | BIGINT | 队伍1 ID |
 | team2_id | BIGINT | 队伍2 ID |
 | winner_id | BIGINT | 胜者 ID |
 | status | VARCHAR(20) | PENDING（待赛）/ COMPLETED（已完成） |
+| games_per_match | INT | 该场比赛局数，默认 1（BO1），在记录胜负时设置 |
 | created_at / updated_at | DATETIME | 时间戳 |
 
 ---

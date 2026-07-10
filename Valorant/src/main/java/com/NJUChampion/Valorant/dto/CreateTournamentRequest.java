@@ -15,7 +15,19 @@ public class CreateTournamentRequest {
     @Size(max = 500, message = "简介不超过500个字符")
     private String description;
 
+    /** CUP / LEAGUE，默认 CUP */
+    private String type = "CUP";
+
+    /**
+     * CUP: SINGLE_ELIM / DOUBLE_ELIM / SWISS_ELIM
+     * LEAGUE: SINGLE_RR / DOUBLE_RR
+     * 默认 SINGLE_ELIM
+     */
+    private String format = "SINGLE_ELIM";
+
     @Min(value = 2, message = "参赛队伍数最少为2")
-    @Max(value = 8, message = "参赛队伍数最多为8")
+    @Max(value = 100, message = "参赛队伍数最多为100")
     private Integer maxTeams = 2;
+
+    /** 每场局数，默认 1（BO1） */
 }
