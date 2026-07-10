@@ -7,4 +7,7 @@ import lombok.Data;
 public class SetMatchWinnerRequest {
     @NotNull(message = "获胜队伍ID不能为空")
     private Long winnerTeamId;
+
+    /** 每场局数 BO1/BO3/BO5，默认 1 */
+    private Integer gamesPerMatch = 1;
 }

@@ -46,7 +46,7 @@ public class TournamentController {
         if (teamId == null) {
             return Result.error(400, "请提供战队ID");
         }
-        tournamentService.unregisterTeam(id, teamId);
+        tournamentService.unregisterTeam(id, teamId, user.getId());
         return Result.success();
     }
 }

@@ -7,6 +7,8 @@ import com.NJUChampion.Valorant.dto.TournamentVO;
 import com.NJUChampion.Valorant.service.TournamentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import java.util.Map;
+import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -36,6 +38,27 @@ public class AdminTournamentController {
                                                 @PathVariable Long matchId,
                                                 @Valid @RequestBody SetMatchWinnerRequest req) {
         return Result.success(tournamentService.setMatchWinner(tournamentId, matchId, req));
+    }
+
+
+    @PostMapping("/{id}/register")
+    public Result<Void> registerTeam(@PathVariable Long id, @RequestBody Map<String, Long> body) {
+        Long teamId = body.get("teamId");
+        if (teamId == null) {
+            return Result.error(400, "请提供战队ID");
+        }
+        tournamentService.registerTeamByAdmin(id, teamId);
+        return Result.success();
+    }
+
+    @PostMapping("/{id}/unregister")
+    public Result<Void> unregisterTeam(@PathVariable Long id, @RequestBody Map<String, Long> body) {
+        Long teamId = body.get("teamId");
+        if (teamId == null) {
+            return Result.error(400, "请提供战队ID");
+        }
+        tournamentService.unregisterTeamByAdmin(id, teamId);
+        return Result.success();
     }
 
     @DeleteMapping("/{id}")

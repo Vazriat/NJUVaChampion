@@ -32,13 +32,31 @@ public class Tournament {
 
     @Column(name = "max_teams", nullable = false)
     @Builder.Default
-    private Integer maxTeams = 8;
+    private Integer maxTeams = 2;
 
     @Column(name = "bracket_type", nullable = false, length = 30)
     @Builder.Default
     private String bracketType = "SINGLE_ELIMINATION";
 
-    @Column(name = "champion_team_id")
+    /** CUP / LEAGUE */
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private String type = "CUP";
+
+    /**
+     * CUP: SINGLE_ELIM / DOUBLE_ELIM / SWISS_ELIM
+     * LEAGUE: SINGLE_RR / DOUBLE_RR
+     */
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private String format = "SINGLE_ELIM";
+
+    /** 多阶段赛事当前阶段（0=瑞士轮, 1=淘汰赛） */
+    @Column(name = "current_stage")
+    private Integer currentStage;
+
+    /** 每场比赛局数（BO1/BO3/BO5），默认 1 */
+@Column(name = "champion_team_id")
     private Long championTeamId;
 
     @Column(nullable = false)

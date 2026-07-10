@@ -126,6 +126,9 @@ export interface TournamentVO {
   status: string;
   maxTeams: number;
   bracketType: string;
+  type: string;
+  format: string;
+  currentStage: number | null;
   registeredCount: number;
   championTeamId: number | null;
   championTeamName: string | null;
@@ -148,6 +151,7 @@ export interface RegisteredTeamInfo {
 
 export interface MatchVO {
   id: number;
+  stage: string;
   round: number;
   position: number;
   team1Id: number | null;
@@ -156,16 +160,17 @@ export interface MatchVO {
   team2Name: string | null;
   winnerId: number | null;
   status: string;
+  gamesPerMatch?: number;
 }
 
 // ====== 管理员赛事接口 ======
 export const adminTournamentApi = {
-  create: (data: { name: string; description?: string; maxTeams?: number }) =>
+  create: (data: { name: string; description?: string; type?: string; format?: string; maxTeams?: number; gamesPerMatch?: number }) =>
     api.post("/admin/tournaments", data),
   publish: (id: number) => api.post(`/admin/tournaments/${id}/publish`),
   start: (id: number) => api.post(`/admin/tournaments/${id}/start`),
-  setMatchWinner: (tournamentId: number, matchId: number, winnerTeamId: number) =>
-    api.put(`/admin/tournaments/${tournamentId}/matches/${matchId}`, { winnerTeamId }),
+  setMatchWinner: (tournamentId: number, matchId: number, winnerTeamId: number, gamesPerMatch?: number) =>
+    api.put(`/admin/tournaments/${tournamentId}/matches/${matchId}`, { winnerTeamId, gamesPerMatch }),
   detail: (id: number) => api.get(`/admin/tournaments/${id}`),
   delete: (id: number) => api.delete(`/admin/tournaments/${id}`),
 };

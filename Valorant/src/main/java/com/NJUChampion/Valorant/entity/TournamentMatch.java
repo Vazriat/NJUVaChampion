@@ -23,6 +23,11 @@ public class TournamentMatch {
     @Column(name = "tournament_id", nullable = false)
     private Long tournamentId;
 
+    /** WINNERS / LOSERS / GRAND_FINAL */
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private String stage = "WINNERS";
+
     @Column(nullable = false)
     private Integer round;
 
@@ -41,6 +46,10 @@ public class TournamentMatch {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String status = "PENDING";
+
+    @Column(name = "games_per_match", nullable = false)
+    @Builder.Default
+    private Integer gamesPerMatch = 1;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

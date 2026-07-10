@@ -147,6 +147,34 @@ public class AdminController {
         return Result.success(m);
     }
 
+
+    @PostMapping("/teams")
+    public Result<Map<String, Object>> createTeam(@RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        if (name == null || name.trim().isEmpty()) {
+            return Result.error(400, "战队名不能为空");
+        }
+        if (teamRepository.existsByName(name.trim())) {
+            return Result.error(400, "战队名已被使用");
+        }
+
+        Team team = Team.builder()
+                .name(name.trim())
+                .description((String) body.get("description"))
+                .logo((String) body.get("logo"))
+                .captainId(0L)
+                .build();
+        team = teamRepository.save(team);
+
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("id", team.getId());
+        m.put("name", team.getName());
+        m.put("description", team.getDescription());
+        m.put("captainId", team.getCaptainId());
+        m.put("status", team.getStatus());
+        return Result.success(m);
+    }
+
     @PutMapping("/teams/{id}")
     public Result<Map<String, Object>> updateTeam(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         Team team = teamRepository.findById(id)

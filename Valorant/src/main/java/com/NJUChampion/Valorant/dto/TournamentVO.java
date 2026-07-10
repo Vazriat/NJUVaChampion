@@ -19,6 +19,9 @@ public class TournamentVO {
     private String status;
     private Integer maxTeams;
     private String bracketType;
+    private String type;
+    private String format;
+    private Integer currentStage;
     private Integer registeredCount;
     private Long championTeamId;
     private String championTeamName;
@@ -36,9 +39,9 @@ public class TournamentVO {
         private Long teamId;
         private String teamName;
         private String teamLogo;
-    private String captainName;
-    private String description;
-    private Integer memberCount;
+        private String captainName;
+        private String description;
+        private Integer memberCount;
         private Integer seed;
         private LocalDateTime registeredAt;
     }
@@ -49,6 +52,7 @@ public class TournamentVO {
     @Builder
     public static class MatchVO {
         private Long id;
+        private String stage;
         private Integer round;
         private Integer position;
         private Long team1Id;
@@ -57,5 +61,6 @@ public class TournamentVO {
         private String team2Name;
         private Long winnerId;
         private String status;
+        private Integer gamesPerMatch;
     }
 }
