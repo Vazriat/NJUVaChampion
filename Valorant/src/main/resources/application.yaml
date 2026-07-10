@@ -1,3 +1,27 @@
+﻿server:
+  port: 8080
+
 spring:
   application:
     name: Valorant
+
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/njuvachampion?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
+    username: root
+    password: ***REMOVED***
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+app:
+  jwt:
+    secret: "NjJhM2I5YzBmMTIzNDU2Nzg5MGFiY2RlZjAxMjM0NTY3ODkwYWJjZGVmMDEyMzQ1Njc4OTBhYmNkZWYwMTIzNA=="
+    expiration-ms: 86400000
+
