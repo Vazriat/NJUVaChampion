@@ -3,13 +3,13 @@
 ## 快速启动
 
 **后端（端口 8080）：**
-`ash
+`bash
 cd Valorant
 mvn spring-boot:run
 `
 
 **前端（端口 3000，/api 代理到后端 8080）：**
-`ash
+`bash
 cd nvc
 npm run dev
 `
@@ -21,16 +21,17 @@ npm run dev
 `
 NJUVaChampion/
 ├── AGENTS.md                <- 开发说明（本文件）
+├── Valorant-OCR-master/      <- Valorant 战绩截图 OCR 识别微服务
 ├── docs/
-│   ├── api.md               <- API 接口文档（所有公开/管理员接口、数据模型、赛制说明）
-│   ├── architecture.md      <- 架构与算法文档（数据库表结构、包结构、对阵图算法、开发细节）
-│   └── todo.md              <- 待做任务清单
+│   ├── api.md               <- API 接口文档（所有公开/管理员接口、数据模型、赛制说明、搜索接口）
+│   ├── architecture.md      <- 架构与算法文档（数据库表结构、包结构、对阵图算法、BracketTree 组件说明、开发细节）
+│   └── todo.md              <- 待做任务清单（任务分类、已完成记录）
 ├── Valorant/                <- Spring Boot 后端（Java 21, Spring Boot 3.4.0）
 │   └── src/main/java/com/NJUChampion/Valorant/
 │       ├── entity/          <- 实体类（User, Team, TeamMember, Tournament, TournamentTeam, TournamentMatch）
 │       ├── repository/      <- JPA Repository
 │       ├── service/         <- 业务逻辑
-│       ├── controller/      <- 接口控制器
+│       ├── controller/      <- 接口控制器（含 SearchController 全局搜索）
 │       ├── dto/             <- 请求/响应 DTO
 │       ├── common/          <- Result<T> 统一响应 + 全局异常处理
 │       ├── config/          <- Security, CORS, JWT 过滤, 数据初始化
@@ -39,7 +40,7 @@ NJUVaChampion/
     ├── app/                 <- 页面（App Router）
     ├── lib/api.ts           <- Axios 实例 + API 函数
     ├── lib/auth.ts          <- Token/User 本地存储
-    └── components/          <- 通用组件
+    └── components/          <- 通用组件（NavBar, AuthGuard, CreateTournamentModal, BracketTree）
 `
 
 ---
@@ -53,6 +54,25 @@ NJUVaChampion/
 | docs/todo.md | 待做任务清单，记录需要完成的开发任务和已知问题 | 发现新任务或完成时更新 |
 
 ---
+
+
+---
+
+## Valorant-OCR 战绩识别模块
+
+Valorant-OCR-master/ 是一个独立的 Node.js OCR 微服务。
+
+| 项目 | 说明 |
+|------|------|
+| 用途 | 识别 Valorant 结算截图（1920x1080），提取每位玩家的 IGN、特工、ACS、KDA、首杀 |
+| 引擎 | PaddleOCR（默认，需 Python 3.9 + Conda），Tesseract.js（fallback） |
+| 运行方式 | CLI：npm run ocr:local ./截图.png；HTTP：npm start（Express，POST /ocr） |
+| 核心文件 | index.js, server.js, paddle-ocr-engine.js, result-parser.js |
+| Python 桥接 | paddle_ocr_bridge.py 通过 stdin/stdout JSON 行协议通信 |
+| 环境要求 | Node.js >= 18, Python 3.9+, Conda, PaddleOCR |
+| 集成方式 | 后端可通过 HTTP 调用 POST /ocr，传入截图 URL 或 Base64 获取比赛数据 |
+
+详细说明见 Valorant-OCR-master/AGENTS.md。
 
 ## 关键业务规则
 
@@ -128,4 +148,3 @@ NJUVaChampion/
 - **AGENTS.md** — 新增业务规则或发现常见错误模式后必须更新
 - **docs/api.md** — 新增/修改 API 接口后必须同步更新
 - **docs/architecture.md** — 修改数据库表结构、算法或项目结构后同步更新
-- **docs/todo.md** — 发现新任务或完成已有任务后同步更新

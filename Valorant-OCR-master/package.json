@@ -1,0 +1,23 @@
+{
+  "name": "valorant-ocr",
+  "version": "2.0.0",
+  "description": "Valorant 结算截图 OCR 识别模块 — 离线版 (Tesseract.js)",
+  "main": "index.js",
+  "dependencies": {
+    "aws-sdk": "^2.677.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "jimp": "^0.10.3",
+    "serverless-offline": "^6.1.5",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test.js",
+    "ocr:local": "node -e \"const fs=require('fs');const {ValorantOcr}=require('./index');new ValorantOcr().parseScreenshot({filePath:process.argv[1]}).then(r=>{const s=JSON.stringify(r.players,null,2);fs.writeFileSync('result.json',JSON.stringify(r,null,2));console.log(s);console.log('\\\\n结果已保存到 result.json');process.exit(0)}).catch(e=>{console.error(e);process.exit(1)})\""
+  },
+  "author": "",
+  "license": "ISC"
+}

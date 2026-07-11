@@ -1,0 +1,249 @@
+{
+  "success": true,
+  "players": [
+    {
+      "name": "zseyuyu",
+      "agent": "暮蝶",
+      "acs": 364,
+      "kda": {
+        "kills": 22,
+        "deaths": 12,
+        "assists": 8
+      },
+      "firstBlood": null
+    },
+    {
+      "name": "Sakura",
+      "agent": "贤者",
+      "acs": 333,
+      "kda": "19/1475",
+      "firstBlood": 2
+    },
+    {
+      "name": "周杰偷",
+      "agent": "不死鸟",
+      "acs": 277,
+      "kda": {
+        "kills": 18,
+        "deaths": 14,
+        "assists": 2
+      },
+      "firstBlood": 3
+    },
+    {
+      "name": "Heathen",
+      "agent": "不死鸟",
+      "acs": 257,
+      "kda": {
+        "kills": 16,
+        "deaths": 14,
+        "assists": 4
+      },
+      "firstBlood": 2
+    },
+    {
+      "name": "Sal",
+      "agent": "斯凯",
+      "acs": 254,
+      "kda": {
+        "kills": 16,
+        "deaths": 12,
+        "assists": 9
+      },
+      "firstBlood": 1
+    },
+    {
+      "name": "我想你可能还不明白",
+      "agent": "贤者",
+      "acs": 250,
+      "kda": {
+        "kills": 17,
+        "deaths": 11,
+        "assists": 3
+      },
+      "firstBlood": 3
+    },
+    {
+      "name": "小笨戈",
+      "agent": "斯凯",
+      "acs": 195,
+      "kda": {
+        "kills": 10,
+        "deaths": 16,
+        "assists": 8
+      },
+      "firstBlood": 4
+    },
+    {
+      "name": "OMG的雷霆万钧",
+      "agent": "捷风",
+      "acs": 175,
+      "kda": {
+        "kills": 9,
+        "deaths": 18,
+        "assists": 5
+      },
+      "firstBlood": 0
+    },
+    {
+      "name": "6228大跌",
+      "agent": "幽影",
+      "acs": 151,
+      "kda": {
+        "kills": 9,
+        "deaths": 16,
+        "assists": 7
+      },
+      "firstBlood": 0
+    },
+    {
+      "name": "农村人爱打瓦",
+      "agent": "捷风",
+      "acs": 100,
+      "kda": {
+        "kills": 7,
+        "deaths": 16,
+        "assists": 3
+      },
+      "firstBlood": 2
+    }
+  ],
+  "columnResults": {
+    "ign": [
+      [
+        "zseyuyu",
+        "暮蝶"
+      ],
+      [
+        "Sakura",
+        "贤者"
+      ],
+      [
+        "周杰偷",
+        "不死鸟"
+      ],
+      [
+        "Heathen",
+        "不死鸟"
+      ],
+      [
+        "Sal",
+        "斯凯"
+      ],
+      [
+        "我想你可能还不明白",
+        "贤者"
+      ],
+      [
+        "小笨戈",
+        "斯凯"
+      ],
+      [
+        "OMG的雷霆万钧",
+        "捷风"
+      ],
+      [
+        "6228大跌",
+        "幽影"
+      ],
+      [
+        "农村人爱打瓦",
+        "捷风"
+      ]
+    ],
+    "acs": [
+      [
+        "364"
+      ],
+      [
+        "333"
+      ],
+      [
+        "277"
+      ],
+      [
+        "257"
+      ],
+      [
+        "254"
+      ],
+      [
+        "250"
+      ],
+      [
+        "195"
+      ],
+      [
+        "175"
+      ],
+      [
+        "151"
+      ],
+      [
+        "100"
+      ]
+    ],
+    "kda": [
+      [
+        "22/12/8"
+      ],
+      [
+        "19/1475"
+      ],
+      [
+        "18/14/2"
+      ],
+      [
+        "16/14/4"
+      ],
+      [
+        "16/12/9"
+      ],
+      [
+        "17/11/3"
+      ],
+      [
+        "10/16/8"
+      ],
+      [
+        "9/18/5"
+      ],
+      [
+        "9/16/7"
+      ],
+      [
+        "7/16/3"
+      ]
+    ],
+    "firstBlood": [
+      [],
+      [
+        "2"
+      ],
+      [
+        "3"
+      ],
+      [
+        "2"
+      ],
+      [
+        "1"
+      ],
+      [
+        "3"
+      ],
+      [
+        "4"
+      ],
+      [
+        "0"
+      ],
+      [
+        "0"
+      ],
+      [
+        "2"
+      ]
+    ]
+  }
+}
