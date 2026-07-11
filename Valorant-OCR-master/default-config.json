@@ -1,0 +1,120 @@
+{
+    "ocr": {
+        "engine": "paddle",
+        "language": "en",
+        "psm": 6
+    },
+    "crop": {
+        "enabled": true,
+        "strategy": "per-player-crop",
+        "targetWidth": 1920,
+        "targetHeight": 1080
+    },
+    "players": {
+        "rowHeight": 53,
+        "rowSpacing": 0,
+        "columns": {
+            "ign": {
+                "enabled": true,
+                "x": 330,
+                "width": 220,
+                "fullY": 320,
+                "fullHeight": 538,
+                "psm": 6,
+                "scale": 3,
+                "yOffset": 5,
+                "height": 45,
+                "language": "ch"
+            },
+            "agent": {
+                "enabled": false,
+                "x": 330,
+                "width": 220,
+                "fullY": 320,
+                "fullHeight": 538,
+                "psm": 6,
+                "scale": 3,
+                "yOffset": 28,
+                "height": 25
+            },
+            "acs": {
+                "enabled": true,
+                "x": 633,
+                "width": 187,
+                "fullY": 320,
+                "fullHeight": 538,
+                "psm": 7,
+                "scale": 3,
+                "charWhitelist": "0123456789",
+                "yOffset": 12,
+                "height": 30
+            },
+            "kda": {
+                "enabled": true,
+                "x": 820,
+                "width": 160,
+                "fullY": 320,
+                "fullHeight": 538,
+                "psm": 7,
+                "scale": 3,
+                "charWhitelist": "0123456789/",
+                "yOffset": 10,
+                "height": 30,
+                "preprocess": "threshold"
+            },
+            "economy": {
+                "enabled": false,
+                "x": 0,
+                "width": 0,
+                "fullY": 0,
+                "fullHeight": 0
+            },
+            "firstBlood": {
+                "enabled": true,
+                "x": 1150,
+                "width": 110,
+                "fullY": 320,
+                "fullHeight": 538,
+                "psm": 7,
+                "scale": 3,
+                "charWhitelist": "0123456789",
+                "yOffset": 12,
+                "height": 30,
+                "preprocess": "threshold"
+            }
+        },
+        "team1": {
+            "startY": 320,
+            "playerCount": 5
+        },
+        "team2": {
+            "startY": 590,
+            "playerCount": 5
+        },
+        "playerCount": 10
+    },
+    "blot": {
+        "blotFile": "./blot.png",
+        "namesMask": [],
+        "scoresMask": []
+    },
+    "debug": {
+        "saveCrops": true,
+        "outputDir": "."
+    },
+    "nameCleaning": {
+        "enabled": true,
+        "removeChars": [
+            "'''",
+            "\"",
+            "`",
+            ",",
+            ".",
+            "|"
+        ]
+    },
+    "server": {
+        "port": 3200,
+        "host": "0.0.0.0"
+    }
+}

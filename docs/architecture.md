@@ -224,3 +224,13 @@ private int[] getSeedOrder(int totalTeams) {
 | CORS | 全局允许所有来源和方法 |
 | 前端代理 | `next.config.ts` 中 `rewrites` 将 `/api/*` 转发到 `http://127.0.0.1:8080/api/*` |
 | UI 风格 | 深色背景 + 紫色/红色/橙色渐变（Valorant 主题），Tailwind CSS v4 |
+
+## 对阵图可视化（BracketTree）
+
+components/BracketTree.tsx 使用纯 CSS 定位绘制对阵图：
+
+- **布局参数**：每场比赛卡片 200×64px，水平间距 72px，垂直间距根据轮次自动计算
+- **对阵线**：使用 ::before / ::after 伪元素绘制连接线（border-left + border-bottom）
+- **轮次标注**：根据比赛数量自动生成标签（1/8决赛、1/4决赛、半决赛、决赛）
+- **双败支持**：区分胜者组/败者组/总决赛，败者组轮次从底部向上计算
+- **可点击**：点击比赛卡片触发 onMatchClick 回调，管理员可记录胜负
