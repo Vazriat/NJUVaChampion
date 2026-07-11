@@ -173,6 +173,12 @@ export const adminTournamentApi = {
     api.put(`/admin/tournaments/${tournamentId}/matches/${matchId}`, { winnerTeamId, gamesPerMatch }),
   detail: (id: number) => api.get(`/admin/tournaments/${id}`),
   delete: (id: number) => api.delete(`/admin/tournaments/${id}`),
+  batchRegister: (id: number, teamIds: number[]) =>
+    api.post(`/admin/tournaments/${id}/batch-register`, { teamIds }),
+};
+
+export const searchApi = {
+  search: (q: string) => api.get("/search", { params: { q } }),
 };
 
 export default api;

@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface TournamentRepository extends JpaRepository<Tournament, Long> {
     List<Tournament> findAllByOrderByCreatedAtDesc();
+    List<Tournament> findByNameContainingIgnoreCaseOrderByCreatedAtDesc(String keyword);
 }

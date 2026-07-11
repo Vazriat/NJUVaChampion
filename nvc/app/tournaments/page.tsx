@@ -26,6 +26,7 @@ export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState<TournamentVO[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [searchQuery, setSearchQuery] = useState("");
   useEffect(() => {
     if (!isLoggedIn()) {
       router.replace("/login");
@@ -42,12 +43,19 @@ export default function TournamentsPage() {
     <div className="min-h-screen bg-zinc-950 text-white">
       <NavBar />
       <main className="mx-auto max-w-4xl px-8 py-10">
-        <h2 className="mb-8 text-2xl font-bold">赛事中心</h2>
+        <h2 className="mb-4 text-2xl font-bold">赛事中心</h2>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜索赛事...输入赛事名搜索"
+          className="mb-6 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-red-500"
+        />
 
         {loading && <p className="text-zinc-500">加载中...</p>}
 
         <div className="space-y-4">
-          {tournaments.map((t) => (
+          {tournaments.filter(t => searchQuery === "" || t.name.toLowerCase().includes(searchQuery.toLowerCase())).map((t) => (
             <Link
               key={t.id}
               href={`/tournaments/${t.id}`}

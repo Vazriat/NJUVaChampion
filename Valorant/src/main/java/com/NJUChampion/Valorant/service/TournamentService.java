@@ -361,8 +361,17 @@ public class TournamentService {
 
                 // Drop loser to LB
                 int lbRound = round;
-                int lbPos = pos / 2;
-                boolean isFirstTeamInLB = pos % 2 == 0;
+                int lbPos;
+                boolean isFirstTeamInLB;
+                if (round == 0) {
+                    // WB R0 -> LB R0: pair adjacent positions (half the WB R0 matches)
+                    lbPos = pos / 2;
+                    isFirstTeamInLB = pos % 2 == 0;
+                } else {
+                    // WB R1+ -> LB R1+: cross to other half, always team2
+                    lbPos = 1 - pos;
+                    isFirstTeamInLB = false;
+                }
                 fillMatchSlot(tournamentId, "LOSERS", lbRound, lbPos, isFirstTeamInLB, loserId);
             }
         } else if ("LOSERS".equals(stage)) {
@@ -374,13 +383,21 @@ public class TournamentService {
                 fillMatchSlot(tournamentId, "GRAND_FINAL", 0, 0, false, winnerId);
             } else {
                 // Determine next LB round & position
-                // For 4 teams: LB0(pos0) → LB1(pos0) as team1
-                // For 8 teams: LB0(pos0) → LB1(pos0) team1, LB0(pos1) → LB1(pos1) team1
-                //              LB1(pos0) → LB2(pos0) team1, LB1(pos1) → LB2(pos0) team2
                 int nextRound = round + 1;
-                int nextPos = pos / 2;
-                boolean isFirst = pos % 2 == 0;
-                fillMatchSlot(tournamentId, "LOSERS", nextRound, nextPos, isFirst, winnerId);
+
+                // Count matches in current and next round to determine mapping
+                long currMatchCount = tournamentMatchRepository
+                    .findByTournamentIdAndStageAndRound(tournamentId, stage, round).size();
+                long nextMatchCount = tournamentMatchRepository
+                    .findByTournamentIdAndStageAndRound(tournamentId, stage, nextRound).size();
+
+                if (nextMatchCount == currMatchCount) {
+                    // Same number of matches -> 1:1 mapping (pos stays same, always team1)
+                    fillMatchSlot(tournamentId, "LOSERS", nextRound, pos, true, winnerId);
+                } else {
+                    // Fewer matches -> merge (pos/2, team1 for even, team2 for odd)
+                    fillMatchSlot(tournamentId, "LOSERS", nextRound, pos / 2, pos % 2 == 0, winnerId);
+                }
             }
         } else if ("GRAND_FINAL".equals(stage)) {
             tournament.setChampionTeamId(winnerId);
@@ -501,6 +518,34 @@ public class TournamentService {
         TournamentTeam tt = tournamentTeamRepository.findByTournamentIdAndTeamId(tournamentId, teamId)
                 .orElseThrow(() -> new IllegalArgumentException("该战队未报名"));
         tournamentTeamRepository.delete(tt);
+    }
+
+    @Transactional
+    public void batchRegisterTeamByAdmin(Long tournamentId, List<Long> teamIds) {
+        Tournament tournament = getTournament(tournamentId);
+        if (!"REGISTRATION".equals(tournament.getStatus()) && !"SETUP".equals(tournament.getStatus())) {
+            throw new IllegalArgumentException("当前状态不允许添加队伍");
+        }
+
+        long count = tournamentTeamRepository.countByTournamentId(tournamentId);
+        if (count + teamIds.size() > tournament.getMaxTeams()) {
+            throw new IllegalArgumentException("参赛队伍名额不足，剩余 " + (tournament.getMaxTeams() - count) + " 个");
+        }
+
+        int seed = (int) count + 1;
+        for (Long teamId : teamIds) {
+            Team team = teamRepository.findById(teamId)
+                    .orElseThrow(() -> new IllegalArgumentException("战队不存在: " + teamId));
+            if (tournamentTeamRepository.findByTournamentIdAndTeamId(tournamentId, teamId).isPresent()) {
+                continue;
+            }
+            TournamentTeam tt = TournamentTeam.builder()
+                    .tournamentId(tournamentId)
+                    .teamId(teamId)
+                    .seed(seed++)
+                    .build();
+            tournamentTeamRepository.save(tt);
+        }
     }
 
 

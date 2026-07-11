@@ -51,6 +51,16 @@ public class AdminTournamentController {
         return Result.success();
     }
 
+    @PostMapping("/{id}/batch-register")
+    public Result<Void> batchRegisterTeam(@PathVariable Long id, @RequestBody Map<String, List<Long>> body) {
+        List<Long> teamIds = body.get("teamIds");
+        if (teamIds == null || teamIds.isEmpty()) {
+            return Result.error(400, "请提供战队ID列表");
+        }
+        tournamentService.batchRegisterTeamByAdmin(id, teamIds);
+        return Result.success();
+    }
+
     @PostMapping("/{id}/unregister")
     public Result<Void> unregisterTeam(@PathVariable Long id, @RequestBody Map<String, Long> body) {
         Long teamId = body.get("teamId");

@@ -12,6 +12,7 @@ export default function HallPage() {
   const [users, setUsers] = useState<UserVO[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [searchQuery, setSearchQuery] = useState("");
   useEffect(() => {
     if (!isLoggedIn()) {
       router.replace("/login");
@@ -28,13 +29,20 @@ export default function HallPage() {
     <div className="min-h-screen bg-zinc-950 text-white">
       <NavBar />
       <main className="mx-auto max-w-4xl px-8 py-10">
-        <h2 className="mb-8 text-2xl font-bold">用户大厅</h2>
+        <h2 className="mb-4 text-2xl font-bold">用户大厅</h2>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜索用户...输入用户名搜索"
+          className="mb-6 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-red-500"
+        />
 
         {loading && <p className="text-zinc-500">加载中...</p>}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {users
-            .filter((u) => u.status === 1)
+            .filter((u) => u.status === 1 && (searchQuery === "" || u.username.toLowerCase().includes(searchQuery.toLowerCase()) || (u.displayGameId || "").toLowerCase().includes(searchQuery.toLowerCase())))
             .map((u) => (
               <Link
                 key={u.id}
