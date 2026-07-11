@@ -10,13 +10,17 @@
         "deaths": 12,
         "assists": 8
       },
-      "firstBlood": null
+      "firstBlood": 1
     },
     {
       "name": "Sakura",
       "agent": "贤者",
       "acs": 333,
-      "kda": "19/1475",
+      "kda": {
+        "kills": 19,
+        "deaths": 14,
+        "assists": 5
+      },
       "firstBlood": 2
     },
     {
