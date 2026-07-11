@@ -76,7 +76,7 @@ class ResultParser {
           case 'firstBlood': {
             const raw = allLines[pi] || '';
             const nums = raw.replace(/[^0-9]/g, '');
-            player.firstBlood = nums ? parseInt(nums, 10) : null;
+            player.firstBlood = nums ? parseInt(nums, 10) : 1;
             break;
           }
           default:
@@ -141,11 +141,44 @@ class ResultParser {
             if (parts) {
               player.kda = { kills: parseInt(parts[1]), deaths: parseInt(parts[2]), assists: parseInt(parts[3]) };
             } else {
-              // 尝试纯数字提取
-              const nums = rawText.replace(/[^0-9]/g, '');
-              if (nums.length >= 3) {
-                player.kda = rawText;
+              // 智能兜底：OCR 有时把 "/" 识别成 "7"
+              // 尝试用 "7" 或 "/" 分割
+              const tokens = rawText.split(/[\/7\s]+/).filter(t => t.length > 0 && /^\d+$/.test(t));
+              if (tokens.length >= 3) {
+                const k = parseInt(tokens[0]), d = parseInt(tokens[1]), a = parseInt(tokens[2]);
+                if (!isNaN(k) && !isNaN(d) && !isNaN(a)) {
+                  player.kda = { kills: k, deaths: d, assists: a };
+                  break;
+                }
               }
+              // 最后手段：纯数字串按位数拆分 + 合理性评分
+              const allNums = rawText.replace(/[^0-9]/g, '');
+              let bestKda = null;
+              let bestScore = Infinity;
+              if (allNums.length >= 3) {
+                for (let kl = 1; kl <= 2; kl++) {
+                  for (let dl = 1; dl <= 2; dl++) {
+                    for (let al = 1; al <= 2; al++) {
+                      if (kl + dl + al !== allNums.length) continue;
+                      const k = parseInt(allNums.substring(0, kl));
+                      const d = parseInt(allNums.substring(kl, kl + dl));
+                      const a = parseInt(allNums.substring(kl + dl));
+                      // 评分：越低越好，超过30的每个值+100惩罚
+                      let score = 0;
+                      if (k > 30) score += 100;
+                      if (d > 30) score += 100;
+                      if (a > 30) score += 100;
+                      score += k + d + a; // 总值低更合理
+                      if (score < bestScore) {
+                        bestScore = score;
+                        bestKda = { kills: k, deaths: d, assists: a };
+                      }
+                    }
+                  }
+                }
+              }
+              if (bestKda) player.kda = bestKda;
+              else player.kda = rawText;
             }
             break;
           }
@@ -156,7 +189,7 @@ class ResultParser {
           }
           case 'firstBlood': {
             const nums = rawText.replace(/[^0-9]/g, '');
-            player.firstBlood = nums ? parseInt(nums, 10) : null;
+            player.firstBlood = nums ? parseInt(nums, 10) : 1;
             break;
           }
           default:
