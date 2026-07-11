@@ -13,6 +13,7 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [searchQuery, setSearchQuery] = useState("");
   useEffect(() => {
     if (!isLoggedIn()) {
       router.replace("/login");
@@ -38,12 +39,19 @@ export default function TeamsPage() {
             + 创建战队
           </Link>
         </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜索战队...输入战队名搜索"
+          className="mb-6 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-red-500"
+        />
 
         {loading && <p className="text-zinc-500">加载中...</p>}
         {error && <p className="text-red-400">{error}</p>}
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {teams.map((team) => (
+          {teams.filter(team => searchQuery === "" || team.name.toLowerCase().includes(searchQuery.toLowerCase())).map((team) => (
             <Link
               key={team.id}
               href={`/teams/${team.id}`}

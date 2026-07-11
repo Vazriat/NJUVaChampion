@@ -53,8 +53,8 @@ export default function RegisterPage() {
             <label className="mb-1 block text-sm text-zinc-400">游戏 ID</label>
             <input type="text" value={form.gameId} onChange={(e) => setForm({ ...form, gameId: e.target.value })}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-white outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-              placeholder="主体#标记码，例如：玩家#1234（选填）" />
-            <p className="mt-1 text-xs text-zinc-600">1-8位主体 + # + 4-5位数字标记码</p>
+              placeholder="选填" />
+            <p className="mt-1 text-xs text-zinc-600">1-8位ID + # + 4-5位数字标记码</p>
           </div>
           <div>
             <label className="mb-1 block text-sm text-zinc-400">密码 *</label>
