@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import json
 import base64
 import tempfile
@@ -10,7 +10,6 @@ from paddleocr import PaddleOCR
 def main():
     ocr = None
 
-    # Simple stdin line reading with BOM handling
     for raw_line in sys.stdin:
         line = raw_line.strip().lstrip('\ufeff')
         if not line:
@@ -64,12 +63,17 @@ def main():
                     if result and isinstance(result, list) and len(result) > 0 and result[0]:
                         for block in result[0]:
                             if isinstance(block, (list, tuple)) and len(block) == 2:
+                                box = block[0]
                                 text_info = block[1]
                                 if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
-                                    texts.append({
+                                    entry = {
                                         'text': str(text_info[0]),
                                         'confidence': float(text_info[1])
-                                    })
+                                    }
+                                    # 添加 bounding box
+                                    if isinstance(box, list) and len(box) == 4:
+                                        entry['box'] = [[int(p[0]), int(p[1])] for p in box]
+                                    texts.append(entry)
                     results.append(texts)
                 except Exception as e:
                     results.append([{'text': '', 'confidence': 0.0}])

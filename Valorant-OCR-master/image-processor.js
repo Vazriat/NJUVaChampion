@@ -1,23 +1,37 @@
-'use strict';
+﻿'use strict';
 
 const jimp = require('jimp');
 
-/**
- * 图片处理器 — 裁剪
- */
 class ImageProcessor {
   constructor(cropConfig, blotConfig, playersConfig) {
     this.cropConfig = cropConfig;
     this.blotConfig = blotConfig;
     this.playersConfig = playersConfig;
     this.strategy = (cropConfig && cropConfig.strategy) || 'blot';
+    this.dynamicRegion = null;
+    this.mappedColumns = null;
   }
 
-  async process(imageBuffer) {
+  setDynamicRegion(region) {
+    this.dynamicRegion = region;
+  }
+
+  setMappedColumns(mapped) {
+    this.mappedColumns = mapped;
+  }
+
+  async process(imageBuffer, dynamicRegion) {
     const image = await jimp.read(imageBuffer);
     const actualW = image.bitmap.width;
     const actualH = image.bitmap.height;
 
+    if (dynamicRegion && dynamicRegion.detected) {
+      this.dynamicRegion = dynamicRegion;
+    }
+
+    if (this.strategy === 'row-wise') {
+      return this._processRowWise(image, actualW, actualH);
+    }
     if (this.strategy === 'full-column') {
       return this._processFullColumn(image, actualW, actualH);
     }
@@ -28,6 +42,35 @@ class ImageProcessor {
       return this._processColumnCrop(image, actualW, actualH);
     }
     return this._processBlot(image, actualW, actualH);
+  }
+
+  // 新增：行式裁剪 - 每行裁剪一整条（包含所有列）
+  async _processRowWise(image, actualW, actualH) {
+    if (!this.dynamicRegion || !this.mappedColumns) {
+      throw new Error('row-wise strategy requires dynamicRegion and mappedColumns');
+    }
+
+    const rows = [];
+    for (let ri = 0; ri < this.dynamicRegion.rowCount; ri++) {
+      const y = this.dynamicRegion.dataStart + ri * this.dynamicRegion.rowHeight;
+      // 从 dataLeft 到 dataRight 裁剪整行
+      const cropX = this.dynamicRegion.dataLeft;
+      const cropW = this.dynamicRegion.dataWidth;
+      const cropH = this.dynamicRegion.rowHeight;
+
+      const rowImg = image.clone().crop(cropX, y, cropW, cropH);
+      const buf = await rowImg.getBufferAsync(jimp.MIME_PNG);
+
+      rows.push({
+        buffer: buf,
+        rowIndex: ri,
+        team: ri < 5 ? 0 : 1,
+        playerIndex: ri % 5
+      });
+    }
+
+    console.log('[processor] 行式裁剪: ' + rows.length + ' 行');
+    return { rows, mappedColumns: this.mappedColumns };
   }
 
   async _processFullColumn(image, actualW, actualH) {
@@ -61,7 +104,6 @@ class ImageProcessor {
 
       const buf = await crop.getBufferAsync(jimp.MIME_PNG);
       result[colName] = [buf];
-      console.log('[processor] 列 ' + colName + ': 整列裁剪完成');
 
       if (process.env.DEBUG_SAVE) {
         await crop.writeAsync('debug-' + colName + '-full.png');
@@ -81,15 +123,28 @@ class ImageProcessor {
     const needsScale = (actualW !== targetWidth || actualH !== targetHeight);
 
     const playerYs = [];
-    for (let t = 0; t < 2; t++) {
-      const team = t === 0 ? team1 : team2;
-      if (!team) continue;
-      for (let pi = 0; pi < team.playerCount; pi++) {
-        const y = team.startY + pi * (rowHeight + rowSpacing);
+    if (this.dynamicRegion) {
+      for (let pi = 0; pi < this.dynamicRegion.rowCount; pi++) {
+        const y = this.dynamicRegion.dataStart + pi * this.dynamicRegion.rowHeight;
+        const team = pi < 5 ? 0 : 1;
+        const playerIdx = pi % 5;
         if (needsScale) {
-          playerYs.push({ y: Math.round(y * scaleY), teamIndex: t, playerIndex: pi });
+          playerYs.push({ y: Math.round(y * scaleY), teamIndex: team, playerIndex: playerIdx, absoluteIndex: pi });
         } else {
-          playerYs.push({ y, teamIndex: t, playerIndex: pi });
+          playerYs.push({ y, teamIndex: team, playerIndex: playerIdx, absoluteIndex: pi });
+        }
+      }
+    } else {
+      for (let t = 0; t < 2; t++) {
+        const team = t === 0 ? team1 : team2;
+        if (!team) continue;
+        for (let pi = 0; pi < team.playerCount; pi++) {
+          const y = team.startY + pi * (rowHeight + rowSpacing);
+          if (needsScale) {
+            playerYs.push({ y: Math.round(y * scaleY), teamIndex: t, playerIndex: pi });
+          } else {
+            playerYs.push({ y, teamIndex: t, playerIndex: pi });
+          }
         }
       }
     }
@@ -100,26 +155,47 @@ class ImageProcessor {
     for (const [colName, col] of enabledColumns) {
       result[colName] = [];
       for (const p of playerYs) {
-        let cx = col.x;
-        let cw = col.width;
-        let cy = p.y + col.yOffset;
-        let ch = col.height;
+        let cx;
+        let cw;
+        if (this.mappedColumns && this.mappedColumns[colName]) {
+          cx = this.mappedColumns[colName].x;
+          cw = this.mappedColumns[colName].width;
+        } else {
+          cx = col.x;
+          cw = col.width;
+          if (needsScale) {
+            cx = Math.round(cx * scaleX);
+            cw = Math.round(cw * scaleX);
+          }
+        }
 
-        if (needsScale) {
-          cx = Math.round(cx * scaleX);
-          cw = Math.round(cw * scaleX);
-          cy = Math.round(cy * scaleY);
-          ch = Math.round(ch * scaleY);
+        let cy;
+        if (this.dynamicRegion && col.yOffsetFactor != null) {
+          cy = p.y + Math.round(this.dynamicRegion.rowHeight * col.yOffsetFactor);
+        } else {
+          cy = p.y + col.yOffset;
+        }
+
+        let ch;
+        if (this.dynamicRegion && col.heightFactor != null) {
+          ch = Math.round(this.dynamicRegion.rowHeight * col.heightFactor);
+        } else {
+          ch = col.height;
+        }
+
+        if (needsScale && !this.mappedColumns) {
+          if (!this.dynamicRegion) {
+            cy = Math.round(cy * scaleY);
+            ch = Math.round(ch * scaleY);
+          }
         }
 
         const crop = image.clone().crop(cx, cy, cw, ch);
         const scale = col.scale || 3;
         crop.scale(scale);
 
-        // 列级预处理：adaptive threshold 提升白字对比度
         if (col.preprocess === 'threshold') {
           crop.greyscale();
-          // Otsu 阈值计算
           const hist = new Array(256).fill(0);
           let totalPixels = 0;
           crop.scan(0, 0, crop.bitmap.width, crop.bitmap.height, (x, y, idx) => {
@@ -145,7 +221,6 @@ class ImageProcessor {
               threshold = t;
             }
           }
-          // 应用二值化：高于阈值→白(255)，低于→黑(0)
           crop.scan(0, 0, crop.bitmap.width, crop.bitmap.height, (x, y, idx) => {
             const v = crop.bitmap.data[idx];
             crop.bitmap.data[idx] = crop.bitmap.data[idx + 1] = crop.bitmap.data[idx + 2] = (v > threshold) ? 255 : 0;
@@ -154,17 +229,6 @@ class ImageProcessor {
 
         const buf = await crop.getBufferAsync(jimp.MIME_PNG);
         result[colName].push(buf);
-      }
-      console.log(`[processor] 列 ${colName}: 裁剪 ${result[colName].length} 个球员区域`);
-    }
-
-    const saveCrops = process.env.DEBUG_SAVE ? true : false;
-    if (saveCrops) {
-      for (const [colName, bufs] of Object.entries(result)) {
-        for (let i = 0; i < bufs.length; i++) {
-          const img = await jimp.read(bufs[i]);
-          await img.writeAsync(`debug-${colName}-player${i}.png`);
-        }
       }
     }
 
@@ -186,7 +250,6 @@ class ImageProcessor {
       nw = Math.round(nw * scaleX); nh = Math.round(nh * scaleY);
       sx = Math.round(sx * scaleX); sy = Math.round(sy * scaleY);
       sw = Math.round(sw * scaleX); sh = Math.round(sh * scaleY);
-      console.log(`[processor] 截图尺寸 ${actualW}x${actualH} 与目标 ${targetWidth}x${targetHeight} 不同，已缩放`);
     }
 
     const namesImg = image.clone().crop(nx, ny, nw, nh);

@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { spawn } = require('child_process');
 const path = require('path');
@@ -78,7 +78,8 @@ class PaddleOcrEngine {
 
   _detectPython() {
     const candidates = [
-      path.join(os.homedir(), '.conda', 'envs', 'valorant-ocr', 'python.exe'),
+        path.join(os.homedir(), '.conda', 'envs', 'valorant-ocr', 'python.exe'),
+        path.join(os.homedir(), 'anaconda3', 'envs', 'valorant-ocr', 'python.exe'),
       'python3',
       'python',
     ];
@@ -135,6 +136,7 @@ class PaddleOcrEngine {
     return this._sendToState(state, msg);
   }
 
+  // 原有：只返回文字
   async recognize(imageBuffer, params) {
     const lang = (params && params.language) || this.defaultLanguage;
     await this._ensureProcess(lang);
@@ -150,16 +152,37 @@ class PaddleOcrEngine {
     }
   }
 
+  // 原有：批量识别（只返回文字）
   async recognizeAll(imageBuffers, columnName) {
     const lang = (columnName && this.columnLanguages && this.columnLanguages[columnName])
       ? this.columnLanguages[columnName] : this.defaultLanguage;
-    console.log('[ocr-engine] 列 ' + columnName + ' 使用语言: ' + lang);
+    console.log('[ocr-engine] ' + columnName + ' 使用语言: ' + lang);
     await this._ensureProcess(lang);
     const tmpPaths = imageBuffers.map(buf => this._saveTemp(buf));
     try {
       const resp = await this._send({ action: 'recognize', images: tmpPaths }, lang);
       if (resp && resp.status === 'ok' && resp.results) {
         return resp.results.map(r => r.map(t => t.text).filter(t => t));
+      }
+      return imageBuffers.map(() => []);
+    } finally {
+      for (const p of tmpPaths) {
+        try { fs.unlinkSync(p); } catch (_) {}
+      }
+    }
+  }
+
+  // 新增：识别整行图片，返回 [{text, confidence, box}]
+  // 每个子图独立识别（用 ch 语言，支持中英文混排）
+  async recognizeRows(imageBuffers) {
+    const lang = 'ch';
+    console.log('[ocr-engine] 行识别 使用语言: ' + lang);
+    await this._ensureProcess(lang);
+    const tmpPaths = imageBuffers.map(buf => this._saveTemp(buf));
+    try {
+      const resp = await this._send({ action: 'recognize', images: tmpPaths }, lang);
+      if (resp && resp.status === 'ok' && resp.results) {
+        return resp.results; // 返回完整 [{text, confidence, box}]
       }
       return imageBuffers.map(() => []);
     } finally {

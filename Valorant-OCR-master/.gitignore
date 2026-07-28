@@ -4,3 +4,15 @@ jspm_packages
 
 # Serverless directories
 .serverless
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated output
+result/
+result.json
+debug-*.png
+
+# Large binary (Tesseract data, download on setup)
+eng.traineddata
