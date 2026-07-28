@@ -60,19 +60,130 @@ NJUVaChampion/
 
 ## Valorant-OCR 战绩识别模块
 
-Valorant-OCR-master/ 是一个独立的 Node.js OCR 微服务。
+Valorant-OCR-master/ 是一个独立的 Node.js OCR 微服务，用于识别 Valorant 结算截图（1920×1080），提取每位玩家的 IGN、特工、ACS、KDA、首杀。
 
-| 项目 | 说明 |
+### 环境要求
+
+| 依赖 | 版本要求 | 用途 |
+|------|---------|------|
+| Node.js | >= 18 LTS | 运行 OCR 主程序 |
+| Python | 3.9 - 3.10 | PaddleOCR 引擎 |
+| Conda | 任意版本 | 管理 Python 虚拟环境 |
+
+### 完整安装步骤
+
+**步骤 1：创建 Conda 环境**
+
+```powershell
+conda create -n valorant-ocr python=3.10 -y
+```
+
+> 如果 `conda create` 遇到权限错误，可执行：
+> ```powershell
+> conda config --remove-key envs_dirs
+> conda config --add envs_dirs C:\Users\%USERNAME%\.conda\envs
+> ```
+
+**步骤 2：安装 PaddlePaddle + PaddleOCR**
+
+```powershell
+# 注意：必须先装 paddlepaddle，再装 paddleocr
+conda run -n valorant-ocr pip install paddlepaddle==2.6.2
+conda run -n valorant-ocr pip install paddleocr==2.8.1
+```
+
+**步骤 3：下载中文 OCR 模型**
+
+```powershell
+# 首次运行会自动下载模型到 C:\Users\%USERNAME%\.paddlex\official_models\
+conda run -n valorant-ocr python -c "from paddleocr import PaddleOCR; PaddleOCR(lang='ch')"
+```
+
+> 首次下载约 6 个模型文件（~200MB），后续复用缓存。
+
+**步骤 4：安装 Node.js 依赖**
+
+```powershell
+cd Valorant-OCR-master
+npm install
+```
+
+> 如果遇到 npm EPERM 权限错误，使用不同缓存目录重试：
+> ```powershell
+> npm config set cache <其他可写路径>
+> npm install
+> ```
+
+### 运行方式
+
+**本地识别单张截图：**
+
+```powershell
+cd Valorant-OCR-master
+npm run ocr:local ./截图.png
+# 结果打印到控制台 + 自动保存到 result.json
+```
+
+**启动 HTTP 服务（端口 3200）：**
+
+```powershell
+cd Valorant-OCR-master
+npm start
+```
+
+**HTTP API：**
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `GET /health` | GET | 健康检查 |
+| `POST /ocr` | POST | 传入截图，返回识别结果 |
+
+`POST /ocr` 请求体（四选一）：
+```json
+{ "url": "https://example.com/screenshot.png" }
+{ "filePath": "C:/screenshots/game.png" }
+{ "base64": "iVBORw0KGgo..." }
+```
+
+### 输出格式
+
+```json
+{
+  "success": true,
+  "players": [
+    { "name": "爱已围城", "agent": "猎枭", "acs": 286,
+      "kda": { "kills": 19, "deaths": 7, "assists": 4 }, "firstBlood": 3 }
+  ]
+}
+```
+
+### 引擎配置
+
+编辑 `Valorant-OCR-master/default-config.json`，`ocr.engine` 可选：
+
+- `"paddle"`（默认）— PaddleOCR，推荐，准确率高
+- `"tesseract"` — Tesseract.js，纯 JS 无需 Python
+
+IGN 列自动走中文模型，数字列（ACS/KDA/首杀）自动走英文模型。
+
+### 关键文件说明
+
+| 文件 | 说明 |
 |------|------|
-| 用途 | 识别 Valorant 结算截图（1920x1080），提取每位玩家的 IGN、特工、ACS、KDA、首杀 |
-| 引擎 | PaddleOCR（默认，需 Python 3.9 + Conda），Tesseract.js（fallback） |
-| 运行方式 | CLI：npm run ocr:local ./截图.png；HTTP：npm start（Express，POST /ocr） |
-| 核心文件 | index.js, server.js, paddle-ocr-engine.js, result-parser.js |
-| Python 桥接 | paddle_ocr_bridge.py 通过 stdin/stdout JSON 行协议通信 |
-| 环境要求 | Node.js >= 18, Python 3.9+, Conda, PaddleOCR |
-| 集成方式 | 后端可通过 HTTP 调用 POST /ocr，传入截图 URL 或 Base64 获取比赛数据 |
+| `paddle_ocr_bridge.py` | Python 子进程，stdin/stdout JSON 行协议通信 |
+| `paddle-ocr-engine.js` | PaddleOCR 引擎封装，管理多语言子进程 |
+| `index.js` | ValorantOcr 主类，编排裁剪→识别→解析 |
+| `image-processor.js` | 图片裁剪 + Otsu 二值化预处理 |
+| `result-parser.js` | OCR 结果解析，提取 IGN/Agent/ACS/KDA/首杀 |
+| `server.js` | Express 服务入口 |
 
-详细说明见 Valorant-OCR-master/AGENTS.md。
+### 注意事项
+
+- PaddleOCR 首次模型加载需 ~10-15s，后续复用子进程
+- 截图建议 1920×1080，非此尺寸自动缩放裁剪坐标
+- 设置 `$env:DEBUG_SAVE='true'` 可输出调试裁剪图
+- 默认端口 3200，可在 `default-config.json` 中修改
+- `result.json` 为最近一次识别输出，不纳入版本控制
 
 ## 关键业务规则
 
