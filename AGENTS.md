@@ -14,6 +14,15 @@ cd nvc
 npm run dev
 ```
 
+**OCR 服务（端口 3200）— 需单独启动：**
+`ash
+cd Valorant-OCR-master
+npm start
+`
+服务启动后显示 Valorant OCR 服务已启动: http://0.0.0.0:3200。
+在管理后台记录比赛结果时上传截图会自动调用 OCR 识别选手数据；
+如果 OCR 服务未启动，可跳过截图手动输入。
+
 ## 开发规范
 
 - Java 21, TypeScript 5, 包名 com.NJUChampion.Valorant.*

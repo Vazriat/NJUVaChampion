@@ -242,62 +242,10 @@ public class TournamentService {
             }
         }
 
-        int totalWBRounds = getTotalRounds(totalTeams);     // e.g. 4 teams → 2 rounds, 8 teams → 3 rounds
-        int totalLBRounds = totalWBRounds;                  // same number of rounds in LB
-
-        // --- Winners Bracket ---
-        int wbR0matches = totalTeams / 2;
-        for (int pos = 0; pos < wbR0matches; pos++) {
-            saveMatch(tournamentId, "WINNERS", 0, pos, seededTeamIds.get(pos * 2), seededTeamIds.get(pos * 2 + 1));
-        }
-        for (int round = 1; round < totalWBRounds; round++) {
-            int matchesInRound = totalTeams / (int) Math.pow(2, round + 1);
-            for (int pos = 0; pos < matchesInRound; pos++) {
-                saveMatch(tournamentId, "WINNERS", round, pos, null, null);
-            }
-        }
-
-        // --- Losers Bracket ---
-        // LB R0: pairs of losers from WB R0
-        int lbR0matches = wbR0matches / 2;
-        for (int pos = 0; pos < lbR0matches; pos++) {
-            saveMatch(tournamentId, "LOSERS", 0, pos, null, null);
-        }
-
-        // LB R1~R(last-1): winner of prev LB round vs loser of corresponding WB round
-        // For 4 teams: LB R1 only (totalLBRounds-1 = 1)
-        // For 8 teams: LB R1, LB R2 (totalLBRounds-1 = 2)
-        for (int round = 1; round < totalLBRounds; round++) {
-            int matchesThisRound;
-            if (round == totalLBRounds - 1) {
-                // Last LB round before GF: single match (winner vs loser of WB final)
-                matchesThisRound = 1;
-            } else {
-                // Intermediate LB rounds: half as many as previous
-                matchesThisRound = lbR0matches / (int) Math.pow(2, round - 1);
-                // For 8 teams: LB R0=2, LB R1=2, LB R2=1
-                // Actually let me recalculate...
-            }
-            // Simpler approach: same pattern as WB but for LB
-            // 4 teams: LB R0=1 match, LB R1=1 match
-            // 8 teams: LB R0=2, LB R1=2, LB R2=1, LB R3=1
-            if (round < totalLBRounds - 1) {
-                int prevMatches = (int) Math.pow(2, totalLBRounds - 2 - round);
-                // Hmm this is getting complicated. Let me just hardcode for 4 and 8.
-            }
-        }
-
-        // Actually, let me take a cleaner approach by calculating the LB structure explicitly.
-
-        // Clear any matches we might have created above and regenerate.
-        tournamentMatchRepository.findByTournamentIdOrderByRoundAscPositionAsc(tournamentId)
-                .forEach(m -> tournamentMatchRepository.delete(m));
-
-        // Regenerate from scratch with explicit structure
-        _generateDoubleElimBracket(tournamentId, totalTeams, seededTeamIds);
+        generateDoubleElimBracketInternal(tournamentId, totalTeams, seededTeamIds);
     }
 
-    private void _generateDoubleElimBracket(Long tournamentId, int totalTeams, List<Long> seededTeamIds) {
+    private void generateDoubleElimBracketInternal(Long tournamentId, int totalTeams, List<Long> seededTeamIds) {
         if (totalTeams == 4) {
             // WB R0 (2 matches): seed1v4, seed2v3
             saveMatch(tournamentId, "WINNERS", 0, 0, seededTeamIds.get(0), seededTeamIds.get(3));
@@ -403,6 +351,20 @@ public class TournamentService {
             tournament.setChampionTeamId(winnerId);
             tournament.setStatus("ENDED");
             tournamentRepository.save(tournament);
+        }
+    }
+
+
+    /**
+     * Called by MatchService after a match winner is determined via game recording.
+     * Triggers bracket progression logic (single elim / double elim).
+     */
+    @Transactional
+    public void processCompletedMatch(Tournament tournament, TournamentMatch match) {
+        if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
+            handleDoubleElimMatchResult(tournament, match);
+        } else if ("SINGLE_ELIM".equals(tournament.getFormat())) {
+            handleSingleElimMatchResult(tournament, match);
         }
     }
 

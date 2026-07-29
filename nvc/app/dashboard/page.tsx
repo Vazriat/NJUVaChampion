@@ -110,6 +110,12 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold group-hover:text-red-400">赛事中心</h3>
             <p className="mt-1 text-sm text-zinc-500">浏览赛事、报名参赛、查看对阵</p>
           </Link>
+
+          <Link href={"/career/" + user.id} className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📊</div>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">个人生涯</h3>
+            <p className="mt-1 text-sm text-zinc-500">查看比赛记录、统计数据、历史战绩</p>
+          </Link>
         </div>
 
         {myTeam && (

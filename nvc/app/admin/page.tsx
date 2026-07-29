@@ -7,6 +7,7 @@ import BracketTree from "@/components/BracketTree";
 import { adminApi, adminTournamentApi, searchApi, TournamentVO, MatchVO } from "@/lib/api";
 import { getUser, removeToken, isLoggedIn } from "@/lib/auth";
 import CreateTournamentModal from "@/components/CreateTournamentModal";
+import GameRecordWizard from "@/components/GameRecordWizard";
 
 type Tab = "overview" | "users" | "teams" | "tournaments";
 
@@ -55,8 +56,7 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ users: any[]; teams: any[]; tournaments: any[] } | null>(null);
   const [searching, setSearching] = useState(false);
-  const [recordingMatch, setRecordingMatch] = useState<{ tournamentId: number; matchId: number; team1Name: string; team2Name: string; team1Id: number; team2Id: number } | null>(null);
-  const [boSelection, setBoSelection] = useState(1);
+  const [wizardMatch, setWizardMatch] = useState<{ tournamentId: number; matchId: number; team1Name: string; team2Name: string; team1Id: number; team2Id: number } | null>(null);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
 
@@ -153,8 +153,7 @@ export default function AdminPage() {
     if (!t) return;
     const m = tournamentMatches.find(x => x.id === matchId);
     if (!m || !m.team1Id || !m.team2Id) return;
-    setBoSelection(1);
-    setRecordingMatch({
+    setWizardMatch({
       tournamentId,
       matchId,
       team1Name: m.team1Name || '队伍1',
@@ -162,17 +161,6 @@ export default function AdminPage() {
       team1Id: m.team1Id,
       team2Id: m.team2Id,
     });
-  };
-
-  const confirmSetWinner = async (winnerTeamId: number) => {
-    if (!recordingMatch) return;
-    try {
-      await adminTournamentApi.setMatchWinner(recordingMatch.tournamentId, recordingMatch.matchId, winnerTeamId, boSelection);
-      showMsg('比赛结果已记录 (BO' + boSelection + ')');
-      setRecordingMatch(null);
-      fetchTournaments();
-      loadTournamentDetail({ ...selectedTournament!, id: recordingMatch.tournamentId } as TournamentVO);
-    } catch (err: any) { showMsg(err.response?.data?.message || '操作失败'); }
   };
 
   const openEditUser = (u: AdminUser) => {
@@ -607,37 +595,17 @@ export default function AdminPage() {
         )}
 
 
-        {recordingMatch && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">记录比赛结果</h3>
-                <button onClick={() => setRecordingMatch(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
-              </div>
-              <p className="mb-4 text-sm text-zinc-400">选择胜者与局数</p>
-              <div className="space-y-3">
-                <button onClick={() => confirmSetWinner(recordingMatch.team1Id)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 p-4 text-left transition hover:border-green-500 hover:bg-zinc-700">
-                  <span className="font-medium text-green-400">🏆 {recordingMatch.team1Name}</span>
-                </button>
-                <button onClick={() => confirmSetWinner(recordingMatch.team2Id)}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-800 p-4 text-left transition hover:border-green-500 hover:bg-zinc-700">
-                  <span className="font-medium text-green-400">🏆 {recordingMatch.team2Name}</span>
-                </button>
-              </div>
-              <div className="mt-4">
-                <label className="mb-2 block text-xs text-zinc-500">每场局数</label>
-                <div className="flex gap-3">
-                  {[1, 3, 5].map((n) => (
-                    <button key={n} type="button" onClick={() => setBoSelection(n)}
-                      className={'flex-1 rounded-lg border py-2 text-sm font-medium transition ' + (boSelection === n ? 'border-red-500 bg-red-600/20 text-red-400' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600')}>
-                      BO{n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+        {wizardMatch && (
+          <GameRecordWizard
+            tournamentId={wizardMatch.tournamentId}
+            matchId={wizardMatch.matchId}
+            team1Id={wizardMatch.team1Id}
+            team2Id={wizardMatch.team2Id}
+            team1Name={wizardMatch.team1Name}
+            team2Name={wizardMatch.team2Name}
+            onClose={() => setWizardMatch(null)}
+            onComplete={(msg) => { showMsg(msg); fetchTournaments(); loadTournamentDetail({ ...selectedTournament!, id: wizardMatch.tournamentId } as TournamentVO); }}
+          />
         )}
 
         {editUser && (

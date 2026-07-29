@@ -51,7 +51,12 @@ async function loadImage(source) {
     return { buffer: source.buffer, sourceType: 'buffer' };
   }
   if (source.base64) {
-    const buf = Buffer.from(source.base64, 'base64');
+    // Strip data URL prefix (e.g. data:image/png;base64,) if present
+    let b64data = source.base64;
+    if (b64data.includes(',')) {
+      b64data = b64data.split(',')[1];
+    }
+    const buf = Buffer.from(b64data, 'base64');
     return { buffer: buf, sourceType: 'base64' };
   }
   if (source.url) {
