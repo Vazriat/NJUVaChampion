@@ -23,6 +23,7 @@ export default function NavBar() {
     { href: "/hall", label: "用户大厅" },
     { href: "/teams", label: "战队管理" },
     { href: "/tournaments", label: "赛事中心" },
+    { href: "/career/" + user.id, label: "个人生涯" },
   ];
 
   const isActive = (href: string) => pathname.startsWith(href);

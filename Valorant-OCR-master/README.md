@@ -2,6 +2,9 @@
 
 `Valorant-OCR-master/` 是一个独立的 Node.js OCR 微服务，用于识别 Valorant 结算截图，提取每位玩家的 IGN、特工、ACS、KDA、首杀。支持**三种调用方式**：CLI 命令行、HTTP API、程序化 SDK 调用。
 
+## 注意维护特工列表
+
+
 ## 环境要求
 
 | 依赖 | 版本要求 | 用途 |

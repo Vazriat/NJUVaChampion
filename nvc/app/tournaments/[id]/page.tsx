@@ -191,7 +191,7 @@ export default function TournamentDetailPage() {
           </section>
 
           <section className="lg:col-span-2 overflow-x-auto">
-            <h2 className="text-lg font-semibold mb-4">对阵表</h2>
+            <h2 className="text-lg font-semibold mb-4">赛程图</h2>
             <BracketTree
               matches={matches}
               format={tournament.format}

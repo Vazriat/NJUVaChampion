@@ -66,11 +66,15 @@ export default function ProfilePage() {
             <div className="mt-2 flex gap-2">
               <span className="rounded bg-zinc-800 px-3 py-0.5 text-xs text-zinc-400">{user.role}</span>
               {user.team && (
-                <Link href={`/teams/${user.team.id}`}
+                <Link href={"/teams/" + user.team.id}
                   className="rounded bg-red-600/10 px-3 py-0.5 text-xs text-red-400 hover:bg-red-600/20">
                   {user.team.name} · {user.team.role === "CAPTAIN" ? "队长" : "队员"}
                 </Link>
               )}
+              <Link href={"/career/" + user.id}
+                className="rounded bg-zinc-800 px-3 py-0.5 text-xs text-zinc-300 hover:bg-zinc-700">
+                生涯数据
+              </Link>
             </div>
           </div>
         </div>

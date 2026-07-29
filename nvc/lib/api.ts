@@ -181,4 +181,24 @@ export const searchApi = {
   search: (q: string) => api.get("/search", { params: { q } }),
 };
 
+
+// ====== 比赛小局管理接口 ======
+export const matchApi = {
+  initGames: (matchId: number, boType: number) =>
+    api.post("/admin/matches/" + matchId + "/games/init", { boType }),
+  recordGame: (matchId: number, gameId: number, data: Record<string, any>) =>
+    api.put("/admin/matches/" + matchId + "/games/" + gameId, data),
+  finalize: (matchId: number, team1Wins: number, team2Wins: number) =>
+    api.post("/admin/matches/" + matchId + "/finalize", { team1Wins, team2Wins }),
+  detail: (matchId: number) =>
+    api.get("/admin/matches/" + matchId + "/detail"),
+};
+
+// ====== 生涯接口 ======
+export const careerApi = {
+  get: (userId: number) => api.get("/career/" + userId),
+  getMatches: (userId: number, page?: number) => api.get("/career/" + userId + "/matches", { params: { page } }),
+  getStats: (userId: number) => api.get("/career/" + userId + "/stats"),
+};
+
 export default api;
