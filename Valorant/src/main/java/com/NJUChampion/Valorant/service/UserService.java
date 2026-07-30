@@ -57,7 +57,7 @@ public class UserService {
 
     public User getProfile(String username) {
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+                .orElseThrow(() -> new IllegalArgumentException("\u7528\u6237\u4e0d\u5b58\u5728在"));
     }
 
     @Transactional
@@ -107,5 +107,23 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(req.getNewPassword()));
         userRepository.save(user);
+    }
+
+    @Transactional
+    public User updateContact(Long userId, com.NJUChampion.Valorant.dto.UpdateContactRequest req) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("\u7528\u6237\u4e0d\u5b58\u5728"));
+        user.setContact(req.getContact());
+        if (req.getContactPublic() != null) {
+            user.setContactPublic(req.getContactPublic());
+        }
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User updateDisplayPreference(Long userId, String preference) {
+        User user = userRepository.findById(userId).orElseThrow();
+        user.setDisplayPreference(preference);
+        return userRepository.save(user);
     }
 }

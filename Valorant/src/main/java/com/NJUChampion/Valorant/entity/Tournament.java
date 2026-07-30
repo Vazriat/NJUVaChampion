@@ -55,7 +55,25 @@ public class Tournament {
     @Column(name = "current_stage")
     private Integer currentStage;
 
-    /** 每场比赛局数（BO1/BO3/BO5），默认 1 */
+    @Column(name = "swiss_rounds")
+    @Builder.Default
+    private Integer swissRounds = 5;
+
+    @Column(name = "knockout_format", length = 20)
+    @Builder.Default
+    private String knockoutFormat = "SINGLE_ELIM";
+
+    @Column(name = "swiss_pairing_mode", length = 20)
+    @Builder.Default
+    private String swissPairingMode = "RANDOM";
+
+    @Column(name = "swiss_seed")
+    private Long swissSeed;
+
+    @Column(name = "current_swiss_round")
+    @Builder.Default
+    private Integer currentSwissRound = 0;
+
 @Column(name = "champion_team_id")
     private Long championTeamId;
 

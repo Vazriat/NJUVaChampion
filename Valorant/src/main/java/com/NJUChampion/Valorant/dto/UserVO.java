@@ -18,6 +18,13 @@ public class UserVO {
     private String displayGameId;
     private String role;
     private Integer status;
+    private String contact;
+    private String verifiedType;
+    private String verifiedRank;
+    private Boolean rankPublic;
+    private String displayPreference;
+    private String displayName;
+    private Boolean contactPublic;
     private LocalDateTime createdAt;
     private TeamInfo team;
 

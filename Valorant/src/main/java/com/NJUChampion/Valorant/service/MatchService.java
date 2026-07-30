@@ -69,8 +69,8 @@ public class MatchService {
     @Transactional
     public void recordGame(Long matchId, Long gameId, RecordGameRequest req) {
         TournamentMatch match = getMatch(matchId);
-        if (!"PENDING".equals(match.getStatus())) {
-            throw new IllegalArgumentException("Match is not pending");
+        if (!"PENDING".equals(match.getStatus()) && !"COMPLETED".equals(match.getStatus())) {
+            throw new IllegalArgumentException("Match is not editable");
         }
 
         GameRecord game = gameRecordRepository.findById(gameId)
@@ -118,8 +118,9 @@ public class MatchService {
         Long tournamentId = match.getTournamentId();
         Tournament tournament = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new IllegalArgumentException("Tournament not found"));
-        if (!"PENDING".equals(match.getStatus())) {
-            throw new IllegalArgumentException("Match has already been completed");
+        // Allow re-finalize for COMPLETED matches (re-editing)
+        if (!"PENDING".equals(match.getStatus()) && !"COMPLETED".equals(match.getStatus())) {
+            throw new IllegalArgumentException("Match cannot be finalized, current status: " + match.getStatus());
         }
 
         // Verify enough games to determine winner (BO3 can end at 2-0, BO5 at 3-0/3-1)
@@ -153,8 +154,12 @@ public class MatchService {
         match.setStatus("COMPLETED");
         matchRepository.save(match);
 
-        // Trigger bracket progression
-        tournamentService.processCompletedMatch(tournament, match);
+        // Trigger progression or Swiss round completion
+        if ("SWISS".equals(match.getStage()) && "SWISS_ELIM".equals(tournament.getFormat())) {
+            tournamentService.completeSwissMatch(tournament, match);
+        } else {
+            tournamentService.processCompletedMatch(tournament, match);
+        }
     }
 
     // ========== Query: Match detail with games and player stats ==========
@@ -232,12 +237,55 @@ public class MatchService {
 
             String fileName = "game_" + gameId + ".png";
             Path filePath = dir.resolve(fileName);
+
+            // Delete old file if re-uploading
+            Files.deleteIfExists(filePath);
+
             Files.write(filePath, imageBytes);
 
             return "/uploads/screenshots/" + matchId + "/" + fileName;
         } catch (IOException e) {
             throw new RuntimeException("Failed to save screenshot", e);
         }
+    }
+
+
+    public Map<String, Object> canEdit(Long matchId) {
+        TournamentMatch match = getMatch(matchId);
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("matchId", matchId);
+        result.put("status", match.getStatus());
+        result.put("canEdit", true);
+        result.put("reason", null);
+
+        if ("PENDING".equals(match.getStatus())) {
+            return result; // PENDING always editable
+        }
+
+        if (!"COMPLETED".equals(match.getStatus())) {
+            result.put("canEdit", false);
+            result.put("reason", "Match status does not allow editing");
+            return result;
+        }
+
+        // For COMPLETED matches, check if the next match in bracket is still PENDING
+        // Find the successor match
+        int nextRound = match.getRound() + 1;
+        int nextPosition = match.getPosition() / 2;
+
+        java.util.List<TournamentMatch> successors = matchRepository.findByTournamentIdAndRound(
+                match.getTournamentId(), nextRound);
+        TournamentMatch nextMatch = successors.stream()
+                .filter(m -> m.getPosition().equals(nextPosition))
+                .findFirst().orElse(null);
+
+        if (nextMatch != null && "COMPLETED".equals(nextMatch.getStatus())) {
+            result.put("canEdit", false);
+            result.put("reason", "\u4e0b\u4e00\u573a\u6bd4\u8d5b\u5df2\u5b8c\u7ed3\uff0c\u65e0\u6cd5\u4fee\u6539\u672c\u573a\u7ed3\u679c");
+            return result;
+        }
+
+        return result;
     }
 
     private TournamentMatch getMatch(Long matchId) {

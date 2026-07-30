@@ -63,8 +63,21 @@ export default function ProfilePage() {
             {user.gameId && (
               <p className="mt-0.5 text-xs text-zinc-600">完整 ID：{user.gameId}</p>
             )}
+            {user.contact && user.contactPublic && (
+              <p className="mt-0.5 text-xs text-zinc-600">联系方式：{user.contact}</p>
+            )}
             <div className="mt-2 flex gap-2">
               <span className="rounded bg-zinc-800 px-3 py-0.5 text-xs text-zinc-400">{user.role}</span>
+              {user.verifiedType && (
+                <span className={"rounded px-3 py-0.5 text-xs font-medium " + (user.verifiedType === "STUDENT" ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400")}>
+                  {user.verifiedType === "STUDENT" ? "✔ 校内认证" : "✔ 校友认证"}
+                </span>
+              )}
+              {user.verifiedRank && user.rankPublic && (
+                <span className="rounded bg-yellow-500/10 px-3 py-0.5 text-xs font-medium text-yellow-400">
+                  ✔ {user.verifiedRank}
+                </span>
+              )}
               {user.team && (
                 <Link href={"/teams/" + user.team.id}
                   className="rounded bg-red-600/10 px-3 py-0.5 text-xs text-red-400 hover:bg-red-600/20">

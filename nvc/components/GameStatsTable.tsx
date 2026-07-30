@@ -91,6 +91,35 @@ export default function GameStatsTable({
           <option value={team2Id}>{team2Name || "队伍B"}</option>
         </select>
       </td>
+      <td className="py-2 px-3">
+        <select
+          value={p.userId || 0}
+          onChange={e => {
+            const uid = Number(e.target.value);
+            const allM = (team1Members || []).concat(team2Members || []);
+            const member = allM.find(m => m.userId === uid);
+            const updated = [...players];
+            if (member) {
+              // Determine which team this member belongs to
+              const inTeam1 = (team1Members || []).some(m => m.userId === uid);
+              updated[globalIdx] = { ...updated[globalIdx], userId: uid, teamId: inTeam1 ? team1Id : team2Id };
+            } else {
+              updated[globalIdx] = { ...updated[globalIdx], userId: 0 };
+            }
+            onChange(updated);
+          }}
+          className={"w-28 bg-zinc-800 border-zinc-700 text-xs rounded border px-2 py-1 outline-none " + (p.userId ? "text-white" : "text-amber-300")}
+        >
+          <option value={0}>\u4e0d\u7ed1\u5b9a</option>
+          {/* Filter members based on current team selection */}
+          {(p.teamId && p.teamId !== 0
+            ? (p.teamId === team1Id ? (team1Members || []) : (team2Members || []))
+            : (team1Members || []).concat(team2Members || [])
+          ).map(m => (
+            <option key={m.userId} value={m.userId}>{m.username}{m.displayName && m.displayName !== m.username ? " (" + m.displayName + ")" : ""}</option>
+          ))}
+        </select>
+      </td>
       {columns.map(col => (
         <td key={col.key} className="py-2 px-3">
           {renderCell(p, globalIdx, col)}

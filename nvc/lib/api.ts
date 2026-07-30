@@ -42,6 +42,8 @@ export const userApi = {
   updateUsername: (newUsername: string) => api.put("/user/username", { newUsername }),
   updateEmail: (newEmail: string) => api.put("/user/email", { newEmail }),
   updateGameId: (gameId: string) => api.put("/user/game-id", { gameId }),
+  updateContact: (contact: string, contactPublic: boolean) => api.put("/user/contact", { contact, contactPublic }),
+  updateDisplayPreference: (pref: string) => api.put("/user/display-preference", { displayPreference: pref }),
   updatePassword: (oldPassword: string, newPassword: string) =>
     api.put("/user/password", { oldPassword, newPassword }),
 };
@@ -59,6 +61,13 @@ export interface UserVO {
   displayGameId: string | null;
   role: string;
   status: number;
+  contact?: string;
+  contactPublic?: boolean;
+  verifiedType?: string;
+  verifiedRank?: string;
+  rankPublic?: boolean;
+  displayPreference?: string;
+  displayName?: string;
   createdAt: string;
   team: { id: number; name: string; role: string } | null;
 }
@@ -70,6 +79,7 @@ export const teamApi = {
   list: () => api.get("/teams"),
   myTeam: () => api.get("/teams/my"),
   myCaptainedTeams: () => api.get("/teams/captain"),
+  getMatches: (id: number) => api.get("/teams/" + id + "/matches"),
   detail: (id: number) => api.get(`/teams/${id}`),
   join: (id: number) => api.post(`/teams/${id}/join`),
   leave: (id: number) => api.post(`/teams/${id}/leave`),
@@ -84,6 +94,13 @@ export interface TeamVO {
   captainName: string;
   status: number;
   memberCount: number;
+  contact?: string;
+  contactPublic?: boolean;
+  verifiedType?: string;
+  verifiedRank?: string;
+  rankPublic?: boolean;
+  displayPreference?: string;
+  displayName?: string;
   createdAt: string;
   members: MemberVO[];
 }
@@ -129,9 +146,20 @@ export interface TournamentVO {
   type: string;
   format: string;
   currentStage: number | null;
+  swissRounds?: number;
+  knockoutFormat?: string;
+  swissPairingMode?: string;
+  currentSwissRound?: number;
   registeredCount: number;
   championTeamId: number | null;
   championTeamName: string | null;
+  contact?: string;
+  contactPublic?: boolean;
+  verifiedType?: string;
+  verifiedRank?: string;
+  rankPublic?: boolean;
+  displayPreference?: string;
+  displayName?: string;
   createdAt: string;
   registeredTeams?: RegisteredTeamInfo[];
   matches?: MatchVO[];
@@ -200,5 +228,63 @@ export const careerApi = {
   getMatches: (userId: number, page?: number) => api.get("/career/" + userId + "/matches", { params: { page } }),
   getStats: (userId: number) => api.get("/career/" + userId + "/stats"),
 };
+
+
+// ====== 截图管理接口 ======
+export const screenshotApi = {
+  list: (params?: any) => api.get("/admin/screenshots", { params }),
+  searchByTournamentName: (q: string) => api.get("/admin/screenshots/search-by-tournament", { params: { q } }),
+  stats: () => api.get("/admin/screenshots/stats"),
+  batchDelete: (gameIds: number[]) => api.delete("/admin/screenshots/batch", { data: { gameIds } }),
+  delete: (gameId: number) => api.delete("/admin/screenshots/" + gameId),
+};
+
+
+// ====== 认证接口 ======
+export const certificationApi = {
+  apply: (data: any) => api.post("/certification/apply", data),
+  my: () => api.get("/certification/my"),
+}
+
+export const adminCertificationApi = {
+  list: (status?: string) => api.get("/admin/certifications", { params: { status } }),
+  detail: (id: number) => api.get("/admin/certifications/" + id),
+  approve: (id: number, data?: any) => api.post("/admin/certifications/" + id + "/approve", data),
+  revoke: (id: number) => api.post("/admin/certifications/" + id + "/revoke"),
+  reject: (id: number, reason: string) => api.post("/admin/certifications/" + id + "/reject", { reason }),
+}
+
+
+// ====== 宣传栏 ======
+export const bannerApi = {
+  getActive: () => api.get("/banners/active"),
+}
+
+export const adminBannerApi = {
+  list: () => api.get("/admin/banners"),
+  create: (data: any) => api.post("/admin/banners", data),
+  update: (id: number, data: any) => api.put("/admin/banners/" + id, data),
+  delete: (id: number) => api.delete("/admin/banners/" + id),
+}
+
+// ====== 通知 ======
+export const announcementApi = {
+  getLatest: () => api.get("/announcements/latest"),
+  list: () => api.get("/announcements"),
+  detail: (id: number) => api.get("/announcements/" + id),
+}
+
+export const adminAnnouncementApi = {
+  list: () => api.get("/admin/announcements"),
+  create: (data: any) => api.post("/admin/announcements", data),
+  update: (id: number, data: any) => api.put("/admin/announcements/" + id, data),
+  publish: (id: number) => api.post("/admin/announcements/" + id + "/publish"),
+  delete: (id: number) => api.delete("/admin/announcements/" + id),
+}
+
+export interface Announcement {
+  id: number; title: string; content?: string; priority: string; status: string;
+  publishedAt?: string; createdAt: string;
+}
 
 export default api;

@@ -4,7 +4,9 @@ import com.NJUChampion.Valorant.dto.CreateTournamentRequest;
 import com.NJUChampion.Valorant.dto.SetMatchWinnerRequest;
 import com.NJUChampion.Valorant.dto.TournamentVO;
 import com.NJUChampion.Valorant.entity.*;
+import com.NJUChampion.Valorant.util.SwissPairingEngine;
 import com.NJUChampion.Valorant.repository.*;
+import com.NJUChampion.Valorant.util.SwissPairingEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ public class TournamentService {
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final SwissStandingRepository swissStandingRepository;
 
     @Transactional
     public TournamentVO create(CreateTournamentRequest req) {
@@ -44,6 +47,9 @@ public class TournamentService {
                 .format(format)
                 .maxTeams(maxTeams)
                 .bracketType(bracketType)
+                .swissRounds(5)
+                .knockoutFormat(req.getKnockoutFormat() != null ? req.getKnockoutFormat().toUpperCase() : "SINGLE_ELIM")
+                .swissPairingMode(req.getSwissPairingMode() != null ? req.getSwissPairingMode().toUpperCase() : "RANDOM")
                 .build();
         tournament = tournamentRepository.save(tournament);
         return toVO(tournament);
@@ -102,7 +108,9 @@ public class TournamentService {
             throw new IllegalArgumentException("参赛队伍不足，至少需要2支队伍");
         }
 
-        if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
+        if ("SWISS_ELIM".equals(tournament.getFormat())) {
+            initSwissBracket(tournament);
+        } else if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
             generateDoubleElimBracket(tournament);
         } else {
             generateBracket(tournament);
@@ -556,7 +564,192 @@ public class TournamentService {
         return order;
     }
 
-    private Tournament getTournament(Long id) {
+
+    // ========== Swiss System ==========
+
+    @Transactional
+    public void initSwissBracket(Tournament tournament) {
+        Long tournamentId = tournament.getId();
+        List<TournamentTeam> registered = tournamentTeamRepository.findByTournamentId(tournamentId);
+
+        // Create SwissStanding records
+        for (TournamentTeam tt : registered) {
+            SwissStanding s = SwissStanding.builder()
+                    .tournamentId(tournamentId)
+                    .teamId(tt.getTeamId())
+                    .wins(0).losses(0).buchholz(0.0).roundDiff(0)
+                    .opponentIds("[]")
+                    .build();
+            swissStandingRepository.save(s);
+        }
+
+        // Generate seed for random engine
+        if (tournament.getSwissSeed() == null) {
+            tournament.setSwissSeed(System.currentTimeMillis());
+        }
+        tournament.setCurrentSwissRound(0);
+        tournament.setCurrentStage(0);
+        tournamentRepository.save(tournament);
+
+        // Generate round 1 pairings
+        generateNextSwissRound(tournament);
+    }
+
+    @Transactional
+    public void completeSwissMatch(Tournament tournament, TournamentMatch match) {
+        Long tournamentId = tournament.getId();
+        Long winnerId = match.getWinnerId();
+        Long loserId = match.getTeam1Id().equals(winnerId) ? match.getTeam2Id() : match.getTeam1Id();
+
+        // Update standings
+        SwissStanding ws = swissStandingRepository.findByTournamentIdAndTeamId(tournamentId, winnerId)
+                .orElseThrow(() -> new IllegalArgumentException("Standing not found for winner"));
+        ws.setWins(ws.getWins() + 1);
+        ws.setRoundDiff(ws.getRoundDiff() + (match.getGamesPerMatch() != null ? match.getGamesPerMatch() : 1));
+        ws.setOpponentIds(SwissPairingEngine.appendOpponent(ws.getOpponentIds(), loserId));
+        swissStandingRepository.save(ws);
+
+        SwissStanding ls = swissStandingRepository.findByTournamentIdAndTeamId(tournamentId, loserId)
+                .orElseThrow(() -> new IllegalArgumentException("Standing not found for loser"));
+        ls.setLosses(ls.getLosses() + 1);
+        ls.setRoundDiff(ls.getRoundDiff() - (match.getGamesPerMatch() != null ? match.getGamesPerMatch() : 1));
+        ls.setOpponentIds(SwissPairingEngine.appendOpponent(ls.getOpponentIds(), winnerId));
+        swissStandingRepository.save(ls);
+
+        // Recalculate buchholz for all teams
+        recalculateBuchholz(tournamentId);
+
+        // Check if this round is complete
+        long round = match.getRound();
+        long totalInRound = tournamentMatchRepository.findByTournamentIdAndStageAndRound(tournamentId, "SWISS", (int) round).size();
+        long completedInRound = tournamentMatchRepository.findByTournamentIdAndStageAndRound(tournamentId, "SWISS", (int) round)
+                .stream().filter(m -> "COMPLETED".equals(m.getStatus())).count();
+
+        if (totalInRound == completedInRound) {
+            // Round complete
+            int swissRounds = tournament.getSwissRounds() != null ? tournament.getSwissRounds() : 5;
+            int currentRound = tournament.getCurrentSwissRound() != null ? tournament.getCurrentSwissRound() : 0;
+            tournament.setCurrentSwissRound(currentRound + 1);
+            tournamentRepository.save(tournament);
+
+            if (currentRound + 1 >= swissRounds) {
+                // All Swiss rounds done, transition to knockout
+                generateKnockoutBracket(tournament);
+            } else {
+                // Generate next round
+                generateNextSwissRound(tournament);
+            }
+        }
+    }
+
+    @Transactional
+    public void generateNextSwissRound(Tournament tournament) {
+        Long tournamentId = tournament.getId();
+        int nextRound = (tournament.getCurrentSwissRound() != null ? tournament.getCurrentSwissRound() : 0) + 1;
+
+        List<SwissStanding> standings = swissStandingRepository
+                .findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId);
+
+        List<SwissPairingEngine.TeamPair> pairs = SwissPairingEngine.generatePairings(
+                standings, nextRound,
+                tournament.getSwissSeed() != null ? tournament.getSwissSeed() : System.currentTimeMillis(),
+                tournament.getSwissPairingMode() != null ? tournament.getSwissPairingMode() : "RANDOM");
+
+        for (int pos = 0; pos < pairs.size(); pos++) {
+            SwissPairingEngine.TeamPair pair = pairs.get(pos);
+            TournamentMatch m = TournamentMatch.builder()
+                    .tournamentId(tournamentId)
+                    .stage("SWISS")
+                    .round(nextRound)
+                    .position(pos)
+                    .team1Id(pair.getTeam1Id())
+                    .team2Id(pair.getTeam2Id())
+                    .status("PENDING")
+                    .build();
+            tournamentMatchRepository.save(m);
+        }
+    }
+
+    @Transactional
+    public void generateKnockoutBracket(Tournament tournament) {
+        Long tournamentId = tournament.getId();
+        List<SwissStanding> top8 = swissStandingRepository
+                .findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId)
+                .stream().limit(8).collect(java.util.stream.Collectors.toList());
+
+        String knockoutFormat = tournament.getKnockoutFormat() != null ? tournament.getKnockoutFormat() : "SINGLE_ELIM";
+        List<SwissPairingEngine.TeamPair> pairs;
+
+        if ("RANDOM".equals(tournament.getSwissPairingMode())) {
+            pairs = SwissPairingEngine.generateKnockoutPairings(
+                    top8, tournament.getSwissSeed() != null ? tournament.getSwissSeed() : System.currentTimeMillis(),
+                    knockoutFormat);
+        } else {
+            // Buchholz mode: standard seeding
+            pairs = new java.util.ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                pairs.add(new SwissPairingEngine.TeamPair(
+                        top8.get(i).getTeamId(), top8.get(7 - i).getTeamId()));
+            }
+        }
+
+        if ("DOUBLE_ELIM".equals(knockoutFormat)) {
+            // Create seed order from pairs
+            java.util.List<Long> seeded = new java.util.ArrayList<>();
+            for (SwissPairingEngine.TeamPair p : pairs) {
+                seeded.add(p.getTeam1Id());
+                seeded.add(p.getTeam2Id());
+            }
+            generateDoubleElimBracketInternal(tournamentId, 8, seeded);
+        } else {
+            // Single elimination: round 0 = quarter finals
+            for (int pos = 0; pos < pairs.size(); pos++) {
+                SwissPairingEngine.TeamPair pair = pairs.get(pos);
+                TournamentMatch m = TournamentMatch.builder()
+                        .tournamentId(tournamentId)
+                        .stage("WINNERS")
+                        .round(0)
+                        .position(pos)
+                        .team1Id(pair.getTeam1Id())
+                        .team2Id(pair.getTeam2Id())
+                        .status("PENDING")
+                        .build();
+                tournamentMatchRepository.save(m);
+            }
+            // Generate remaining rounds (semi, final)
+            for (int r = 1; r < 3; r++) {
+                int matchesInRound = 4 / (int) Math.pow(2, r);
+                for (int pos = 0; pos < matchesInRound; pos++) {
+                    tournamentMatchRepository.save(TournamentMatch.builder()
+                            .tournamentId(tournamentId).stage("WINNERS").round(r).position(pos)
+                            .status("PENDING").build());
+                }
+            }
+        }
+
+        tournament.setCurrentStage(1);
+        tournamentRepository.save(tournament);
+    }
+
+    private void recalculateBuchholz(Long tournamentId) {
+        List<SwissStanding> all = swissStandingRepository.findByTournamentId(tournamentId);
+        for (SwissStanding s : all) {
+            List<Long> opponentIds = SwissPairingEngine.parseOpponentIds(s.getOpponentIds());
+            double buchholz = 0;
+            for (Long oppId : opponentIds) {
+                SwissStanding opp = all.stream().filter(o -> o.getTeamId().equals(oppId)).findFirst().orElse(null);
+                if (opp != null) buchholz += opp.getWins();
+            }
+            s.setBuchholz(buchholz);
+            swissStandingRepository.save(s);
+        }
+    }
+
+    public List<SwissStanding> getSwissStandings(Long tournamentId) {
+        return swissStandingRepository.findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId);
+    }
+
+    public Tournament getTournament(Long id) {
         return tournamentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("赛事不存在"));
     }
@@ -579,6 +772,10 @@ public class TournamentService {
                 .type(t.getType())
                 .format(t.getFormat())
                 .currentStage(t.getCurrentStage())
+                .swissRounds(t.getSwissRounds())
+                .knockoutFormat(t.getKnockoutFormat())
+                .swissPairingMode(t.getSwissPairingMode())
+                .currentSwissRound(t.getCurrentSwissRound())
                 .registeredCount((int) registeredCount)
                 .championTeamId(t.getChampionTeamId())
                 .championTeamName(championName)

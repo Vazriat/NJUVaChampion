@@ -76,4 +76,16 @@ public class AdminTournamentController {
         tournamentService.deleteTournament(id);
         return Result.success();
     }
+
+    @GetMapping("/{id}/swiss/standings")
+    public Result<List<com.NJUChampion.Valorant.entity.SwissStanding>> getSwissStandings(@PathVariable Long id) {
+        return Result.success(tournamentService.getSwissStandings(id));
+    }
+
+    @PostMapping("/{id}/swiss/generate-knockout")
+    public Result<Void> generateKnockout(@PathVariable Long id) {
+        com.NJUChampion.Valorant.entity.Tournament tournament = tournamentService.getTournament(id);
+        tournamentService.generateKnockoutBracket(tournament);
+        return Result.success();
+    }
 }

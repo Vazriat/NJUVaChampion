@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
-import { teamApi, TeamVO } from "@/lib/api";
+import GameDetailPanel from "@/components/GameDetailPanel";
+import { teamApi, matchApi, TeamVO } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
 import Link from "next/link";
 
@@ -14,10 +15,21 @@ export default function TeamDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(true);
+  const [expandedMatchId, setExpandedMatchId] = useState<number | null>(null);
+  const [matchDetailCache, setMatchDetailCache] = useState<Record<number, any>>({});
 
   const currentUser = getUser();
   const isMember = team?.members?.some((m) => m.userId === currentUser?.id);
   const isCaptain = team?.captainId === currentUser?.id;
+
+  const fetchMatches = () => {
+    teamApi.getMatches(Number(id))
+      .then((res) => setMatches(res.data.data || []))
+      .catch(() => {})
+      .finally(() => setMatchesLoading(false));
+  };
 
   const fetchTeam = () => {
     setLoading(true);
@@ -30,6 +42,7 @@ export default function TeamDetailPage() {
   useEffect(() => {
     if (!isLoggedIn()) { router.replace("/login"); return; }
     fetchTeam();
+    fetchMatches();
   }, [id, router]);
 
   const handleJoin = async () => {
@@ -134,6 +147,80 @@ export default function TeamDetailPage() {
               </Link>
             ))}
           </div>
+        </div>
+
+        {/* 比赛记录 */}
+        <div className="mt-10">
+          <h2 className="mb-4 text-lg font-semibold">比赛记录</h2>
+          {matchesLoading ? (
+            <p className="text-zinc-500 text-sm">加载中...</p>
+          ) : matches.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-800 py-12 text-center">
+              <p className="text-sm text-zinc-500">暂无比赛记录</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {matches.map((m: any) => {
+                const isWin = m.won;
+                return (
+                  <div key={m.matchId}>
+                    <div
+                      onClick={() => {
+                        if (expandedMatchId === m.matchId) {
+                          setExpandedMatchId(null);
+                        } else {
+                          setExpandedMatchId(m.matchId);
+                          if (!matchDetailCache[m.matchId]) {
+                            matchApi.detail(m.matchId).then(r => {
+                              setMatchDetailCache(prev => ({ ...prev, [m.matchId]: r.data.data }));
+                            }).catch(() => {});
+                          }
+                        }
+                      }}
+                      className={"rounded-xl border p-4 cursor-pointer transition hover:border-zinc-600 " + (isWin ? "border-green-800/50 bg-green-900/10" : "border-zinc-800 bg-zinc-900")}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-zinc-300">{m.tournamentName || "未知赛事"}</p>
+                          <p className="mt-0.5 text-xs text-zinc-500">
+                            {m.stage === "WINNERS" ? "胜者组" : m.stage === "LOSERS" ? "败者组" : m.stage === "GRAND_FINAL" ? "总决赛" : m.stage}
+                            {m.round != null ? " R" + m.round : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm">
+                            <span className={"font-bold " + (isWin ? "text-green-400" : "text-red-400")}>
+                              {isWin ? "胜" : "负"}
+                            </span>
+                            <span className="ml-2 text-zinc-400">vs {m.opponentName || "?"}</span>
+                          </p>
+                          {m.games && m.games.length > 0 && (
+                            <div className="mt-1 flex gap-1 justify-end">
+                              {m.games.map((g: any, i: number) => (
+                                <span key={i} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                                  {g.team1Score ?? "?"}-{g.team2Score ?? "?"}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {expandedMatchId === m.matchId && matchDetailCache[m.matchId] && (
+                      <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+                        <GameDetailPanel
+                          games={matchDetailCache[m.matchId].games || []}
+                          team1Name={matchDetailCache[m.matchId].team1Name}
+                          team2Name={matchDetailCache[m.matchId].team2Name}
+                          team1Id={matchDetailCache[m.matchId].team1Id}
+                          team2Id={matchDetailCache[m.matchId].team2Id}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
     </div>

@@ -23,6 +23,7 @@ export default function NavBar() {
     { href: "/hall", label: "用户大厅" },
     { href: "/teams", label: "战队管理" },
     { href: "/tournaments", label: "赛事中心" },
+    { href: "/verify", label: "认证中心" },
     { href: "/career/" + user.id, label: "个人生涯" },
   ];
 
@@ -55,7 +56,7 @@ export default function NavBar() {
           href={`/profile/${user.id}`}
           className="text-sm text-zinc-400 hover:text-white transition"
         >
-          {user.displayGameId || user.username}
+          {user.displayName || user.displayGameId || user.username}
         </Link>
         <button
           onClick={() => { removeToken(); window.location.href = "/login"; }}

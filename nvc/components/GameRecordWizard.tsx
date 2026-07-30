@@ -574,6 +574,16 @@ export default function GameRecordWizard({
               className="w-full rounded-lg bg-red-600 py-3 text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
               {loading ? "提交中..." : "确认总比分，完结比赛"}
             </button>
+            <div className="text-center">
+              <button onClick={() => {
+                setGames([]);
+                setInitDone(false);
+                setStep(1);
+              }}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition">
+                重新记录本场比赛
+              </button>
+            </div>
           </div>
         )}
 

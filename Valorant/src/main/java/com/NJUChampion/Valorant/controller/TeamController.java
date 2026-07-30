@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/teams")
@@ -57,5 +58,10 @@ public class TeamController {
     public Result<Void> leave(@PathVariable Long id, @AuthenticationPrincipal User user) {
         teamService.leave(id, user.getId());
         return Result.success();
+    }
+
+    @GetMapping("/{id}/matches")
+    public Result<List<Map<String, Object>>> getMatchHistory(@PathVariable Long id) {
+        return Result.success(teamService.getMatchHistory(id));
     }
 }

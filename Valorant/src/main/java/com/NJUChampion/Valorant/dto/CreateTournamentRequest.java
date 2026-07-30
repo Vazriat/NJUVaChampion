@@ -29,5 +29,12 @@ public class CreateTournamentRequest {
     @Max(value = 100, message = "参赛队伍数最多为100")
     private Integer maxTeams = 2;
 
-    /** 每场局数，默认 1（BO1） */
+    /** Swiss: rounds */
+    private Integer swissRounds;
+
+    /** Swiss -> knockout: SINGLE_ELIM / DOUBLE_ELIM */
+    private String knockoutFormat;
+
+    /** RANDOM / BUCHHOLZ */
+    private String swissPairingMode;
 }
