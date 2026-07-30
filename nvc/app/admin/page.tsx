@@ -7,9 +7,14 @@ import BracketTree from "@/components/BracketTree";
 import { adminApi, adminTournamentApi, searchApi, TournamentVO, MatchVO } from "@/lib/api";
 import { getUser, removeToken, isLoggedIn } from "@/lib/auth";
 import CreateTournamentModal from "@/components/CreateTournamentModal";
+import GameDetailPanel from "@/components/GameDetailPanel";
+import ScreenshotManager from "@/components/AdminScreenshotManager";
+import AdminBannerManager from "@/components/AdminBannerManager";
+import AdminAnnouncementManager from "@/components/AdminAnnouncementManager";
+import CertificationManager from "@/components/AdminCertificationManager";
 import GameRecordWizard from "@/components/GameRecordWizard";
 
-type Tab = "overview" | "users" | "teams" | "tournaments";
+type Tab = "overview" | "users" | "teams" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements";
 
 interface AdminUser {
   id: number; username: string; gameId: string | null; displayGameId: string | null;
@@ -51,6 +56,7 @@ export default function AdminPage() {
   const [emptyTeamName, setEmptyTeamName] = useState("");
   const [emptyTeamDesc, setEmptyTeamDesc] = useState("");
   const [showBulkAddTeam, setShowBulkAddTeam] = useState(false);
+  const [swissStandings, setSwissStandings] = useState<any[]>([]);
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>([]);
   const [allTeamsList, setAllTeamsList] = useState<AdminTeam[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -137,6 +143,17 @@ export default function AdminPage() {
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
+  const loadSwissStandings = async (tournamentId: number) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/tournaments/" + tournamentId + "/swiss/standings", {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const json = await res.json();
+      if (json.code === 200) setSwissStandings(json.data);
+    } catch {}
+  };
+
   const handleDeleteTournament = async (id: number) => {
     if (!confirm("确定删除该赛事？此操作不可恢复！")) return;
     try { await adminTournamentApi.delete(id); showMsg("赛事已删除"); fetchTournaments(); setSelectedTournament(null); }
@@ -190,6 +207,7 @@ export default function AdminPage() {
         setShowBulkAddTeam(false);
         setSelectedTeamIds([]);
         loadTournamentDetail(selectedTournament);
+      if (selectedTournament.format === "SWISS_ELIM") loadSwissStandings(selectedTournament.id);
         fetchTournaments();
       } else {
         showMsg(res.data.message || "添加失败");
@@ -220,6 +238,7 @@ export default function AdminPage() {
       });
       showMsg("队伍已移除");
       loadTournamentDetail(selectedTournament);
+      if (selectedTournament.format === "SWISS_ELIM") loadSwissStandings(selectedTournament.id);
     } catch (err: any) {
       showMsg(err.response?.data?.message || "移除失败");
     }
@@ -289,7 +308,7 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-6xl px-8 py-8">
         <div className="mb-8 flex gap-6 border-b border-zinc-800">
-          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["tournaments", "赛事管理"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => { setTab(key); setSelectedTournament(null); }}
               className={`pb-3 text-sm font-medium transition border-b-2 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
           ))}
@@ -507,7 +526,7 @@ export default function AdminPage() {
                           matches={tournamentMatches}
                           format={selectedTournament?.format}
                           onMatchClick={(m: any) => {
-                            if (m.team1Id && m.team2Id && m.status === "PENDING") {
+                            if (m.team1Id && m.team2Id && (m.status === "PENDING" || m.status === "COMPLETED")) {
                               handleSetWinner(selectedTournament.id, m.id);
                             }
                           }}
@@ -526,6 +545,32 @@ export default function AdminPage() {
                     </div>
                   )}
 
+                  {selectedTournament.format === "SWISS_ELIM" && swissStandings.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold">瑞士轮排名</p>
+                      <div className="mb-3 space-y-1">
+                        {swissStandings.map((s: any, i: number) => (
+                          <div key={s.id} className="flex items-center gap-3 rounded bg-zinc-800 px-3 py-1.5 text-xs">
+                            <span className={"w-5 font-bold " + (i < 8 ? "text-red-400" : "text-zinc-600")}>{i + 1}</span>
+                            <span className="flex-1 text-zinc-300">{s.teamId} {s.wins}W-{s.losses}L</span>
+                            <span className="text-zinc-500">BU={s.buchholz}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {selectedTournament.currentStage === 0 && (selectedTournament.currentSwissRound ?? 0) >= (selectedTournament.swissRounds || 5) && (
+                        <button onClick={async () => {
+                          const token = localStorage.getItem("token");
+                          await fetch("/api/admin/tournaments/" + selectedTournament.id + "/swiss/generate-knockout", {
+                            method: "POST", headers: { Authorization: "Bearer " + token },
+                          });
+                          showMsg("八强对阵已生成");
+                          loadTournamentDetail(selectedTournament);
+      if (selectedTournament.format === "SWISS_ELIM") loadSwissStandings(selectedTournament.id);
+                        }}
+                          className="w-full rounded-lg bg-red-600 py-2 text-xs font-semibold hover:bg-red-700">生成八强对阵</button>
+                      )}
+                    </div>
+                  )}
                   {selectedTournament.registeredTeams && selectedTournament.registeredTeams.length > 0 && (
                     <div>
                       <p className="mb-2 text-sm font-semibold">报名队伍</p>
@@ -606,6 +651,22 @@ export default function AdminPage() {
             onClose={() => setWizardMatch(null)}
             onComplete={(msg) => { showMsg(msg); fetchTournaments(); loadTournamentDetail({ ...selectedTournament!, id: wizardMatch.tournamentId } as TournamentVO); }}
           />
+        )}
+
+        {tab === "screenshots" && (
+          <ScreenshotManager />
+        )}
+
+        {tab === "certifications" && (
+          <CertificationManager />
+        )}
+
+        {tab === "banners" && (
+          <AdminBannerManager />
+        )}
+
+        {tab === "announcements" && (
+          <AdminAnnouncementManager />
         )}
 
         {editUser && (

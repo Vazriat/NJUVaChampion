@@ -14,6 +14,9 @@ export default function SettingsPage() {
   const [usernameVal, setUsernameVal] = useState("");
   const [gameIdVal, setGameIdVal] = useState("");
   const [emailVal, setEmailVal] = useState("");
+  const [contactVal, setContactVal] = useState("");
+  const [contactPublicVal, setContactPublicVal] = useState(false);
+  const [displayPref, setDisplayPref] = useState("GAME_ID");
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
 
@@ -35,7 +38,10 @@ export default function SettingsPage() {
     const cached = getUser();
     if (cached) setUserState(cached);
     authApi.getProfile()
-      .then((res) => { setUserState(res.data.data); setUser(res.data.data); })
+      .then((res) => { setUserState(res.data.data); setUser(res.data.data);
+    setContactVal(res.data.data.contact || "");
+    setContactPublicVal(res.data.data.contactPublic || false);
+    setDisplayPref(res.data.data.displayPreference || "GAME_ID"); })
       .catch(() => { removeToken(); router.replace("/login"); })
       .finally(() => setLoading(false));
   }, [router]);
@@ -110,6 +116,14 @@ export default function SettingsPage() {
         <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
           <label className="mb-1 text-xs text-zinc-500">当前游戏 ID</label>
           <p className="text-lg font-medium">{user?.displayGameId || "未设置"}</p>
+          <button onClick={async () => {
+            if (!confirm("清空游戏ID后将使用用户名显示，确定继续？")) return;
+            setSubmitting("clearGameId");
+            try { await userApi.updateGameId(""); await refreshUser(); showMsg("游戏ID已清空", "success"); }
+            catch (err: any) { showMsg(err.response?.data?.message || "操作失败", "error"); }
+            finally { setSubmitting(null); }
+          }}
+            className="mt-2 text-xs text-red-400 hover:underline">清空游戏ID</button>
           {user?.gameId && <p className="mb-2 text-xs text-zinc-600">完整 ID：{user.gameId}</p>}
           <p className="mb-3 text-xs text-zinc-500">格式：主体（1-8字符） + # + 4-5位数字标记码，例如：玩家#1234</p>
           <div className="flex gap-3">
@@ -119,6 +133,27 @@ export default function SettingsPage() {
               className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold disabled:opacity-50 hover:bg-red-700">
               {submitting === "gameId" ? "..." : "修改"}
             </button>
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <label className="mb-1 text-xs text-zinc-500">显示名称</label>
+          <p className="mb-3 text-sm text-zinc-400">当前：{user?.displayName || user?.username || "未设置"}</p>
+          <div className="flex gap-3">
+            <button onClick={async () => {
+              setSubmitting("displayPref");
+              try { await userApi.updateDisplayPreference("GAME_ID"); await refreshUser(); setDisplayPref("GAME_ID"); showMsg("已切换到游戏ID", "success"); }
+              catch (err: any) { showMsg(err.response?.data?.message || "更新失败", "error"); }
+              finally { setSubmitting(null); }
+            }}
+              className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + ((user?.displayPreference || displayPref) === "GAME_ID" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>游戏ID</button>
+            <button onClick={async () => {
+              setSubmitting("displayPref");
+              try { await userApi.updateDisplayPreference("USERNAME"); await refreshUser(); setDisplayPref("USERNAME"); showMsg("已切换到用户名", "success"); }
+              catch (err: any) { showMsg(err.response?.data?.message || "更新失败", "error"); }
+              finally { setSubmitting(null); }
+            }}
+              className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + ((user?.displayPreference || displayPref) === "USERNAME" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>用户名</button>
           </div>
         </section>
 
@@ -133,6 +168,29 @@ export default function SettingsPage() {
               {submitting === "email" ? "..." : "修改"}
             </button>
           </div>
+        </section>
+
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <label className="mb-1 text-xs text-zinc-500">联系方式</label>
+          <p className="mb-3 text-sm text-zinc-400">{user?.contact || "未设置"}</p>
+          <div className="flex gap-3 mb-3">
+            <input type="text" value={contactVal} onChange={(e) => setContactVal(e.target.value)}
+              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-white outline-none focus:border-red-500" placeholder="邮箱 / QQ号 / 微信号" />
+            <button onClick={async () => {
+              setSubmitting("contact");
+              try { await userApi.updateContact(contactVal, contactPublicVal); await refreshUser(); setContactVal(""); showMsg("联系方式更新成功", "success"); }
+              catch (err: any) { showMsg(err.response?.data?.message || "更新失败", "error"); }
+              finally { setSubmitting(null); }
+            }} disabled={submitting === "contact"}
+              className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold disabled:opacity-50 hover:bg-red-700">
+              {submitting === "contact" ? "..." : "保存"}
+            </button>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={contactPublicVal} onChange={(e) => setContactPublicVal(e.target.checked)}
+              className="rounded border-zinc-600 bg-zinc-800 text-red-600" />
+            <span className="text-xs text-zinc-400">在个人主页展示联系方式</span>
+          </label>
         </section>
 
         <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">

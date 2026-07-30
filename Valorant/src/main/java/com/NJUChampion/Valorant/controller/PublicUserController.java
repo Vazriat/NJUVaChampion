@@ -50,6 +50,12 @@ public class PublicUserController {
                 .displayGameId(user.getDisplayGameId())
                 .role(user.getRole())
                 .status(user.getStatus())
+                .contact(user.getContactPublic() != null && user.getContactPublic() ? user.getContact() : null)
+                .contactPublic(user.getContactPublic())
+                .verifiedType(user.getVerifiedType())
+                .verifiedRank(user.getRankPublic() != null && user.getRankPublic() ? user.getVerifiedRank() : null)
+                .rankPublic(user.getRankPublic())
+                .displayPreference(user.getDisplayPreference())
                 .createdAt(user.getCreatedAt());
 
         List<TeamMember> memberships = teamMemberRepository.findByUserId(user.getId());

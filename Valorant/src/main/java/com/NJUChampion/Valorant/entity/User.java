@@ -40,6 +40,27 @@ public class User {
     @Builder.Default
     private Integer status = 1;
 
+    @Column(length = 200)
+    private String contact;
+
+    @Column(name = "verified_type", length = 20)
+    private String verifiedType;
+
+    @Column(name = "verified_rank", length = 50)
+    private String verifiedRank;
+
+    @Column(name = "rank_public")
+    @Builder.Default
+    private Boolean rankPublic = false;
+
+    @Column(name = "display_preference", length = 20)
+    @Builder.Default
+    private String displayPreference = "GAME_ID";
+
+    @Column(name = "contact_public")
+    @Builder.Default
+    private Boolean contactPublic = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

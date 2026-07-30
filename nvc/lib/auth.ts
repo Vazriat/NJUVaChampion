@@ -8,6 +8,13 @@ export interface User {
   email: string;
   role: string;
   status: number;
+  contact?: string;
+  contactPublic?: boolean;
+  verifiedType?: string;
+  verifiedRank?: string;
+  rankPublic?: boolean;
+  displayPreference?: string;
+  displayName?: string;
   createdAt: string;
   updatedAt: string;
 }

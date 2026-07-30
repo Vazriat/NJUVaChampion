@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import BracketTree from "@/components/BracketTree";
-import { tournamentApi, teamApi } from "@/lib/api";
+import GameDetailPanel from "@/components/GameDetailPanel";
+import { tournamentApi, teamApi, matchApi } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
 
 const STATUS_MAP = {
@@ -36,6 +37,8 @@ export default function TournamentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [detailMatch, setDetailMatch] = useState<any>(null);
+  const [detailGames, setDetailGames] = useState<any[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [captainTeams, setCaptainTeams] = useState<any[]>([]);
 
@@ -53,6 +56,14 @@ export default function TournamentDetailPage() {
     if (!isLoggedIn()) { router.replace("/login"); return; }
     fetch();
   }, [id, router]);
+
+  useEffect(() => {
+    if (!detailMatch) return;
+    setDetailLoading(true);
+    matchApi.detail(detailMatch.id).then(r => {
+      setDetailGames(r.data.data?.games || []);
+    }).catch(() => {}).finally(() => setDetailLoading(false));
+  }, [detailMatch]);
 
   const handleOpenPicker = async () => {
     try {
@@ -209,34 +220,30 @@ export default function TournamentDetailPage() {
       </main>
 
       {detailMatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setDetailMatch(null)}>
-          <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold">比赛详情</h3>
-              <button onClick={() => setDetailMatch(null)} className="text-zinc-500 hover:text-white text-xl transition">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-3xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[85vh] overflow-y-auto">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">{detailMatch.team1Name || "队伍A"} vs {detailMatch.team2Name || "队伍B"}</h3>
+              <button onClick={() => setDetailMatch(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
             </div>
-            <div className="text-center mb-6">
-              <div className="flex items-center justify-center gap-6 mb-2">
-                <span className="text-lg font-bold">{detailMatch.team1Name || "待定"}</span>
-                <span className="text-xs font-bold text-zinc-600 tracking-widest">VS</span>
-                <span className="text-lg font-bold">{detailMatch.team2Name || "待定"}</span>
-              </div>
-              <p className="text-xs text-zinc-500">
-                {detailMatch.winnerId
-                  ? "胜者：" + (detailMatch.winnerId === detailMatch.team1Id ? detailMatch.team1Name : detailMatch.team2Name)
-                  : "比赛未开始"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-800/30 p-12 text-center">
-              <div className="mb-3 text-4xl">🎮</div>
-              <p className="text-sm font-medium text-zinc-400">比赛详情由管理员记录</p>
-              <p className="mt-1 text-xs text-zinc-600">管理员可在管理后台记录比赛胜负，胜者自动晋级下一轮</p>
-            </div>
+            <p className="mb-4 text-xs text-zinc-500">{detailMatch.status === "COMPLETED" ? "已完结" : "进行中"}</p>
+            {detailLoading ? (
+              <p className="py-4 text-center text-xs text-zinc-500">加载中...</p>
+            ) : detailGames.length > 0 ? (
+              <GameDetailPanel
+                games={detailGames}
+                team1Name={detailMatch.team1Name}
+                team2Name={detailMatch.team2Name}
+                team1Id={detailMatch.team1Id}
+                team2Id={detailMatch.team2Id}
+              />
+            ) : (
+              <p className="py-4 text-center text-xs text-zinc-500">暂无小局数据</p>
+            )}
           </div>
         </div>
       )}
-
-      {showTeamPicker && (
+{showTeamPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">

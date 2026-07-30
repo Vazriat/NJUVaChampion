@@ -37,6 +37,8 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
   const [type, setType] = useState("CUP");
   const [format, setFormat] = useState("SINGLE_ELIM");
   const [maxTeams, setMaxTeams] = useState(2);
+  const [knockoutFormat, setKnockoutFormat] = useState("SINGLE_ELIM");
+  const [pairingMode, setPairingMode] = useState("RANDOM");
   const [submitting, setSubmitting] = useState(false);
 
   const isLeague = type === "LEAGUE";
@@ -69,13 +71,12 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await adminTournamentApi.create({
-        name,
-        description: description || undefined,
-        type,
-        format,
-        maxTeams,
-      });
+      const body: any = { name, description: description || undefined, type, format, maxTeams };
+      if (format === "SWISS_ELIM") {
+        body.knockoutFormat = knockoutFormat;
+        body.swissPairingMode = pairingMode;
+      }
+      await adminTournamentApi.create(body);
       onSuccess("赛事已创建");
       onClose();
     } catch (err: any) {
@@ -154,6 +155,29 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
             </div>
           </div>
 
+          {format === "SWISS_ELIM" && (
+            <>
+              <p className="text-xs text-zinc-500">16 队瑞士轮固定 5 轮</p>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">八强赛制</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setKnockoutFormat("SINGLE_ELIM")}
+                    className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (knockoutFormat === "SINGLE_ELIM" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>单败淘汰</button>
+                  <button type="button" onClick={() => setKnockoutFormat("DOUBLE_ELIM")}
+                    className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (knockoutFormat === "DOUBLE_ELIM" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>双败淘汰</button>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">瑞士轮配对方式</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setPairingMode("RANDOM")}
+                    className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (pairingMode === "RANDOM" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>全随机</button>
+                  <button type="button" onClick={() => setPairingMode("BUCHHOLZ")}
+                    className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (pairingMode === "BUCHHOLZ" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>BU分配对</button>
+                </div>
+              </div>
+            </>
+          )}
           <div>
             <label className="mb-1 block text-xs text-zinc-500">赛事简介（选填）</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}

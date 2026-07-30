@@ -2,18 +2,15 @@ package com.NJUChampion.Valorant.service;
 
 import com.NJUChampion.Valorant.dto.CreateTeamRequest;
 import com.NJUChampion.Valorant.dto.TeamVO;
-import com.NJUChampion.Valorant.entity.Team;
-import com.NJUChampion.Valorant.entity.TeamMember;
-import com.NJUChampion.Valorant.entity.User;
-import com.NJUChampion.Valorant.repository.TeamMemberRepository;
-import com.NJUChampion.Valorant.repository.TeamRepository;
-import com.NJUChampion.Valorant.repository.UserRepository;
+import com.NJUChampion.Valorant.entity.*;
+import com.NJUChampion.Valorant.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +20,9 @@ public class TeamService {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final UserRepository userRepository;
+    private final TournamentMatchRepository tournamentMatchRepository;
+    private final GameRecordRepository gameRecordRepository;
+    private final TournamentRepository tournamentRepository;
 
     @Transactional
     public TeamVO create(CreateTeamRequest req, Long captainId) {
@@ -168,5 +168,53 @@ public class TeamService {
     private String getDisplayName(User user) {
         String display = user.getDisplayGameId();
         return display != null ? display : user.getUsername();
+    }
+
+    public List<Map<String, Object>> getMatchHistory(Long teamId) {
+        List<TournamentMatch> matches = tournamentMatchRepository
+                .findByTeam1IdOrTeam2IdOrderByCreatedAtDesc(teamId, teamId);
+
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+
+        for (TournamentMatch match : matches) {
+            Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            entry.put("matchId", match.getId());
+            entry.put("stage", match.getStage());
+            entry.put("round", match.getRound());
+            entry.put("status", match.getStatus());
+
+            // Determine opponent
+            boolean isTeam1 = teamId.equals(match.getTeam1Id());
+            Long opponentId = isTeam1 ? match.getTeam2Id() : match.getTeam1Id();
+            Team opponent = opponentId != null ? teamRepository.findById(opponentId).orElse(null) : null;
+            entry.put("opponentId", opponentId);
+            entry.put("opponentName", opponent != null ? opponent.getName() : null);
+
+            // Tournament info
+            Tournament tournament = tournamentRepository.findById(match.getTournamentId()).orElse(null);
+            entry.put("tournamentId", match.getTournamentId());
+            entry.put("tournamentName", tournament != null ? tournament.getName() : null);
+
+            // Result
+            boolean won = match.getWinnerId() != null && match.getWinnerId().equals(teamId);
+            entry.put("winnerId", match.getWinnerId());
+            entry.put("won", won);
+
+            // Game records
+            List<GameRecord> games = gameRecordRepository.findByMatchIdOrderByGameNumberAsc(match.getId());
+            List<Map<String, Object>> gameVOs = new java.util.ArrayList<>();
+            for (GameRecord g : games) {
+                Map<String, Object> gv = new java.util.LinkedHashMap<>();
+                gv.put("gameNumber", g.getGameNumber());
+                gv.put("team1Score", g.getTeam1Score());
+                gv.put("team2Score", g.getTeam2Score());
+                gameVOs.add(gv);
+            }
+            entry.put("games", gameVOs);
+
+            result.add(entry);
+        }
+
+        return result;
     }
 }

@@ -22,6 +22,10 @@ public class TournamentVO {
     private String type;
     private String format;
     private Integer currentStage;
+    private Integer swissRounds;
+    private String knockoutFormat;
+    private String swissPairingMode;
+    private Integer currentSwissRound;
     private Integer registeredCount;
     private Long championTeamId;
     private String championTeamName;
