@@ -1,12 +1,10 @@
 package com.NJUChampion.Valorant.service;
 
 import com.NJUChampion.Valorant.dto.CreateTournamentRequest;
-import com.NJUChampion.Valorant.dto.SetMatchWinnerRequest;
 import com.NJUChampion.Valorant.dto.TournamentVO;
 import com.NJUChampion.Valorant.entity.*;
 import com.NJUChampion.Valorant.util.SwissPairingEngine;
 import com.NJUChampion.Valorant.repository.*;
-import com.NJUChampion.Valorant.util.SwissPairingEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -118,40 +116,6 @@ public class TournamentService {
 
         tournament.setStatus("PROGRESSION");
         tournament = tournamentRepository.save(tournament);
-        return toVO(tournament);
-    }
-
-    @Transactional
-    public TournamentVO setMatchWinner(Long tournamentId, Long matchId, SetMatchWinnerRequest req) {
-        Tournament tournament = getTournament(tournamentId);
-        if (!"PROGRESSION".equals(tournament.getStatus())) {
-            throw new IllegalArgumentException("赛事未在进行中");
-        }
-
-        TournamentMatch match = tournamentMatchRepository.findById(matchId)
-                .orElseThrow(() -> new IllegalArgumentException("比赛不存在"));
-        if (!match.getTournamentId().equals(tournamentId)) {
-            throw new IllegalArgumentException("比赛不属于该赛事");
-        }
-        if (!"PENDING".equals(match.getStatus())) {
-            throw new IllegalArgumentException("比赛结果已记录");
-        }
-        if (!req.getWinnerTeamId().equals(match.getTeam1Id()) && !req.getWinnerTeamId().equals(match.getTeam2Id())) {
-            throw new IllegalArgumentException("获胜队伍不是参赛队伍");
-        }
-
-        // 设置每场局数
-        match.setGamesPerMatch(req.getGamesPerMatch() != null ? req.getGamesPerMatch() : 1);
-        match.setWinnerId(req.getWinnerTeamId());
-        match.setStatus("COMPLETED");
-        tournamentMatchRepository.save(match);
-
-        if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
-            handleDoubleElimMatchResult(tournament, match);
-        } else if ("SINGLE_ELIM".equals(tournament.getFormat())) {
-            handleSingleElimMatchResult(tournament, match);
-        }
-
         return toVO(tournament);
     }
 

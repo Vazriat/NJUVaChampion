@@ -30,6 +30,8 @@ const STATUS_MAP: Record<string, string> = {
   SETUP: "筹备中", REGISTRATION: "报名中", PROGRESSION: "进行中", ENDED: "已结束",
 };
 
+const FORMAT_LABEL: Record<string, string> = { SINGLE_ELIM: "单败淘汰", DOUBLE_ELIM: "双败淘汰", SWISS_ELIM: "瑞士轮 + 淘汰赛" };
+
 const ROUND_NAMES: Record<number, string> = { 0: "1/4 决赛", 1: "半决赛", 2: "决赛" };
 const STAGE_LABEL: Record<string, string> = {
   WINNERS: "胜者组",
@@ -471,7 +473,7 @@ export default function AdminPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-semibold">{t.name}</h4>
-                      <p className="mt-1 text-xs text-zinc-500">{STATUS_MAP[t.status]} · {t.registeredCount}/{t.maxTeams} 队 · 单场淘汰</p>
+                      <p className="mt-1 text-xs text-zinc-500">{STATUS_MAP[t.status]} · {t.registeredCount}/{t.maxTeams} 队 · {FORMAT_LABEL[t.format] || t.format}</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => handleDeleteTournament(t.id)} className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除</button>

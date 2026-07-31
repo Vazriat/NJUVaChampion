@@ -250,44 +250,6 @@ public class MatchService {
     }
 
 
-    public Map<String, Object> canEdit(Long matchId) {
-        TournamentMatch match = getMatch(matchId);
-        Map<String, Object> result = new java.util.LinkedHashMap<>();
-        result.put("matchId", matchId);
-        result.put("status", match.getStatus());
-        result.put("canEdit", true);
-        result.put("reason", null);
-
-        if ("PENDING".equals(match.getStatus())) {
-            return result; // PENDING always editable
-        }
-
-        if (!"COMPLETED".equals(match.getStatus())) {
-            result.put("canEdit", false);
-            result.put("reason", "Match status does not allow editing");
-            return result;
-        }
-
-        // For COMPLETED matches, check if the next match in bracket is still PENDING
-        // Find the successor match
-        int nextRound = match.getRound() + 1;
-        int nextPosition = match.getPosition() / 2;
-
-        java.util.List<TournamentMatch> successors = matchRepository.findByTournamentIdAndRound(
-                match.getTournamentId(), nextRound);
-        TournamentMatch nextMatch = successors.stream()
-                .filter(m -> m.getPosition().equals(nextPosition))
-                .findFirst().orElse(null);
-
-        if (nextMatch != null && "COMPLETED".equals(nextMatch.getStatus())) {
-            result.put("canEdit", false);
-            result.put("reason", "\u4e0b\u4e00\u573a\u6bd4\u8d5b\u5df2\u5b8c\u7ed3\uff0c\u65e0\u6cd5\u4fee\u6539\u672c\u573a\u7ed3\u679c");
-            return result;
-        }
-
-        return result;
-    }
-
     private TournamentMatch getMatch(Long matchId) {
         return matchRepository.findById(matchId)
                 .orElseThrow(() -> new IllegalArgumentException("Match not found"));

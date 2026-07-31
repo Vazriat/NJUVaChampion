@@ -147,7 +147,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1">
                 <h4 className="text-lg font-semibold group-hover:text-red-400">{myTeam.name}</h4>
-                <p className="text-sm text-zinc-500">队长：{myTeam.captainName} · 队员 {myTeam.memberCount}/5</p>
+                <p className="text-sm text-zinc-500">队长：{myTeam.captainName} · 队员 {myTeam.memberCount} 人</p>
               </div>
               <span className="text-zinc-600 group-hover:text-red-400">→</span>
             </Link>

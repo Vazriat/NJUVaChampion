@@ -110,7 +110,7 @@ export default function GameStatsTable({
           }}
           className={"w-28 bg-zinc-800 border-zinc-700 text-xs rounded border px-2 py-1 outline-none " + (p.userId ? "text-white" : "text-amber-300")}
         >
-          <option value={0}>\u4e0d\u7ed1\u5b9a</option>
+          <option value={0}>不绑定</option>
           {/* Filter members based on current team selection */}
           {(p.teamId && p.teamId !== 0
             ? (p.teamId === team1Id ? (team1Members || []) : (team2Members || []))
@@ -190,6 +190,7 @@ export default function GameStatsTable({
               <th className="pb-2 px-3 w-8">#</th>
               <th className="pb-2 px-3">选手</th>
               <th className="pb-2 px-3">队伍</th>
+              <th className="pb-2 px-3">绑定用户</th>
               {columns.map(col => (
                 <th key={col.key} className="pb-2 px-3">{col.label}</th>
               ))}

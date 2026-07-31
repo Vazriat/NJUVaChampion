@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import GameStatsTable, { PlayerStatEntry, StatColumnDef } from "./GameStatsTable";
 import { matchApi, teamApi } from "@/lib/api";
 
@@ -224,7 +224,6 @@ export default function GameRecordWizard({
         }
       } catch (err: any) {
         setError("OCR识别失败: " + (err.message || "") + "。可以手动输入");
-        const half = 5;
         const emptyPlayers: PlayerStatEntry[] = [];
         for (let i = 0; i < 10; i++) {
           emptyPlayers.push({

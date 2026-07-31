@@ -258,7 +258,7 @@ export default function TournamentDetailPage() {
                   <button key={team.id} onClick={() => handleRegister(team.id)}
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-800 p-4 text-left transition hover:border-red-500 hover:bg-zinc-700 group">
                     <p className="font-medium group-hover:text-red-400 transition">{team.name}</p>
-                    <p className="text-xs text-zinc-500">队员 {team.memberCount}/5</p>
+                    <p className="text-xs text-zinc-500">队员 {team.memberCount} 人</p>
                   </button>
                 ))
               )}
