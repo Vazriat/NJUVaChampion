@@ -44,7 +44,7 @@
 | GET | /api/teams/my | 我的战队 |
 | GET | /api/teams/captain | 我担任队长的战队列表 |
 | GET | /api/teams/{id} | 战队详情（含队员列表） |
-| POST | /api/teams/{id}/join | 加入战队（上限 5 人） |
+| POST | /api/teams/{id}/join | 加入战队 |
 | POST | /api/teams/{id}/leave | 退出战队 |
 
 ### 赛事 /api/tournaments（需 Token）
@@ -94,8 +94,16 @@
 | POST | /api/admin/tournaments/{id}/register | 管理员手动添加单个队伍 | { teamId } |
 | POST | /api/admin/tournaments/{id}/batch-register | 管理员批量添加队伍 | { teamIds: [id1, id2, ...] } |
 | POST | /api/admin/tournaments/{id}/unregister | 管理员手动移除队伍 | { teamId } |
-| PUT | /api/admin/tournaments/{id}/matches/{matchId} | 记录比赛结果 | { winnerTeamId, gamesPerMatch? } |
 | DELETE | /api/admin/tournaments/{id} | 删除赛事（含关联数据） |
+
+### 比赛小局 /api/admin/matches
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/admin/matches/{matchId}/games/init | 初始化小局（BO1/BO3/BO5） | { boType } |
+| PUT | /api/admin/matches/{matchId}/games/{gameId} | 记录单小局（比分/截图/选手数据） |
+| POST | /api/admin/matches/{matchId}/finalize | 结算比赛，推进赛程 | { team1Wins, team2Wins } |
+| GET | /api/admin/matches/{matchId}/detail | 比赛详情（含小局与选手数据） |
 
 
 ---

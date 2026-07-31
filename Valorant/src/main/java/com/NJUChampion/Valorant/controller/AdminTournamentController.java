@@ -2,7 +2,6 @@ package com.NJUChampion.Valorant.controller;
 
 import com.NJUChampion.Valorant.common.Result;
 import com.NJUChampion.Valorant.dto.CreateTournamentRequest;
-import com.NJUChampion.Valorant.dto.SetMatchWinnerRequest;
 import com.NJUChampion.Valorant.dto.TournamentVO;
 import com.NJUChampion.Valorant.service.TournamentService;
 import jakarta.validation.Valid;
@@ -32,14 +31,6 @@ public class AdminTournamentController {
     public Result<TournamentVO> start(@PathVariable Long id) {
         return Result.success(tournamentService.start(id));
     }
-
-    @PutMapping("/{tournamentId}/matches/{matchId}")
-    public Result<TournamentVO> setMatchWinner(@PathVariable Long tournamentId,
-                                                @PathVariable Long matchId,
-                                                @Valid @RequestBody SetMatchWinnerRequest req) {
-        return Result.success(tournamentService.setMatchWinner(tournamentId, matchId, req));
-    }
-
 
     @PostMapping("/{id}/register")
     public Result<Void> registerTeam(@PathVariable Long id, @RequestBody Map<String, Long> body) {

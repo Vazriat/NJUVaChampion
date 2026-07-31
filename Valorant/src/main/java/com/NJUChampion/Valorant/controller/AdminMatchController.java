@@ -41,11 +41,6 @@ public class AdminMatchController {
         return Result.success();
     }
 
-    @GetMapping("/{matchId}/can-edit")
-    public Result<Map<String, Object>> canEdit(@PathVariable Long matchId) {
-        return Result.success(matchService.canEdit(matchId));
-    }
-
     @GetMapping("/{matchId}/detail")
     public Result<Map<String, Object>> getMatchDetail(@PathVariable Long matchId) {
         return Result.success(matchService.getMatchDetail(matchId));

@@ -70,7 +70,7 @@ export default function TeamsPage() {
                 {team.description || ""}
               </p>
               <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
-                <span>队员 {team.memberCount}/5</span>
+                <span>队员 {team.memberCount} 人</span>
               </div>
             </Link>
           ))}

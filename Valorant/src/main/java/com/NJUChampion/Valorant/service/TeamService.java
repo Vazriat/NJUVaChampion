@@ -87,11 +87,6 @@ public class TeamService {
             throw new IllegalArgumentException("你已是该战队成员");
         }
 
-        long count = teamMemberRepository.countByTeamId(teamId);
-        if (count >= 5) {
-            throw new IllegalArgumentException("战队人数已满（上限5人）");
-        }
-
         TeamMember member = TeamMember.builder()
                 .teamId(teamId)
                 .userId(userId)

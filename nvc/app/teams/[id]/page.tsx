@@ -90,7 +90,7 @@ export default function TeamDetailPage() {
               <Link href={`/profile/${team.captainId}`} className="mt-1 block text-zinc-400 hover:text-red-400">
                 队长：{team.captainName}
               </Link>
-              <p className="text-sm text-zinc-500">队员 {team.memberCount}/5</p>
+              <p className="text-sm text-zinc-500">队员 {team.memberCount} 人</p>
             </div>
           </div>
 

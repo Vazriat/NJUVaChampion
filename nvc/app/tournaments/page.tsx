@@ -14,6 +14,14 @@ const STATUS_MAP: Record<string, string> = {
   ENDED: "已结束",
 };
 
+const FORMAT_LABEL: Record<string, string> = {
+  SINGLE_ELIM: "单败淘汰",
+  DOUBLE_ELIM: "双败淘汰",
+  SWISS_ELIM: "瑞士轮 + 淘汰赛",
+  SINGLE_RR: "单循环",
+  DOUBLE_RR: "双循环",
+};
+
 const STATUS_COLOR: Record<string, string> = {
   SETUP: "text-zinc-400 bg-zinc-800",
   REGISTRATION: "text-blue-400 bg-blue-500/10",
@@ -75,7 +83,7 @@ export default function TournamentsPage() {
 
               <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500">
                 <span>报名：{t.registeredCount}/{t.maxTeams}</span>
-                <span>赛制：单败淘汰赛</span>
+                <span>赛制：{FORMAT_LABEL[t.format] || t.format}</span>
                 {t.championTeamName && (
                   <span className="text-yellow-400">冠军：{t.championTeamName}</span>
                 )}
