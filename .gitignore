@@ -76,3 +76,5 @@ Valorant-OCR-master/debug-*.png
 # ============ Misc ============
 HELP.md
 .vercel
+.run/
+.codegraph/

@@ -69,3 +69,19 @@ mvn spring-boot:run
 cd nvc
 npm run dev
 ```
+
+### 一键启动 (Windows)
+
+在项目根目录执行一条命令即可并行拉起后端、前端、OCR 三个服务(各自独立窗口):
+
+```powershell
+.\start-all.ps1
+```
+
+一键停止:
+
+```powershell
+.\stop-all.ps1
+```
+
+> 脚本会检查 `java`/`mvn`/`node`/`npm` 是否在 PATH 中、MySQL 是否监听 3306、以及 `valorant-ocr` conda 环境是否存在(OCR 使用 PaddleOCR 引擎)。请先确保 MySQL 已启动。
