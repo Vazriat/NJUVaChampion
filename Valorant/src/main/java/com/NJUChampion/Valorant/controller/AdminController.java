@@ -1,11 +1,14 @@
 package com.NJUChampion.Valorant.controller;
 
 import com.NJUChampion.Valorant.common.Result;
+import com.NJUChampion.Valorant.dto.TeamRatingVO;
 import com.NJUChampion.Valorant.entity.Team;
 import com.NJUChampion.Valorant.entity.User;
 import com.NJUChampion.Valorant.repository.TeamMemberRepository;
 import com.NJUChampion.Valorant.repository.TeamRepository;
 import com.NJUChampion.Valorant.repository.UserRepository;
+import com.NJUChampion.Valorant.service.TeamService;
+import com.NJUChampion.Valorant.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +29,8 @@ public class AdminController {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TeamService teamService;
+    private final UserService userService;
 
     // ==================== 用户管理 ====================
 
@@ -109,12 +114,19 @@ public class AdminController {
     public Result<Void> deleteUser(@PathVariable Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        teamService.onUserDisabled(id);
         user.setStatus(0);
         userRepository.save(user);
         return Result.success();
     }
 
     // ==================== 战队管理 ====================
+
+    @GetMapping("/teams/ratings")
+    public Result<List<TeamRatingVO>> listTeamRatings(
+            @RequestParam(required = false, defaultValue = "score") String sort) {
+        return Result.success(teamService.listRatings(sort));
+    }
 
     @GetMapping("/teams")
     public Result<List<Map<String, Object>>> listTeams() {
@@ -209,6 +221,21 @@ public class AdminController {
                 .orElseThrow(() -> new IllegalArgumentException("战队不存在"));
         team.setStatus(0);
         teamRepository.save(team);
+        teamMemberRepository.deleteByTeamId(id);
+        return Result.success();
+    }
+
+    // ==================== 彻底删除 ====================
+
+    @DeleteMapping("/users/{id}/purge")
+    public Result<Void> purgeUser(@PathVariable Long id) {
+        userService.purgeUser(id);
+        return Result.success();
+    }
+
+    @DeleteMapping("/teams/{id}/purge")
+    public Result<Void> purgeTeam(@PathVariable Long id) {
+        teamService.purgeTeam(id);
         return Result.success();
     }
 }

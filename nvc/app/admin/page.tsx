@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,8 +13,10 @@ import AdminBannerManager from "@/components/AdminBannerManager";
 import AdminAnnouncementManager from "@/components/AdminAnnouncementManager";
 import CertificationManager from "@/components/AdminCertificationManager";
 import GameRecordWizard from "@/components/GameRecordWizard";
+import TeamRatingManager from "@/components/TeamRatingManager";
+import CompetitionManager from "@/components/CompetitionManager";
 
-type Tab = "overview" | "users" | "teams" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements";
+type Tab = "overview" | "users" | "teams" | "ratings" | "competitions" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements";
 
 interface AdminUser {
   id: number; username: string; gameId: string | null; displayGameId: string | null;
@@ -126,6 +128,18 @@ export default function AdminPage() {
     if (!confirm("确定解散该战队？")) return;
     try { await adminApi.deleteTeam(id); showMsg("战队已解散"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+  };
+
+  const handlePurgeUser = async (id: number) => {
+    if (!confirm("确定彻底删除该用户？将同时删除其战队关系、认证和生涯数据，此操作不可恢复！")) return;
+    try { await adminApi.purgeUser(id); showMsg("用户已彻底删除"); fetchData(); }
+    catch (err: any) { showMsg(err.response?.data?.message || "删除失败"); }
+  };
+
+  const handlePurgeTeam = async (id: number) => {
+    if (!confirm("确定彻底删除该战队？仅当战队没有未删除的赛事记录时才可执行，此操作不可恢复！")) return;
+    try { await adminApi.purgeTeam(id); showMsg("战队已彻底删除"); fetchData(); }
+    catch (err: any) { showMsg(err.response?.data?.message || "删除失败"); }
   };
 
   const handleSaveUser = async () => {
@@ -310,7 +324,7 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-6xl px-8 py-8">
         <div className="mb-8 flex gap-6 border-b border-zinc-800">
-          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => { setTab(key); setSelectedTournament(null); }}
               className={`pb-3 text-sm font-medium transition border-b-2 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
           ))}
@@ -422,6 +436,7 @@ export default function AdminPage() {
                   <td className="py-3 pr-4 flex gap-2">
                     <button onClick={() => openEditUser(u)} className="text-xs text-blue-400 hover:underline">编辑</button>
                     <button onClick={() => handleDeleteUser(u.id)} className="text-xs text-red-400 hover:underline">禁用</button>
+                    <button onClick={() => handlePurgeUser(u.id)} className="text-xs text-orange-400 hover:underline">彻底删除</button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -445,7 +460,10 @@ export default function AdminPage() {
                   <td className="py-3 pr-4"><span className={`rounded px-2 py-0.5 text-xs ${t.status === 1 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>{t.status === 1 ? "正常" : "已解散"}</span></td>
                   <td className="py-3 pr-4 flex gap-2">
                     <button onClick={() => openEditTeam(t)} className="text-xs text-blue-400 hover:underline">编辑</button>
-                    <button onClick={() => handleDeleteTeam(t.id)} className="text-xs text-red-400 hover:underline">解散</button>
+                    {t.status === 1 && (
+                      <button onClick={() => handleDeleteTeam(t.id)} className="text-xs text-red-400 hover:underline">解散</button>
+                    )}
+                    <button onClick={() => handlePurgeTeam(t.id)} className="text-xs text-orange-400 hover:underline">彻底删除</button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -573,6 +591,22 @@ export default function AdminPage() {
                       )}
                     </div>
                   )}
+
+                  {(selectedTournament.format === "SINGLE_RR" || selectedTournament.format === "DOUBLE_RR") && (selectedTournament.leagueStandings || []).length > 0 && (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold">常规赛积分</p>
+                      <div className="mb-3 space-y-1">
+                        {(selectedTournament.leagueStandings || []).map((s: any, i: number) => (
+                          <div key={s.teamId} className="flex items-center gap-3 rounded bg-zinc-800 px-3 py-1.5 text-xs">
+                            <span className="w-5 font-bold text-zinc-400">{i + 1}</span>
+                            <span className="flex-1 text-zinc-300">{s.teamName}</span>
+                            <span className="text-zinc-500">{s.wins}胜-{s.losses}负 · 净胜局{s.roundDiff}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {selectedTournament.registeredTeams && selectedTournament.registeredTeams.length > 0 && (
                     <div>
                       <p className="mb-2 text-sm font-semibold">报名队伍</p>
@@ -653,6 +687,14 @@ export default function AdminPage() {
             onClose={() => setWizardMatch(null)}
             onComplete={(msg) => { showMsg(msg); fetchTournaments(); loadTournamentDetail({ ...selectedTournament!, id: wizardMatch.tournamentId } as TournamentVO); }}
           />
+        )}
+
+        {tab === "ratings" && (
+          <TeamRatingManager />
+        )}
+
+        {tab === "competitions" && (
+          <CompetitionManager />
         )}
 
         {tab === "screenshots" && (

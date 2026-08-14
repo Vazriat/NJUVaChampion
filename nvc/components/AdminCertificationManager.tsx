@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { adminCertificationApi } from "@/lib/api";
+import { certTypeLabel } from "@/lib/certification";
+import { RANKS } from "@/lib/ranks";
 
 export default function CertificationManager() {
   const [records, setRecords] = useState<any[]>([]);
@@ -33,7 +35,6 @@ export default function CertificationManager() {
 
   const statusLabel: Record<string, string> = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回", REVOKED: "已取消" };
   const statusColor: Record<string, string> = { PENDING: "text-yellow-400 bg-yellow-500/10", APPROVED: "text-green-400 bg-green-500/10", REJECTED: "text-red-400 bg-red-500/10", REVOKED: "text-zinc-400 bg-zinc-800" };
-  const typeLabel: Record<string, string> = { STUDENT: "在校生", ALUMNI: "校友", RANK: "段位" };
 
   const handleApprove = async (id: number) => {
     try {
@@ -81,7 +82,7 @@ export default function CertificationManager() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-zinc-300">用户 #{r.userId}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{typeLabel[r.type] || r.type}{r.studentName ? " · " + r.studentName : ""}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{certTypeLabel(r.type)}{r.studentName ? " · " + r.studentName : ""}</p>
                 </div>
                 <span className={"rounded px-2 py-0.5 text-xs font-medium " + (statusColor[r.status] || "bg-zinc-800 text-zinc-400")}>
                   {statusLabel[r.status] || r.status}
@@ -102,10 +103,10 @@ export default function CertificationManager() {
             </div>
             <div className="space-y-3 text-sm">
               <div><span className="text-zinc-500">用户 ID：</span><span className="text-zinc-300">{selected.userId}</span></div>
-              <div><span className="text-zinc-500">类型：</span><span className="text-zinc-300">{typeLabel[selected.type] || selected.type}</span></div>
+              <div><span className="text-zinc-500">类型：</span><span className="text-zinc-300">{certTypeLabel(selected.type)}</span></div>
               <div><span className="text-zinc-500">状态：</span><span className={"font-medium " + (selected.status === "APPROVED" ? "text-green-400" : selected.status === "REJECTED" ? "text-red-400" : "text-yellow-400")}>{statusLabel[selected.status]}</span></div>
               {selected.studentName && <div><span className="text-zinc-500">姓名：</span><span className="text-zinc-300">{selected.studentName}</span></div>}
-              {selected.type === "RANK" && selected.studentId && <div><span className="text-zinc-500">申请段位：</span><span className="text-zinc-300">{selected.studentId}</span></div>}
+              {selected.type === "RANK" && selected.rank && <div><span className="text-zinc-500">申请段位：</span><span className="text-zinc-300">{selected.rank}</span></div>}
               {selected.type !== "RANK" && selected.studentId && <div><span className="text-zinc-500">学号：</span><span className="text-zinc-300">{selected.studentId}</span></div>}
               {selected.rank && <div><span className="text-zinc-500">已认证段位：</span><span className="text-zinc-300">{selected.rank}</span></div>}
               {selected.description && <div><span className="text-zinc-500">说明：</span><p className="mt-1 text-zinc-300">{selected.description}</p></div>}
@@ -143,9 +144,11 @@ export default function CertificationManager() {
               )}
               {selected.status === "PENDING" && selected.type === "RANK" && (
                 <div className="mt-4 mb-3">
-                  <input value={rankInput} onChange={e => setRankInput(e.target.value)}
-                    placeholder="设置段位"
-                    className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white outline-none focus:border-red-500" />
+                  <select value={rankInput} onChange={e => setRankInput(e.target.value)}
+                    className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white outline-none focus:border-red-500">
+                    <option value="" disabled>选择段位</option>
+                    {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
                 </div>
               )}
               {selected.status === "PENDING" && (

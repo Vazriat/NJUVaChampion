@@ -154,8 +154,10 @@ public class MatchService {
         match.setStatus("COMPLETED");
         matchRepository.save(match);
 
-        // Trigger progression or Swiss round completion
-        if ("SWISS".equals(match.getStage()) && "SWISS_ELIM".equals(tournament.getFormat())) {
+        // Trigger progression / Swiss round / league regular season completion
+        if ("REGULAR".equals(match.getStage())) {
+            tournamentService.completeRegularMatch(tournament, match);
+        } else if ("SWISS".equals(match.getStage()) && "SWISS_ELIM".equals(tournament.getFormat())) {
             tournamentService.completeSwissMatch(tournament, match);
         } else {
             tournamentService.processCompletedMatch(tournament, match);

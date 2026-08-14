@@ -26,6 +26,9 @@ public class TournamentVO {
     private String knockoutFormat;
     private String swissPairingMode;
     private Integer currentSwissRound;
+    private Boolean hasPlayoffs;
+    private String playoffFormat;
+    private Integer playoffSize;
     private Integer registeredCount;
     private Long championTeamId;
     private String championTeamName;
@@ -33,6 +36,7 @@ public class TournamentVO {
 
     private List<RegisteredTeamInfo> registeredTeams;
     private List<MatchVO> matches;
+    private List<LeagueStandingVO> leagueStandings;
 
     @Data
     @NoArgsConstructor
@@ -66,5 +70,17 @@ public class TournamentVO {
         private Long winnerId;
         private String status;
         private Integer gamesPerMatch;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class LeagueStandingVO {
+        private Long teamId;
+        private String teamName;
+        private Integer wins;
+        private Integer losses;
+        private Integer roundDiff;
     }
 }

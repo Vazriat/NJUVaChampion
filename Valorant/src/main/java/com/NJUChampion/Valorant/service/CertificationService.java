@@ -1,5 +1,9 @@
 package com.NJUChampion.Valorant.service;
 
+import com.NJUChampion.Valorant.common.CertificationType;
+import com.NJUChampion.Valorant.common.Rank;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.NJUChampion.Valorant.entity.Certification;
 import com.NJUChampion.Valorant.entity.User;
 import com.NJUChampion.Valorant.repository.CertificationRepository;
@@ -22,13 +26,19 @@ public class CertificationService {
 
     private final CertificationRepository certificationRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
 
-    @Value("")
+    @Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
     @Transactional
     public Certification apply(Long userId, String type, String studentName, String studentId,
-                                String description, String xuexinBase64, List<String> evidenceBase64s) {
+                                String description, String xuexinBase64, List<String> evidenceBase64s,
+                                String rank) {
+        CertificationType certType = CertificationType.fromCode(type);
+        if (certType == null) {
+            throw new IllegalArgumentException("无效的认证类型");
+        }
         Optional<Certification> existing = certificationRepository
                 .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(userId, type, "PENDING");
         if (existing.isPresent()) {
@@ -40,10 +50,33 @@ public class CertificationService {
             throw new IllegalArgumentException("\u8be5" + type + "\u8ba4\u8bc1\u5df2\u901a\u8fc7");
         }
 
+        // 同组互斥（如 identity 组的在校生/校友）
+        for (CertificationType other : CertificationType.values()) {
+            if (other == certType) {
+                continue;
+            }
+            if (certType.getGroup().equals(other.getGroup())) {
+                boolean conflict = certificationRepository
+                        .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(userId, other.getCode(), "PENDING").isPresent()
+                        || certificationRepository
+                        .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(userId, other.getCode(), "APPROVED").isPresent();
+                if (conflict) {
+                    throw new IllegalArgumentException(certType.getLabel() + "与" + other.getLabel() + "认证互斥，只能认证一个");
+                }
+            }
+        }
+
         Certification cert = Certification.builder()
                 .userId(userId).type(type).status("PENDING")
                 .studentName(studentName).studentId(studentId).description(description)
                 .build();
+
+        if (certType.isRank() && rank != null && !rank.isBlank()) {
+            if (!Rank.isValid(rank.trim())) {
+                throw new IllegalArgumentException("请选择合法的段位");
+            }
+            cert.setRank(rank.trim());
+        }
 
         if (xuexinBase64 != null && !xuexinBase64.isBlank()) {
             cert.setXuexinPath(saveFile(xuexinBase64, userId, "xuexin"));
@@ -53,9 +86,17 @@ public class CertificationService {
             for (int i = 0; i < evidenceBase64s.size(); i++) {
                 paths.add(saveFile(evidenceBase64s.get(i), userId, "evidence_" + i));
             }
-            cert.setEvidencePaths(paths.toString());
+            cert.setEvidencePaths(toJson(paths));
         }
         return certificationRepository.save(cert);
+    }
+
+    private String toJson(List<String> paths) {
+        try {
+            return objectMapper.writeValueAsString(paths);
+        } catch (JsonProcessingException e) {
+            return "[]";
+        }
     }
 
     public List<Certification> getMyCertifications(Long userId) {
@@ -77,6 +118,13 @@ public class CertificationService {
     @Transactional
     public void approve(Long id, Long adminId, String rank) {
         Certification cert = getById(id);
+        CertificationType certType = CertificationType.fromCode(cert.getType());
+        if (certType != null && certType.isRank()) {
+            if (rank == null || !Rank.isValid(rank.trim())) {
+                throw new IllegalArgumentException("请选择合法的段位");
+            }
+            rank = rank.trim();
+        }
         cert.setStatus("APPROVED");
         cert.setReviewedBy(adminId);
         cert.setReviewedAt(LocalDateTime.now());
@@ -87,7 +135,7 @@ public class CertificationService {
 
         User user = userRepository.findById(cert.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("\u7528\u6237\u4e0d\u5b58\u5728"));
-        if ("RANK".equals(cert.getType())) {
+        if (certType != null && certType.isRank()) {
             user.setVerifiedRank(cert.getRank());
         } else {
             user.setVerifiedType(cert.getType());

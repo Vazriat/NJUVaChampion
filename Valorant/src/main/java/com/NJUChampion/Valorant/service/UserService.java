@@ -2,12 +2,20 @@ package com.NJUChampion.Valorant.service;
 
 import com.NJUChampion.Valorant.dto.*;
 import com.NJUChampion.Valorant.entity.User;
+import com.NJUChampion.Valorant.repository.CertificationRepository;
+import com.NJUChampion.Valorant.repository.PlayerGameStatRepository;
 import com.NJUChampion.Valorant.repository.UserRepository;
 import com.NJUChampion.Valorant.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +24,12 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final TeamService teamService;
+    private final CertificationRepository certificationRepository;
+    private final PlayerGameStatRepository playerGameStatRepository;
+
+    @Value("${app.upload.dir:uploads}")
+    private String uploadDir;
 
     public User register(RegisterRequest req) {
         if (userRepository.existsByUsername(req.getUsername())) {
@@ -125,5 +139,49 @@ public class UserService {
         User user = userRepository.findById(userId).orElseThrow();
         user.setDisplayPreference(preference);
         return userRepository.save(user);
+    }
+
+    /**
+     * 彻底删除用户（物理删除）。
+     * 级联清理：战队关系（队长转让/解散）、认证记录与文件、生涯战绩。
+     */
+    @Transactional
+    public void purgeUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        if ("ADMIN".equals(user.getRole())) {
+            throw new IllegalArgumentException("不能删除管理员账号");
+        }
+
+        // 1. 处理战队关系（队长转让/解散，成员移除）
+        teamService.onUserDisabled(userId);
+
+        // 2. 删除认证记录 + 认证文件
+        certificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .forEach(certificationRepository::delete);
+        deleteDir(Paths.get(uploadDir, "certifications", String.valueOf(userId)));
+
+        // 3. 删除生涯战绩
+        playerGameStatRepository.findByUserId(userId)
+                .forEach(playerGameStatRepository::delete);
+
+        // 4. 删除用户
+        userRepository.delete(user);
+    }
+
+    private void deleteDir(Path dir) {
+        try {
+            if (Files.exists(dir)) {
+                Files.walk(dir)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach(p -> {
+                            try {
+                                Files.delete(p);
+                            } catch (Exception ignored) {
+                            }
+                        });
+            }
+        } catch (Exception ignored) {
+        }
     }
 }

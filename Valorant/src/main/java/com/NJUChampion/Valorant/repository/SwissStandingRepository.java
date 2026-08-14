@@ -10,4 +10,5 @@ public interface SwissStandingRepository extends JpaRepository<SwissStanding, Lo
     List<SwissStanding> findByTournamentIdOrderByWinsDescBuchholzDesc(Long tournamentId);
     List<SwissStanding> findByTournamentId(Long tournamentId);
     Optional<SwissStanding> findByTournamentIdAndTeamId(Long tournamentId, Long teamId);
+    boolean existsByTeamId(Long teamId);
 }

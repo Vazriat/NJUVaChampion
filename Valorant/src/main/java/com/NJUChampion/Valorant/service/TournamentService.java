@@ -3,12 +3,18 @@ package com.NJUChampion.Valorant.service;
 import com.NJUChampion.Valorant.dto.CreateTournamentRequest;
 import com.NJUChampion.Valorant.dto.TournamentVO;
 import com.NJUChampion.Valorant.entity.*;
+import com.NJUChampion.Valorant.util.RoundRobinEngine;
 import com.NJUChampion.Valorant.util.SwissPairingEngine;
 import com.NJUChampion.Valorant.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +32,12 @@ public class TournamentService {
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final SwissStandingRepository swissStandingRepository;
+    private final GameRecordRepository gameRecordRepository;
+    private final PlayerGameStatRepository playerGameStatRepository;
+    private final LeagueStandingRepository leagueStandingRepository;
+
+    @Value("${app.upload.dir:uploads/screenshots}")
+    private String uploadDir;
 
     @Transactional
     public TournamentVO create(CreateTournamentRequest req) {
@@ -34,6 +46,23 @@ public class TournamentService {
         int maxTeams = req.getMaxTeams() != null ? req.getMaxTeams() : 2;
 
         validateTournamentConfig(type, format, maxTeams);
+
+        if ("LEAGUE".equals(type) && Boolean.TRUE.equals(req.getHasPlayoffs())) {
+            int pSize = req.getPlayoffSize() != null ? req.getPlayoffSize() : 8;
+            String pFormat = req.getPlayoffFormat() != null ? req.getPlayoffFormat().toUpperCase() : "SINGLE_ELIM";
+            if (!Set.of(2, 4, 8).contains(pSize)) {
+                throw new IllegalArgumentException("季后赛规模仅支持 2/4/8");
+            }
+            if (!Set.of("SINGLE_ELIM", "DOUBLE_ELIM").contains(pFormat)) {
+                throw new IllegalArgumentException("季后赛赛制仅支持单败/双败");
+            }
+            if ("DOUBLE_ELIM".equals(pFormat) && !Set.of(4, 8).contains(pSize)) {
+                throw new IllegalArgumentException("双败季后赛仅支持 4/8 队");
+            }
+            if (pSize > maxTeams) {
+                throw new IllegalArgumentException("季后赛规模不能超过最大参赛队伍数");
+            }
+        }
 
         String bracketType = "CUP".equals(type) ? format : "LEAGUE";
 
@@ -48,6 +77,9 @@ public class TournamentService {
                 .swissRounds(5)
                 .knockoutFormat(req.getKnockoutFormat() != null ? req.getKnockoutFormat().toUpperCase() : "SINGLE_ELIM")
                 .swissPairingMode(req.getSwissPairingMode() != null ? req.getSwissPairingMode().toUpperCase() : "RANDOM")
+                .hasPlayoffs(req.getHasPlayoffs() != null ? req.getHasPlayoffs() : false)
+                .playoffFormat(req.getPlayoffFormat() != null ? req.getPlayoffFormat().toUpperCase() : "SINGLE_ELIM")
+                .playoffSize(req.getPlayoffSize() != null ? req.getPlayoffSize() : 8)
                 .build();
         tournament = tournamentRepository.save(tournament);
         return toVO(tournament);
@@ -106,7 +138,9 @@ public class TournamentService {
             throw new IllegalArgumentException("参赛队伍不足，至少需要2支队伍");
         }
 
-        if ("SWISS_ELIM".equals(tournament.getFormat())) {
+        if ("SINGLE_RR".equals(tournament.getFormat()) || "DOUBLE_RR".equals(tournament.getFormat())) {
+            initLeague(tournament);
+        } else if ("SWISS_ELIM".equals(tournament.getFormat())) {
             initSwissBracket(tournament);
         } else if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
             generateDoubleElimBracket(tournament);
@@ -265,7 +299,10 @@ public class TournamentService {
         Long loserId = match.getTeam1Id().equals(winnerId) ? match.getTeam2Id() : match.getTeam1Id();
 
         if ("WINNERS".equals(stage)) {
-            int totalWBRounds = getTotalRounds(getRegisteredCount(tournamentId));
+            // 胜者组轮次按实际生成的 WINNERS 对阵计算（兼容 CUP 双败与联赛季后赛）
+            int totalWBRounds = tournamentMatchRepository
+                    .findByTournamentIdAndStageOrderByRoundAscPositionAsc(tournamentId, "WINNERS")
+                    .stream().mapToInt(TournamentMatch::getRound).max().orElse(0) + 1;
             boolean isWBFinal = (round == totalWBRounds - 1);
 
             if (isWBFinal) {
@@ -333,10 +370,197 @@ public class TournamentService {
      */
     @Transactional
     public void processCompletedMatch(Tournament tournament, TournamentMatch match) {
-        if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
+        if ("SINGLE_RR".equals(tournament.getFormat()) || "DOUBLE_RR".equals(tournament.getFormat())) {
+            handleLeaguePlayoffResult(tournament, match);
+        } else if ("DOUBLE_ELIM".equals(tournament.getFormat())) {
             handleDoubleElimMatchResult(tournament, match);
         } else if ("SINGLE_ELIM".equals(tournament.getFormat())) {
             handleSingleElimMatchResult(tournament, match);
+        }
+    }
+
+    // ========== League (Round Robin) ==========
+
+    @Transactional
+    public void initLeague(Tournament tournament) {
+        Long tournamentId = tournament.getId();
+        List<TournamentTeam> registered = tournamentTeamRepository.findByTournamentId(tournamentId);
+
+        for (TournamentTeam tt : registered) {
+            leagueStandingRepository.save(LeagueStanding.builder()
+                    .tournamentId(tournamentId)
+                    .teamId(tt.getTeamId())
+                    .wins(0).losses(0).roundDiff(0)
+                    .build());
+        }
+
+        List<Long> teamIds = registered.stream()
+                .map(TournamentTeam::getTeamId)
+                .collect(Collectors.toList());
+        boolean doubleRR = "DOUBLE_RR".equals(tournament.getFormat());
+        List<RoundRobinEngine.Pair> pairs = RoundRobinEngine.generate(teamIds, doubleRR);
+        for (RoundRobinEngine.Pair p : pairs) {
+            if (p.team1 == null || p.team2 == null) {
+                continue; // 轮空
+            }
+            tournamentMatchRepository.save(TournamentMatch.builder()
+                    .tournamentId(tournamentId)
+                    .stage("REGULAR")
+                    .round(p.round)
+                    .position(p.position)
+                    .team1Id(p.team1)
+                    .team2Id(p.team2)
+                    .status("PENDING")
+                    .build());
+        }
+
+        tournament.setCurrentStage(0);
+        tournamentRepository.save(tournament);
+    }
+
+    @Transactional
+    public void completeRegularMatch(Tournament tournament, TournamentMatch match) {
+        Long tournamentId = tournament.getId();
+        Long winnerId = match.getWinnerId();
+        Long loserId = match.getTeam1Id().equals(winnerId) ? match.getTeam2Id() : match.getTeam1Id();
+
+        // 净胜局：按小局实际比分累计（胜者 +diff，负者 -diff）
+        int winnerGames = 0;
+        int loserGames = 0;
+        for (GameRecord g : gameRecordRepository.findByMatchIdOrderByGameNumberAsc(match.getId())) {
+            if (!"COMPLETED".equals(g.getStatus()) || g.getTeam1Score() == null || g.getTeam2Score() == null) {
+                continue;
+            }
+            if (g.getTeam1Score() > g.getTeam2Score()) {
+                if (match.getTeam1Id().equals(winnerId)) {
+                    winnerGames++;
+                } else {
+                    loserGames++;
+                }
+            } else if (g.getTeam2Score() > g.getTeam1Score()) {
+                if (match.getTeam2Id().equals(winnerId)) {
+                    winnerGames++;
+                } else {
+                    loserGames++;
+                }
+            }
+        }
+        int diff = winnerGames - loserGames;
+
+        LeagueStanding ws = leagueStandingRepository.findByTournamentIdAndTeamId(tournamentId, winnerId)
+                .orElseThrow(() -> new IllegalArgumentException("联赛积分记录不存在"));
+        ws.setWins(ws.getWins() + 1);
+        ws.setRoundDiff(ws.getRoundDiff() + diff);
+        leagueStandingRepository.save(ws);
+
+        LeagueStanding ls = leagueStandingRepository.findByTournamentIdAndTeamId(tournamentId, loserId)
+                .orElseThrow(() -> new IllegalArgumentException("联赛积分记录不存在"));
+        ls.setLosses(ls.getLosses() + 1);
+        ls.setRoundDiff(ls.getRoundDiff() - diff);
+        leagueStandingRepository.save(ls);
+
+        List<TournamentMatch> regular = tournamentMatchRepository
+                .findByTournamentIdAndStageOrderByRoundAscPositionAsc(tournamentId, "REGULAR");
+        boolean allDone = regular.stream().allMatch(m -> "COMPLETED".equals(m.getStatus()));
+        if (!allDone) {
+            return;
+        }
+
+        if (Boolean.TRUE.equals(tournament.getHasPlayoffs())) {
+            generatePlayoffs(tournament);
+        } else {
+            List<LeagueStanding> standings = leagueStandingRepository
+                    .findByTournamentIdOrderByWinsDescRoundDiffDesc(tournamentId);
+            if (!standings.isEmpty()) {
+                tournament.setChampionTeamId(standings.get(0).getTeamId());
+                tournament.setStatus("ENDED");
+                tournamentRepository.save(tournament);
+            }
+        }
+    }
+
+    private void generatePlayoffs(Tournament tournament) {
+        Long tournamentId = tournament.getId();
+        List<LeagueStanding> standings = leagueStandingRepository
+                .findByTournamentIdOrderByWinsDescRoundDiffDesc(tournamentId);
+
+        // 实际参赛队伍可能少于配置的季后赛规模：自动缩小到可容纳的最大 2 的幂
+        int size = tournament.getPlayoffSize() != null ? tournament.getPlayoffSize() : 8;
+        while (size > standings.size()) {
+            size /= 2;
+        }
+        if (size < 2) {
+            size = 2;
+        }
+        String format = tournament.getPlayoffFormat() != null ? tournament.getPlayoffFormat() : "SINGLE_ELIM";
+        if ("DOUBLE_ELIM".equals(format) && size < 4) {
+            // 双败至少需要 4 队，不足时退回单败
+            format = "SINGLE_ELIM";
+        }
+        tournament.setPlayoffSize(size);
+        tournament.setPlayoffFormat(format);
+
+        List<Long> seeded = standings.stream()
+                .limit(size)
+                .map(LeagueStanding::getTeamId)
+                .collect(Collectors.toList());
+
+        if ("DOUBLE_ELIM".equals(format)) {
+            generateDoubleElimBracketInternal(tournamentId, size, seeded);
+        } else {
+            int matchesInFirstRound = size / 2;
+            for (int pos = 0; pos < matchesInFirstRound; pos++) {
+                saveMatch(tournamentId, "WINNERS", 0, pos,
+                        seeded.get(pos), seeded.get(size - 1 - pos));
+            }
+            for (int r = 1; r < getTotalRounds(size); r++) {
+                int matchesInRound = size / (int) Math.pow(2, r + 1);
+                for (int pos = 0; pos < matchesInRound; pos++) {
+                    saveMatch(tournamentId, "WINNERS", r, pos, null, null);
+                }
+            }
+        }
+
+        tournament.setCurrentStage(1);
+        tournamentRepository.save(tournament);
+    }
+
+    public List<LeagueStanding> getLeagueStandings(Long tournamentId) {
+        return leagueStandingRepository.findByTournamentIdOrderByWinsDescRoundDiffDesc(tournamentId);
+    }
+
+    /**
+     * 联赛季后赛完赛处理。
+     * 常规赛对阵由 completeRegularMatch 处理，此处只处理季后赛阶段
+     * （WINNERS / LOSERS / GRAND_FINAL）。
+     */
+    private void handleLeaguePlayoffResult(Tournament tournament, TournamentMatch match) {
+        if ("DOUBLE_ELIM".equals(tournament.getPlayoffFormat())) {
+            handleDoubleElimMatchResult(tournament, match);
+        } else {
+            handleLeagueSingleElimPlayoffResult(tournament, match);
+        }
+    }
+
+    /**
+     * 联赛季后赛（单败）推进。
+     * 与 CUP 单败不同：赛事中混有 REGULAR 常规赛对阵，
+     * 必须只按 WINNERS 阶段计算轮次并晋级，不能沿用全量对阵的查找。
+     */
+    private void handleLeagueSingleElimPlayoffResult(Tournament tournament, TournamentMatch match) {
+        List<TournamentMatch> playoffMatches = tournamentMatchRepository
+                .findByTournamentIdAndStageOrderByRoundAscPositionAsc(tournament.getId(), "WINNERS");
+        int maxRound = playoffMatches.stream().mapToInt(TournamentMatch::getRound).max().orElse(0);
+
+        if (match.getRound() == maxRound) {
+            tournament.setChampionTeamId(match.getWinnerId());
+            tournament.setStatus("ENDED");
+            tournamentRepository.save(tournament);
+        } else {
+            int nextRound = match.getRound() + 1;
+            int nextPos = match.getPosition() / 2;
+            boolean isFirstTeam = match.getPosition() % 2 == 0;
+            fillMatchSlot(tournament.getId(), "WINNERS", nextRound, nextPos, isFirstTeam, match.getWinnerId());
         }
     }
 
@@ -358,10 +582,6 @@ public class TournamentService {
     private int getLastLBRound(Long tournamentId) {
         List<TournamentMatch> lbMatches = tournamentMatchRepository.findByTournamentIdAndStageOrderByRoundAscPositionAsc(tournamentId, "LOSERS");
         return lbMatches.stream().mapToInt(TournamentMatch::getRound).max().orElse(0);
-    }
-
-    private int getRegisteredCount(Long tournamentId) {
-        return (int) tournamentTeamRepository.countByTournamentId(tournamentId);
     }
 
     private void saveMatch(Long tournamentId, String stage, int round, int position, Long team1Id, Long team2Id) {
@@ -504,11 +724,34 @@ public class TournamentService {
     @Transactional
     public void deleteTournament(Long tournamentId) {
         Tournament tournament = getTournament(tournamentId);
-        tournamentMatchRepository.findByTournamentIdOrderByRoundAscPositionAsc(tournamentId)
-                .forEach(m -> tournamentMatchRepository.delete(m));
+        List<TournamentMatch> matches = tournamentMatchRepository
+                .findByTournamentIdOrderByRoundAscPositionAsc(tournamentId);
+        for (TournamentMatch m : matches) {
+            List<GameRecord> games = gameRecordRepository.findByMatchIdOrderByGameNumberAsc(m.getId());
+            for (GameRecord g : games) {
+                playerGameStatRepository.deleteByGameId(g.getId());
+                deleteScreenshotFile(g);
+                gameRecordRepository.delete(g);
+            }
+            tournamentMatchRepository.delete(m);
+        }
+        swissStandingRepository.findByTournamentId(tournamentId)
+                .forEach(swissStandingRepository::delete);
+        leagueStandingRepository.findByTournamentId(tournamentId)
+                .forEach(leagueStandingRepository::delete);
         tournamentTeamRepository.findByTournamentId(tournamentId)
-                .forEach(t -> tournamentTeamRepository.delete(t));
+                .forEach(tournamentTeamRepository::delete);
         tournamentRepository.delete(tournament);
+    }
+
+    private void deleteScreenshotFile(GameRecord game) {
+        try {
+            Path filePath = Paths.get(uploadDir, String.valueOf(game.getMatchId()),
+                    "game_" + game.getId() + ".png");
+            Files.deleteIfExists(filePath);
+        } catch (IOException ignored) {
+            // 文件删除失败不影响数据删除
+        }
     }
 
     private int getTotalRounds(int totalTeams) {
@@ -740,6 +983,9 @@ public class TournamentService {
                 .knockoutFormat(t.getKnockoutFormat())
                 .swissPairingMode(t.getSwissPairingMode())
                 .currentSwissRound(t.getCurrentSwissRound())
+                .hasPlayoffs(t.getHasPlayoffs())
+                .playoffFormat(t.getPlayoffFormat())
+                .playoffSize(t.getPlayoffSize())
                 .registeredCount((int) registeredCount)
                 .championTeamId(t.getChampionTeamId())
                 .championTeamName(championName)
@@ -794,6 +1040,20 @@ public class TournamentService {
                     .build();
         }).collect(Collectors.toList());
         vo.setMatches(matchVOs);
+
+        List<LeagueStanding> standings = leagueStandingRepository
+                .findByTournamentIdOrderByWinsDescRoundDiffDesc(t.getId());
+        List<TournamentVO.LeagueStandingVO> standingVOs = standings.stream().map(s -> {
+            Team team = teamRepository.findById(s.getTeamId()).orElse(null);
+            return TournamentVO.LeagueStandingVO.builder()
+                    .teamId(s.getTeamId())
+                    .teamName(team != null ? team.getName() : "未知战队")
+                    .wins(s.getWins())
+                    .losses(s.getLosses())
+                    .roundDiff(s.getRoundDiff())
+                    .build();
+        }).collect(Collectors.toList());
+        vo.setLeagueStandings(standingVOs);
 
         return vo;
     }

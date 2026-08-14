@@ -73,6 +73,11 @@ public class AdminTournamentController {
         return Result.success(tournamentService.getSwissStandings(id));
     }
 
+    @GetMapping("/{id}/league/standings")
+    public Result<List<com.NJUChampion.Valorant.entity.LeagueStanding>> getLeagueStandings(@PathVariable Long id) {
+        return Result.success(tournamentService.getLeagueStandings(id));
+    }
+
     @PostMapping("/{id}/swiss/generate-knockout")
     public Result<Void> generateKnockout(@PathVariable Long id) {
         com.NJUChampion.Valorant.entity.Tournament tournament = tournamentService.getTournament(id);

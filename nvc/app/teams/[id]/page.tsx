@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -86,7 +86,12 @@ export default function TeamDetailPage() {
               {team.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{team.name}</h1>
+              <h1 className="text-3xl font-bold inline-flex items-center gap-3">
+                {team.name}
+                {team.status === 0 && (
+                  <span className="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-400">已解散</span>
+                )}
+              </h1>
               <Link href={`/profile/${team.captainId}`} className="mt-1 block text-zinc-400 hover:text-red-400">
                 队长：{team.captainName}
               </Link>
@@ -95,7 +100,7 @@ export default function TeamDetailPage() {
           </div>
 
           <div className="flex gap-3">
-            {!isMember && (
+            {!isMember && team.status === 1 && (
               <button onClick={handleJoin} disabled={actionLoading}
                 className="rounded-lg bg-red-600 px-6 py-2 font-semibold transition hover:bg-red-700 disabled:opacity-50">
                 {actionLoading ? "处理中..." : "加入战队"}
@@ -121,6 +126,9 @@ export default function TeamDetailPage() {
         <div>
           <h2 className="mb-4 text-lg font-semibold">队员列表</h2>
           <div className="space-y-3">
+            {team.status === 0 && (
+              <p className="text-sm text-zinc-500">该战队已解散，历史比赛记录仍可在下方查看。</p>
+            )}
             {team.members?.map((member) => (
               <Link
                 key={member.id}

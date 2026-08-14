@@ -202,6 +202,35 @@ export default function TournamentDetailPage() {
           </section>
 
           <section className="lg:col-span-2 overflow-x-auto">
+            {(tournament.format === "SINGLE_RR" || tournament.format === "DOUBLE_RR") && (tournament.leagueStandings || []).length > 0 && (
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold mb-4">常规赛积分</h2>
+                <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800 bg-zinc-900 text-left text-xs text-zinc-500">
+                        <th className="px-4 py-3">排名</th>
+                        <th className="px-4 py-3">战队</th>
+                        <th className="px-4 py-3 text-right">胜</th>
+                        <th className="px-4 py-3 text-right">负</th>
+                        <th className="px-4 py-3 text-right">净胜局</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(tournament.leagueStandings || []).map((s: any, i: number) => (
+                        <tr key={s.teamId} className="border-b border-zinc-800/50 last:border-0">
+                          <td className="px-4 py-3 text-zinc-500">{i + 1}</td>
+                          <td className="px-4 py-3 font-medium">{s.teamName}</td>
+                          <td className="px-4 py-3 text-right text-green-400">{s.wins}</td>
+                          <td className="px-4 py-3 text-right text-red-400">{s.losses}</td>
+                          <td className="px-4 py-3 text-right text-zinc-400">{s.roundDiff}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <h2 className="text-lg font-semibold mb-4">赛程图</h2>
             <BracketTree
               matches={matches}

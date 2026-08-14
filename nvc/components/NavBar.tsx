@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -22,6 +22,7 @@ export default function NavBar() {
   const links = [
     { href: "/hall", label: "用户大厅" },
     { href: "/teams", label: "战队管理" },
+    { href: "/competitions", label: "赛事报名" },
     { href: "/tournaments", label: "赛事中心" },
     { href: "/verify", label: "认证中心" },
     { href: "/career/" + user.id, label: "个人生涯" },

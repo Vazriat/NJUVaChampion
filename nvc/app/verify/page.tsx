@@ -5,16 +5,16 @@ import { useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { certificationApi, authApi } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
+import { RANKS } from "@/lib/ranks";
+import { CERT_TYPES } from "@/lib/certification";
 
-const RANK_OPTIONS = ["青铜", "白金", "钻石", "祷卡"];
 const CHECK = "✔";
 const HOURGLASS = "⏳";
 const CROSS = "✘";
 
-const identitySubTypes = [
-  { type: "STUDENT", label: "在校生", color: "text-blue-400" },
-  { type: "ALUMNI", label: "校友", color: "text-purple-400" },
-];
+const identitySubTypes = CERT_TYPES
+  .filter((t) => t.group === "identity")
+  .map((t) => ({ type: t.code, label: t.label }));
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -50,7 +50,7 @@ export default function VerifyPage() {
       if (f) body.xuexinBase64 = await toBase64(f);
     }
     if (type === "RANK") {
-      body.studentId = form[type + "_rank"] || "";
+      body.rank = form[type + "_rank"] || "";
       const files = (form[type + "_evidence"] as File[]) || [];
       if (files.length > 0) body.evidenceBase64s = await Promise.all(files.map(f => toBase64(f)));
     }
@@ -208,12 +208,54 @@ export default function VerifyPage() {
                   {rec?.status === "REJECTED" && <p className="text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
                   {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && (
                     <div className="space-y-2">
-                      <input value={form["RANK_rank"] || ""} onChange={e => setForm({...form, "RANK_rank": e.target.value, _type: "RANK"})}
-                        placeholder="请输入段位" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                      <select value={form["RANK_rank"] || ""} onChange={e => setForm({...form, "RANK_rank": e.target.value, _type: "RANK"})}
+                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500">
+                        <option value="" disabled>请选择段位</option>
+                        {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
                       <input type="file" accept="image/*" multiple onChange={e => setForm({...form, "RANK_evidence": Array.from(e.target.files || [])})}
                         className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white" />
                       <textarea value={form["RANK_desc"] || ""} onChange={e => setForm({...form, "RANK_desc": e.target.value})}
                         placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700">提交申请</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 裁判认证 */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+            <button onClick={() => setExpanded(expanded === "referee" ? null : "referee")}
+              className="flex w-full items-center justify-between p-4 text-left transition hover:bg-zinc-800/50">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">⚖️</span>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-200">裁判认证</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{statusBadge(getRec("REFEREE"))}</p>
+                </div>
+              </div>
+              <span className="text-xs text-zinc-600">{expanded === "referee" ? "收起" : "管理"}</span>
+            </button>
+
+            {expanded === "referee" && (() => {
+              const rec = getRec("REFEREE");
+              return (
+                <div className="border-t border-zinc-800 px-4 py-4 space-y-3">
+                  {rec?.status === "APPROVED" && (
+                    <div className="space-y-2">
+                      {rec.description && <p className="text-xs text-zinc-400">{rec.description}</p>}
+                      <button onClick={() => handleDelete(rec.id)}
+                        className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
+                    </div>
+                  )}
+                  {rec?.status === "REJECTED" && <p className="text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
+                  {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && (
+                    <div className="space-y-2">
+                      <textarea value={form["REFEREE_desc"] || ""} onChange={e => setForm({...form, "REFEREE_desc": e.target.value, _type: "REFEREE"})}
+                        placeholder="说明（如裁判经验、资质等）" rows={3}
+                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
                       <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700">提交申请</button>
                     </div>
                   )}

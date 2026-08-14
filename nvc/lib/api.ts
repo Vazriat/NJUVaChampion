@@ -120,10 +120,13 @@ export const adminApi = {
   getUser: (id: number) => api.get(`/admin/users/${id}`),
   updateUser: (id: number, data: Record<string, any>) => api.put(`/admin/users/${id}`, data),
   deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
+  purgeUser: (id: number) => api.delete(`/admin/users/${id}/purge`),
   listTeams: () => api.get("/admin/teams"),
+  listTeamRatings: (sort?: string) => api.get("/admin/teams/ratings", { params: { sort } }),
   getTeam: (id: number) => api.get(`/admin/teams/${id}`),
   updateTeam: (id: number, data: Record<string, any>) => api.put(`/admin/teams/${id}`, data),
   deleteTeam: (id: number) => api.delete(`/admin/teams/${id}`),
+  purgeTeam: (id: number) => api.delete(`/admin/teams/${id}/purge`),
 };
 
 // ====== 赛事接口 ======
@@ -150,6 +153,9 @@ export interface TournamentVO {
   knockoutFormat?: string;
   swissPairingMode?: string;
   currentSwissRound?: number;
+  hasPlayoffs?: boolean;
+  playoffFormat?: string;
+  playoffSize?: number;
   registeredCount: number;
   championTeamId: number | null;
   championTeamName: string | null;
@@ -163,6 +169,7 @@ export interface TournamentVO {
   createdAt: string;
   registeredTeams?: RegisteredTeamInfo[];
   matches?: MatchVO[];
+  leagueStandings?: LeagueStandingVO[];
 }
 
 export interface RegisteredTeamInfo {
@@ -191,6 +198,14 @@ export interface MatchVO {
   gamesPerMatch?: number;
 }
 
+export interface LeagueStandingVO {
+  teamId: number;
+  teamName: string;
+  wins: number;
+  losses: number;
+  roundDiff: number;
+}
+
 // ====== 管理员赛事接口 ======
 export const adminTournamentApi = {
   create: (data: { name: string; description?: string; type?: string; format?: string; maxTeams?: number; gamesPerMatch?: number }) =>
@@ -200,6 +215,31 @@ export const adminTournamentApi = {
   delete: (id: number) => api.delete(`/admin/tournaments/${id}`),
   batchRegister: (id: number, teamIds: number[]) =>
     api.post(`/admin/tournaments/${id}/batch-register`, { teamIds }),
+};
+
+// ====== 报名活动接口 ======
+export const competitionApi = {
+  list: () => api.get("/competitions"),
+  detail: (id: number) => api.get(`/competitions/${id}`),
+  register: (competitionId: number, teamId: number) =>
+    api.post(`/competitions/${competitionId}/register`, { teamId }),
+  unregister: (competitionId: number, teamId: number) =>
+    api.post(`/competitions/${competitionId}/unregister`, { teamId }),
+};
+
+export const adminCompetitionApi = {
+  create: (data: { name: string; description?: string }) =>
+    api.post("/admin/competitions", data),
+  publish: (id: number) => api.post(`/admin/competitions/${id}/publish`),
+  group: (id: number, groups: { name: string; format: string; teamIds: number[] }[]) =>
+    api.post(`/admin/competitions/${id}/group`, { groups }),
+  register: (id: number, teamId: number) =>
+    api.post(`/admin/competitions/${id}/register`, { teamId }),
+  batchRegister: (id: number, teamIds: number[]) =>
+    api.post(`/admin/competitions/${id}/batch-register`, { teamIds }),
+  unregister: (id: number, teamId: number) =>
+    api.post(`/admin/competitions/${id}/unregister`, { teamId }),
+  delete: (id: number) => api.delete(`/admin/competitions/${id}`),
 };
 
 export const searchApi = {

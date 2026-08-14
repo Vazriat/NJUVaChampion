@@ -39,6 +39,9 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
   const [maxTeams, setMaxTeams] = useState(2);
   const [knockoutFormat, setKnockoutFormat] = useState("SINGLE_ELIM");
   const [pairingMode, setPairingMode] = useState("RANDOM");
+  const [hasPlayoffs, setHasPlayoffs] = useState(false);
+  const [playoffFormat, setPlayoffFormat] = useState("SINGLE_ELIM");
+  const [playoffSize, setPlayoffSize] = useState(8);
   const [submitting, setSubmitting] = useState(false);
 
   const isLeague = type === "LEAGUE";
@@ -75,6 +78,13 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
       if (format === "SWISS_ELIM") {
         body.knockoutFormat = knockoutFormat;
         body.swissPairingMode = pairingMode;
+      }
+      if (type === "LEAGUE") {
+        body.hasPlayoffs = hasPlayoffs;
+        if (hasPlayoffs) {
+          body.playoffFormat = playoffFormat;
+          body.playoffSize = playoffSize;
+        }
       }
       await adminTournamentApi.create(body);
       onSuccess("赛事已创建");
@@ -178,6 +188,43 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
               </div>
             </>
           )}
+
+          {type === "LEAGUE" && (
+            <>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">是否打季后赛</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setHasPlayoffs(false)}
+                    className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (!hasPlayoffs ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>不打（常规赛第1名夺冠）</button>
+                  <button type="button" onClick={() => setHasPlayoffs(true)}
+                    className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (hasPlayoffs ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>打季后赛</button>
+                </div>
+              </div>
+              {hasPlayoffs && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs text-zinc-500">季后赛规模</label>
+                    <div className="flex gap-2">
+                      {[2, 4, 8].map(n => (
+                        <button key={n} type="button" onClick={() => { setPlayoffSize(n); if (n === 2) setPlayoffFormat("SINGLE_ELIM"); }}
+                          className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (playoffSize === n ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>{n} 队</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-zinc-500">季后赛赛制</label>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setPlayoffFormat("SINGLE_ELIM")}
+                        className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (playoffFormat === "SINGLE_ELIM" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>单败淘汰</button>
+                      <button type="button" onClick={() => setPlayoffFormat("DOUBLE_ELIM")} disabled={playoffSize === 2}
+                        className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + (playoffFormat === "DOUBLE_ELIM" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed")}>双败淘汰</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
           <div>
             <label className="mb-1 block text-xs text-zinc-500">赛事简介（选填）</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}

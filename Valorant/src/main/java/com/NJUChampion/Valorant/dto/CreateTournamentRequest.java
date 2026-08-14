@@ -37,4 +37,13 @@ public class CreateTournamentRequest {
 
     /** RANDOM / BUCHHOLZ */
     private String swissPairingMode;
+
+    /** League: 是否打季后赛 */
+    private Boolean hasPlayoffs;
+
+    /** League: 季后赛赛制 SINGLE_ELIM / DOUBLE_ELIM */
+    private String playoffFormat;
+
+    /** League: 季后赛规模 2 / 4 / 8 */
+    private Integer playoffSize;
 }

@@ -34,6 +34,10 @@ const PADDING_Y = 20;
 const Y_OFFSET = 40;
 // helpers
 function getRoundLabel(ms, ri, keys, stageLabel) {
+  // For league regular season
+  if (stageLabel === "常规赛") {
+    return "第" + (ri + 1) + "轮";
+  }
   // For losers bracket
   if (stageLabel === "败者组") {
     if (ri === keys.length - 1) return "败者组决赛";
@@ -270,7 +274,8 @@ export default function BracketTree(props: any) {
   // For single elim or single-stage brackets
   if (format !== "DOUBLE_ELIM" || stageKeys.length <= 1) {
     var sorted = sortMatchesByRoundPos(matches);
-    return React.createElement(StageBracket, { matches: sorted, onMatchClick: onMatchClick });
+    var isLeague = format === "SINGLE_RR" || format === "DOUBLE_RR";
+    return React.createElement(StageBracket, { matches: sorted, onMatchClick: onMatchClick, label: isLeague ? "常规赛" : null });
   }
 
   // For double elimination

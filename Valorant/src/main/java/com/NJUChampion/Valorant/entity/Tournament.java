@@ -77,6 +77,26 @@ public class Tournament {
 @Column(name = "champion_team_id")
     private Long championTeamId;
 
+    /** 派生自某个报名活动（Competition）的子赛事；独立赛事为 null */
+    @Column(name = "competition_id")
+    private Long competitionId;
+
+    @Column(name = "group_name", length = 50)
+    private String groupName;
+
+    /** 联赛是否打季后赛 */
+    @Column(name = "has_playoffs")
+    @Builder.Default
+    private Boolean hasPlayoffs = false;
+
+    /** 季后赛赛制：SINGLE_ELIM / DOUBLE_ELIM */
+    @Column(name = "playoff_format", length = 20)
+    private String playoffFormat;
+
+    /** 季后赛规模：2 / 4 / 8 */
+    @Column(name = "playoff_size")
+    private Integer playoffSize;
+
     @Column(nullable = false)
     @Builder.Default
     private Integer statusFlag = 1;
