@@ -73,6 +73,9 @@ Valorant-OCR-master/result/
 Valorant-OCR-master/result.json
 Valorant-OCR-master/debug-*.png
 
+# ============ 上传数据（截图/认证文件，不入库） ============
+Valorant/uploads/
+
 # ============ Misc ============
 HELP.md
 .vercel
