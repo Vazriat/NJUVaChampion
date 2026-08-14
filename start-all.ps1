@@ -40,6 +40,11 @@ if (-not (Test-Port 3306)) {
     Write-Host '[WARN] MySQL is not listening on 127.0.0.1:3306. The backend cannot boot without it.' -ForegroundColor Yellow
 }
 
+if (-not $env:DB_PASSWORD) {
+    Write-Host '[WARN] DB_PASSWORD env var is not set; the backend cannot connect to MySQL.' -ForegroundColor Yellow
+    Write-Host '        Set it first, e.g.:  $env:DB_PASSWORD = "your-password"' -ForegroundColor Yellow
+}
+
 $paddlePythons = @(
     (Join-Path $env:USERPROFILE '.conda\envs\valorant-ocr\python.exe'),
     (Join-Path $env:USERPROFILE 'anaconda3\envs\valorant-ocr\python.exe'),

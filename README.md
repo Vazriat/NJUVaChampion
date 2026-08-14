@@ -14,8 +14,9 @@
 | **数据库名** | `njuvachampion` |
 | **连接地址** | `jdbc:mysql://127.0.0.1:3306/njuvachampion?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowMultiQueries=true` |
 | **用户名** | `root` |
-| **密码** | `***REMOVED***` |
 | **建表方式** | JPA `ddl-auto: update` (启动时自动建表) |
+
+> **数据库密码不在仓库中维护**：凭据由部署环境注入（如环境变量 `DB_PASSWORD`，或部署机上私有的配置文件），请勿将真实密码提交到仓库。
 
 ### 创建数据库
 
@@ -55,6 +56,14 @@ CREATE DATABASE IF NOT EXISTS njuvachampion
 ```
 
 ### 2. 启动后端 (端口 8080)
+
+先设置数据库密码环境变量（本地 PowerShell，密码不会提交到仓库）：
+
+```powershell
+$env:DB_PASSWORD = "你的MySQL密码"
+```
+
+再启动：
 
 ```bash
 cd Valorant

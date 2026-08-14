@@ -218,7 +218,7 @@ private int[] getSeedOrder(int totalTeams) {
 
 | 项目 | 说明 |
 |------|------|
-| 数据库 | MySQL 8，库名 `njuvachampion`，用户 `root`，密码 `***REMOVED***` |
+| 数据库 | MySQL 8，库名 `njuvachampion`，用户 `root`，密码由部署环境注入（环境变量 `DB_PASSWORD`），不写入仓库 |
 | JPA | `ddl-auto: update`，自动建表 |
 | JWT | HS256，密钥 Base64 编码，24h 过期 |
 | CORS | 全局允许所有来源和方法 |
