@@ -33,8 +33,8 @@ export default function CertificationManager() {
 
   useEffect(() => { load(); }, [filter]);
 
-  const statusLabel: Record<string, string> = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回", REVOKED: "已取消" };
-  const statusColor: Record<string, string> = { PENDING: "text-yellow-400 bg-yellow-500/10", APPROVED: "text-green-400 bg-green-500/10", REJECTED: "text-red-400 bg-red-500/10", REVOKED: "text-zinc-400 bg-zinc-800" };
+  const statusLabel: Record<string, string> = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "已驳回", REVOKED: "已取消", SUPERSEDED: "已更新" };
+  const statusColor: Record<string, string> = { PENDING: "text-yellow-400 bg-yellow-500/10", APPROVED: "text-green-400 bg-green-500/10", REJECTED: "text-red-400 bg-red-500/10", REVOKED: "text-zinc-400 bg-zinc-800", SUPERSEDED: "text-zinc-400 bg-zinc-800" };
 
   const handleApprove = async (id: number) => {
     try {
@@ -86,6 +86,10 @@ export default function CertificationManager() {
                     {r.displayGameId || r.gameId ? (r.displayGameId || r.gameId) + " · " : ""}
                     {certTypeLabel(r.type)}{r.studentName ? " · " + r.studentName : ""}
                   </p>
+                  <p className="mt-0.5 text-[11px] text-zinc-600">
+                    申请：{r.createdAt ? new Date(r.createdAt).toLocaleDateString("zh-CN") : "-"}
+                    {" · "}认证：{r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString("zh-CN") : "-"}
+                  </p>
                 </div>
                 <span className={"rounded px-2 py-0.5 text-xs font-medium " + (statusColor[r.status] || "bg-zinc-800 text-zinc-400")}>
                   {statusLabel[r.status] || r.status}
@@ -109,6 +113,8 @@ export default function CertificationManager() {
               {selected.displayGameId && <div><span className="text-zinc-500">游戏 ID：</span><span className="text-zinc-300">{selected.displayGameId}</span></div>}
               <div><span className="text-zinc-500">类型：</span><span className="text-zinc-300">{certTypeLabel(selected.type)}</span></div>
               <div><span className="text-zinc-500">状态：</span><span className={"font-medium " + (selected.status === "APPROVED" ? "text-green-400" : selected.status === "REJECTED" ? "text-red-400" : "text-yellow-400")}>{statusLabel[selected.status]}</span></div>
+              <div><span className="text-zinc-500">申请时间：</span><span className="text-zinc-300">{selected.createdAt ? new Date(selected.createdAt).toLocaleString("zh-CN") : "-"}</span></div>
+              <div><span className="text-zinc-500">认证时间：</span><span className="text-zinc-300">{selected.reviewedAt ? new Date(selected.reviewedAt).toLocaleString("zh-CN") : "-"}</span></div>
               {selected.studentName && <div><span className="text-zinc-500">姓名：</span><span className="text-zinc-300">{selected.studentName}</span></div>}
               {selected.type === "RANK" && selected.rank && <div><span className="text-zinc-500">申请段位：</span><span className="text-zinc-300">{selected.rank}</span></div>}
               {selected.type !== "RANK" && selected.studentId && <div><span className="text-zinc-500">学号：</span><span className="text-zinc-300">{selected.studentId}</span></div>}

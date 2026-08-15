@@ -47,7 +47,7 @@ public class CertificationService {
         }
         existing = certificationRepository
                 .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(userId, type, "APPROVED");
-        if (existing.isPresent()) {
+        if (existing.isPresent() && !"RANK".equals(type)) {
             throw new IllegalArgumentException("\u8be5" + type + "\u8ba4\u8bc1\u5df2\u901a\u8fc7");
         }
 
@@ -160,6 +160,13 @@ public class CertificationService {
         User user = userRepository.findById(cert.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("\u7528\u6237\u4e0d\u5b58\u5728"));
         if (certType != null && certType.isRank()) {
+            certificationRepository
+                    .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(cert.getUserId(), "RANK", "APPROVED")
+                    .filter(old -> !old.getId().equals(cert.getId()))
+                    .ifPresent(old -> {
+                        old.setStatus("SUPERSEDED");
+                        certificationRepository.save(old);
+                    });
             user.setVerifiedRank(cert.getRank());
         } else {
             user.setVerifiedType(cert.getType());

@@ -24,6 +24,7 @@ export default function VerifyPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [rankPublic, setRankPublic] = useState(false);
+  const [updatingRank, setUpdatingRank] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace("/login"); return; }
@@ -61,7 +62,9 @@ export default function VerifyPage() {
     try {
       await certificationApi.apply(body);
       setMsg("申请已提交");
-      setExpanded(null); load();
+      setExpanded(null);
+      setUpdatingRank(false);
+      load();
     } catch (err: any) { setMsg(err.response?.data?.message || "失败"); }
   };
 
@@ -184,6 +187,10 @@ export default function VerifyPage() {
                   {rec?.status === "APPROVED" && (
                     <div className="space-y-2">
                       <p className="text-xs text-zinc-400">段位：{rec.rank}</p>
+                      <p className="text-xs text-zinc-500">
+                        申请日期：{rec.createdAt ? new Date(rec.createdAt).toLocaleDateString("zh-CN") : "-"}
+                        {" · "}认证日期：{rec.reviewedAt ? new Date(rec.reviewedAt).toLocaleDateString("zh-CN") : "-"}
+                      </p>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={rankPublic}
                           onChange={async e => {
@@ -201,13 +208,21 @@ export default function VerifyPage() {
                           className="rounded border-zinc-600 bg-zinc-800 text-red-600" />
                         <span className="text-xs text-zinc-400">对外展示段位</span>
                       </label>
-                      <button onClick={() => handleDelete(rec.id)}
-                        className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
+                      <div className="flex gap-2">
+                        <button onClick={() => { setUpdatingRank(true); setForm({ ...form, _type: "RANK" }); }}
+                          className="flex-1 rounded border border-blue-700 px-3 py-1 text-xs text-blue-400 hover:bg-blue-600/20">更新段位</button>
+                        <button onClick={() => handleDelete(rec.id)}
+                          className="flex-1 rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
+                      </div>
                     </div>
                   )}
                   {rec?.status === "REJECTED" && <p className="text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
-                  {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && (
+                  {(!rec || rec.status === "REJECTED" || rec.status === "DELETED" || updatingRank) && rec?.status !== "PENDING" && (
                     <div className="space-y-2">
+                      {rec?.status === "APPROVED" && (
+                        <button onClick={() => setUpdatingRank(false)}
+                          className="text-xs text-zinc-500 hover:text-zinc-300 transition">取消更新</button>
+                      )}
                       <select value={form["RANK_rank"] || ""} onChange={e => setForm({...form, "RANK_rank": e.target.value, _type: "RANK"})}
                         className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500">
                         <option value="" disabled>请选择段位</option>

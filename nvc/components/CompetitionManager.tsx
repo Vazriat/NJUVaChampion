@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminApi, adminCompetitionApi, competitionApi } from "@/lib/api";
+import { adminApi, adminCompetitionApi, adminRankReviewApi, competitionApi } from "@/lib/api";
 
 const FORMAT_OPTIONS = [
   { value: "SINGLE_ELIM", label: "单败淘汰" },
@@ -30,6 +30,8 @@ export default function CompetitionManager() {
   const [showAddTeams, setShowAddTeams] = useState(false);
   const [allTeamsList, setAllTeamsList] = useState<any[]>([]);
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>([]);
+  const [rankReview, setRankReview] = useState<any[]>([]);
+  const [rankReviewLoading, setRankReviewLoading] = useState(false);
 
   const showMsg = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3000); };
 
@@ -53,6 +55,15 @@ export default function CompetitionManager() {
       const a: Record<number, number> = {};
       teams.forEach((t: any) => { a[t.teamId] = 0; });
       setAssignment(a);
+      if (r.data.data.status === "REGISTRATION") {
+        setRankReviewLoading(true);
+        adminRankReviewApi.competitionReview(id)
+          .then((rr) => setRankReview(rr.data.data || []))
+          .catch(() => setRankReview([]))
+          .finally(() => setRankReviewLoading(false));
+      } else {
+        setRankReview([]);
+      }
     } catch (e: any) {
       showMsg(e.response?.data?.message || "加载失败");
     }
@@ -79,6 +90,15 @@ export default function CompetitionManager() {
     if (!confirm("确定删除该活动？仅删除报名记录，已分组的子赛事保留。")) return;
     try { await adminCompetitionApi.delete(id); showMsg("已删除"); setSelected(null); load(); }
     catch (e: any) { showMsg(e.response?.data?.message || "删除失败"); }
+  };
+
+  const passReviewUser = async (userId: number) => {
+    if (!selected) return;
+    try {
+      await adminRankReviewApi.passCompetitionUser(selected.id, userId);
+      setRankReview((prev) => prev.filter((p) => p.userId !== userId));
+      showMsg("已通过该选手");
+    } catch { showMsg("操作失败"); }
   };
 
   const handleGroup = async () => {
@@ -243,6 +263,36 @@ export default function CompetitionManager() {
               </div>
             ) : selected.status === "REGISTRATION" ? (
               <>
+                <div className="mb-5 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold">段位审核</p>
+                    <span className="text-xs text-zinc-500">{rankReview.length} 名选手需更新段位</span>
+                  </div>
+                  {rankReviewLoading ? (
+                    <p className="py-3 text-center text-xs text-zinc-500">加载中...</p>
+                  ) : rankReview.length === 0 ? (
+                    <p className="py-3 text-center text-xs text-zinc-500">暂无需要更新段位的选手</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {rankReview.map((p: any) => (
+                        <div key={p.userId} className="flex items-center justify-between rounded bg-zinc-800 px-3 py-2 text-xs">
+                          <div>
+                            <span className="text-zinc-200">{p.username || p.displayGameId || ("#" + p.userId)}</span>
+                            {p.displayGameId && <span className="ml-2 text-zinc-500">{p.displayGameId}</span>}
+                            <div className="mt-0.5 text-zinc-500">
+                              申请：{p.appliedAt ? new Date(p.appliedAt).toLocaleDateString("zh-CN") : "-"}
+                              {" · "}通过：{p.reviewedAt ? new Date(p.reviewedAt).toLocaleDateString("zh-CN") : "无"}
+                              {" · "}段位：{p.rank || "未认证"}
+                            </div>
+                          </div>
+                          <button onClick={() => passReviewUser(p.userId)}
+                            className="rounded bg-green-600 px-2 py-1 text-xs font-semibold hover:bg-green-700">通过</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="mb-5 space-y-3 border-t border-zinc-800 pt-4">
                   <p className="text-sm font-medium">分组设置</p>
                   {groups.map((g, gi) => (

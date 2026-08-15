@@ -324,6 +324,30 @@ export const adminAnnouncementApi = {
   delete: (id: number) => api.delete("/admin/announcements/" + id),
 }
 
+// ====== 赛事通知 ======
+export const tournamentAnnouncementApi = {
+  listByTournament: (tournamentId: number) => api.get(`/tournaments/${tournamentId}/announcements`),
+  my: () => api.get("/tournament-notifications/my"),
+}
+
+export const adminTournamentAnnouncementApi = {
+  list: (tournamentId: number) => api.get(`/admin/tournaments/${tournamentId}/announcements`),
+  create: (tournamentId: number, data: any) => api.post(`/admin/tournaments/${tournamentId}/announcements`, data),
+  update: (tournamentId: number, id: number, data: any) => api.put(`/admin/tournaments/${tournamentId}/announcements/${id}`, data),
+  publish: (tournamentId: number, id: number) => api.post(`/admin/tournaments/${tournamentId}/announcements/${id}/publish`),
+  delete: (tournamentId: number, id: number) => api.delete(`/admin/tournaments/${tournamentId}/announcements/${id}`),
+}
+
+// ====== 段位审核 ======
+export const adminRankReviewApi = {
+  tournamentReview: (tournamentId: number) => api.get(`/admin/tournaments/${tournamentId}/rank-review`),
+  passTournamentUser: (tournamentId: number, userId: number) => api.post(`/admin/tournaments/${tournamentId}/rank-review/pass`, { userId }),
+  unpassTournamentUser: (tournamentId: number, userId: number) => api.delete(`/admin/tournaments/${tournamentId}/rank-review/pass`, { params: { userId } }),
+  competitionReview: (competitionId: number) => api.get(`/admin/competitions/${competitionId}/rank-review`),
+  passCompetitionUser: (competitionId: number, userId: number) => api.post(`/admin/competitions/${competitionId}/rank-review/pass`, { userId }),
+  unpassCompetitionUser: (competitionId: number, userId: number) => api.delete(`/admin/competitions/${competitionId}/rank-review/pass`, { params: { userId } }),
+}
+
 export interface Announcement {
   id: number; title: string; content?: string; priority: string; status: string;
   publishedAt?: string; createdAt: string;

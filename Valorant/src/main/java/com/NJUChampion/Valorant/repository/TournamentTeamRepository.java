@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface TournamentTeamRepository extends JpaRepository<TournamentTeam, Long> {
     List<TournamentTeam> findByTournamentId(Long tournamentId);
+    List<TournamentTeam> findByTeamIdIn(List<Long> teamIds);
     Optional<TournamentTeam> findByTournamentIdAndTeamId(Long tournamentId, Long teamId);
     boolean existsByTournamentIdAndTeamId(Long tournamentId, Long teamId);
     long countByTournamentId(Long tournamentId);

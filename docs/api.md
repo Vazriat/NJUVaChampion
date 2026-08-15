@@ -54,6 +54,8 @@
 | GET | /api/tournaments | 赛事列表 |
 | GET | /api/tournaments/{id} | 赛事详情（含报名队伍、对阵表、联赛积分榜 leagueStandings） |
 | GET | /api/tournaments/{id}/player-stats | 参赛选手在该赛事的数据表（acs/kd/kpr/首杀率/存活率/回合助攻等） |
+| GET | /api/tournaments/{id}/announcements | 该赛事已发布的通知列表 |
+| GET | /api/tournament-notifications/my | 当前用户参赛赛事的最新通知 |
 | POST | /api/tournaments/{id}/register | 报名参赛（需 teamId） |
 | POST | /api/tournaments/{id}/unregister | 取消报名（需 teamId） |
 
@@ -74,7 +76,7 @@
 | GET | /api/certification/my | 我的认证记录 |
 | DELETE | /api/certification/{id} | 删除自己的认证 |
 
-认证规则：同组互斥（identity 组的在校生/校友只能保留一个活跃认证）；段位需从规范化段位列表中选择。
+认证规则：同组互斥（identity 组的在校生/校友只能保留一个活跃认证）；段位需从规范化段位列表中选择；段位认证通过后可通过重新提交申请更新段位，旧认证会标记为 SUPERSEDED。
 
 ### 认证审核 /api/admin/certifications（需 ADMIN 角色）
 
@@ -137,6 +139,14 @@
 | POST | /api/admin/tournaments/{id}/unregister | 管理员手动移除队伍 | { teamId } |
 | GET | /api/admin/tournaments/{id}/league/standings | 联赛常规赛积分榜（胜/负/净胜局降序） |
 | DELETE | /api/admin/tournaments/{id} | 删除赛事（级联删除对阵、小局、选手数据、截图文件、积分表） |
+| GET | /api/admin/tournaments/{id}/announcements | 赛事通知列表（含草稿） |
+| POST | /api/admin/tournaments/{id}/announcements | 创建赛事通知 |
+| PUT | /api/admin/tournaments/{id}/announcements/{nid} | 修改赛事通知 |
+| POST | /api/admin/tournaments/{id}/announcements/{nid}/publish | 发布赛事通知 |
+| DELETE | /api/admin/tournaments/{id}/announcements/{nid} | 删除赛事通知 |
+| GET | /api/admin/tournaments/{id}/rank-review | 段位审核列表（段位认证早于赛事/父活动创建时间的选手） |
+| POST | /api/admin/tournaments/{id}/rank-review/pass | 通过/豁免某选手 { userId } |
+| DELETE | /api/admin/tournaments/{id}/rank-review/pass?userId= | 取消豁免 |
 
 ### 报名活动管理 /api/admin/competitions
 
@@ -149,6 +159,9 @@
 | POST | /api/admin/competitions/{id}/batch-register | 管理员批量添加队伍 | { teamIds: [...] } |
 | POST | /api/admin/competitions/{id}/unregister | 管理员移除队伍 | { teamId } |
 | DELETE | /api/admin/competitions/{id} | 删除活动（仅删报名记录，子赛事保留） |
+| GET | /api/admin/competitions/{id}/rank-review | 活动分组前段位审核列表（以活动创建时间为基准） |
+| POST | /api/admin/competitions/{id}/rank-review/pass | 通过/豁免某选手 { userId } |
+| DELETE | /api/admin/competitions/{id}/rank-review/pass?userId= | 取消豁免 |
 
 ### 比赛小局 /api/admin/matches
 

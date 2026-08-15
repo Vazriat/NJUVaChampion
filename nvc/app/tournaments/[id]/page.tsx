@@ -6,6 +6,7 @@ import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import BracketTree from "@/components/BracketTree";
 import GameDetailPanel from "@/components/GameDetailPanel";
+import TournamentNotificationManager from "@/components/TournamentNotificationManager";
 import { tournamentApi, teamApi, matchApi } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
 
@@ -197,6 +198,13 @@ export default function TournamentDetailPage() {
             <p className="mt-1 text-sm text-zinc-500">冠军队伍</p>
           </div>
         )}
+
+        <div className="mb-10">
+          <TournamentNotificationManager
+            tournamentId={Number(id)}
+            canManage={currentUser?.role === "ADMIN"}
+          />
+        </div>
 
         <div className="grid gap-10 lg:grid-cols-3">
           <section className="lg:col-span-1">

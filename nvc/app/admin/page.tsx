@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import BracketTree from "@/components/BracketTree";
-import { adminApi, adminTournamentApi, searchApi, TournamentVO, MatchVO } from "@/lib/api";
+import { adminApi, adminTournamentApi, adminRankReviewApi, searchApi, TournamentVO, MatchVO } from "@/lib/api";
 import { getUser, removeToken, isLoggedIn } from "@/lib/auth";
 import CreateTournamentModal from "@/components/CreateTournamentModal";
 import GameDetailPanel from "@/components/GameDetailPanel";
@@ -55,6 +55,8 @@ export default function AdminPage() {
 
   const [showCreateTournament, setShowCreateTournament] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<TournamentVO | null>(null);
+  const [tournamentRankReview, setTournamentRankReview] = useState<any[]>([]);
+  const [rankReviewLoading, setRankReviewLoading] = useState(false);
   const [tournamentMatches, setTournamentMatches] = useState<MatchVO[]>([]);
   const [showCreateEmptyTeam, setShowCreateEmptyTeam] = useState(false);
   const [emptyTeamName, setEmptyTeamName] = useState("");
@@ -114,6 +116,15 @@ export default function AdminPage() {
       if (json.code === 200) {
         setSelectedTournament(json.data);
         setTournamentMatches(json.data.matches || []);
+        if (json.data.status === "REGISTRATION") {
+          setRankReviewLoading(true);
+          adminRankReviewApi.tournamentReview(json.data.id)
+            .then((r) => setTournamentRankReview(r.data.data || []))
+            .catch(() => setTournamentRankReview([]))
+            .finally(() => setRankReviewLoading(false));
+        } else {
+          setTournamentRankReview([]);
+        }
       }
     } catch {}
   };
@@ -179,6 +190,15 @@ export default function AdminPage() {
   const handleStart = async (id: number) => {
     try { await adminTournamentApi.start(id); showMsg("赛事已开始"); fetchTournaments(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
+  };
+
+  const passTournamentReviewUser = async (userId: number) => {
+    if (!selectedTournament) return;
+    try {
+      await adminRankReviewApi.passTournamentUser(selectedTournament.id, userId);
+      setTournamentRankReview((prev) => prev.filter((p) => p.userId !== userId));
+      showMsg("已通过该选手");
+    } catch { showMsg("操作失败"); }
   };
 
   const handleSetWinner = async (tournamentId: number, matchId: number) => {
@@ -535,8 +555,39 @@ export default function AdminPage() {
                       className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold hover:bg-blue-700">发布赛事（进入报名阶段）</button>
                   )}
                   {selectedTournament.status === "REGISTRATION" && (
-                    <button onClick={() => { handleStart(selectedTournament.id); setSelectedTournament(null); }}
-                      className="w-full rounded-lg bg-green-600 py-2 text-sm font-semibold hover:bg-green-700">开始比赛（生成对阵表）</button>
+                    <>
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-sm font-semibold">段位审核</p>
+                          <span className="text-xs text-zinc-500">{tournamentRankReview.length} 名选手需更新段位</span>
+                        </div>
+                        {rankReviewLoading ? (
+                          <p className="py-3 text-center text-xs text-zinc-500">加载中...</p>
+                        ) : tournamentRankReview.length === 0 ? (
+                          <p className="py-3 text-center text-xs text-zinc-500">暂无需要更新段位的选手</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {tournamentRankReview.map((p: any) => (
+                              <div key={p.userId} className="flex items-center justify-between rounded bg-zinc-800 px-3 py-2 text-xs">
+                                <div>
+                                  <span className="text-zinc-200">{p.username || p.displayGameId || ("#" + p.userId)}</span>
+                                  {p.displayGameId && <span className="ml-2 text-zinc-500">{p.displayGameId}</span>}
+                                  <div className="mt-0.5 text-zinc-500">
+                                    申请：{p.appliedAt ? new Date(p.appliedAt).toLocaleDateString("zh-CN") : "-"}
+                                    {" · "}通过：{p.reviewedAt ? new Date(p.reviewedAt).toLocaleDateString("zh-CN") : "无"}
+                                    {" · "}段位：{p.rank || "未认证"}
+                                  </div>
+                                </div>
+                                <button onClick={() => passTournamentReviewUser(p.userId)}
+                                  className="rounded bg-green-600 px-2 py-1 text-xs font-semibold hover:bg-green-700">通过</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => { handleStart(selectedTournament.id); setSelectedTournament(null); }}
+                        className="w-full rounded-lg bg-green-600 py-2 text-sm font-semibold hover:bg-green-700">开始比赛（生成对阵表）</button>
+                    </>
                   )}
                   {selectedTournament.status === "PROGRESSION" && tournamentMatches.length > 0 && (
                     <div>

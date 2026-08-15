@@ -10,5 +10,6 @@ public interface CertificationRepository extends JpaRepository<Certification, Lo
     List<Certification> findByUserIdOrderByCreatedAtDesc(Long userId);
     Optional<Certification> findFirstByUserIdAndStatusOrderByCreatedAtDesc(Long userId, String status);
     Optional<Certification> findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(Long userId, String type, String status);
+    Optional<Certification> findFirstByUserIdAndTypeAndStatusOrderByReviewedAtDesc(Long userId, String type, String status);
     List<Certification> findByStatusOrderByCreatedAtDesc(String status);
 }
