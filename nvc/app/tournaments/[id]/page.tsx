@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
@@ -30,6 +30,15 @@ const FORMAT_LABEL = {
   DOUBLE_RR: "双循环",
 };
 
+const PLAYER_SORT_COLUMNS = [
+  { key: "acs", label: "ACS" },
+  { key: "kd", label: "K/D" },
+  { key: "kpr", label: "KPR" },
+  { key: "firstBloodRate", label: "首杀率" },
+  { key: "survivalRate", label: "存活率" },
+  { key: "assistsPerRound", label: "回合助攻" },
+];
+
 export default function TournamentDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -39,6 +48,10 @@ export default function TournamentDetailPage() {
   const [detailMatch, setDetailMatch] = useState<any>(null);
   const [detailGames, setDetailGames] = useState<any[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [playerStats, setPlayerStats] = useState<any[]>([]);
+  const [playerStatsLoading, setPlayerStatsLoading] = useState(false);
+  const [playerSortKey, setPlayerSortKey] = useState("acs");
+  const [playerSortDir, setPlayerSortDir] = useState<"asc" | "desc">("desc");
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [captainTeams, setCaptainTeams] = useState<any[]>([]);
 
@@ -64,6 +77,15 @@ export default function TournamentDetailPage() {
       setDetailGames(r.data.data?.games || []);
     }).catch(() => {}).finally(() => setDetailLoading(false));
   }, [detailMatch]);
+
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+    setPlayerStatsLoading(true);
+    tournamentApi.playerStats(Number(id))
+      .then((r) => setPlayerStats(r.data.data || []))
+      .catch(() => {})
+      .finally(() => setPlayerStatsLoading(false));
+  }, [id, router]);
 
   const handleOpenPicker = async () => {
     try {
@@ -112,6 +134,22 @@ export default function TournamentDetailPage() {
   };
 
   const matches = tournament?.matches || [];
+
+  const sortedPlayerStats = useMemo(() => {
+    const arr = [...playerStats];
+    const dir = playerSortDir === "asc" ? 1 : -1;
+    arr.sort((a, b) => dir * (Number(a[playerSortKey] ?? 0) - Number(b[playerSortKey] ?? 0)));
+    return arr;
+  }, [playerStats, playerSortKey, playerSortDir]);
+  const handlePlayerSort = (key: string) => {
+    if (playerSortKey === key) {
+      setPlayerSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setPlayerSortKey(key);
+      setPlayerSortDir("desc");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-950">
@@ -231,6 +269,74 @@ export default function TournamentDetailPage() {
                 </div>
               </div>
             )}
+            <div className="mb-8">
+              <div className="mb-3">
+                <h2 className="text-lg font-semibold">选手数据</h2>
+              </div>
+
+              {playerStatsLoading ? (
+                <p className="py-6 text-center text-sm text-zinc-500">加载中...</p>
+              ) : sortedPlayerStats.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-zinc-800 py-8 text-center text-sm text-zinc-500">暂无选手数据</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-800 bg-zinc-900 text-left text-xs text-zinc-500">
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">选手</th>
+                        <th className="px-4 py-3">战队</th>
+                        <th className="px-4 py-3 text-right">场次</th>
+                        {PLAYER_SORT_COLUMNS.map((col) => {
+                          const isActive = playerSortKey === col.key;
+                          const arrow = isActive ? (playerSortDir === "desc" ? "↓" : "↑") : "↕";
+                          return (
+                            <th key={col.key} className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handlePlayerSort(col.key)}
+                                className={"inline-flex items-center gap-1 transition " + (isActive ? "text-white" : "text-zinc-500 hover:text-zinc-300")}
+                              >
+                                {col.label}
+                                <span className={isActive ? "text-red-400" : "text-zinc-600"}>{arrow}</span>
+                              </button>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedPlayerStats.map((p: any, idx: number) => (
+                        <tr key={p.userId} className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-900/50">
+                          <td className="px-4 py-3 text-zinc-500">{idx + 1}</td>
+                          <td className="px-4 py-3 font-medium">
+                            {p.userId ? (
+                              <div>
+                                <Link href={"/career/" + p.userId} className="text-blue-400 hover:text-blue-300 transition">
+                                  {p.playerName || "未知"}
+                                </Link>
+                                {p.gameId && <div className="text-xs text-zinc-500">{p.gameId}</div>}
+                              </div>
+                            ) : (
+                              <span className="text-zinc-400">{p.playerName || "未知"}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-400">{p.teamName || "-"}</td>
+                          <td className="px-4 py-3 text-right text-zinc-300">{p.games ?? 0}</td>
+                          <td className="px-4 py-3 text-right text-blue-400">{Number(p.acs ?? 0).toFixed(1)}</td>
+                          <td className="px-4 py-3 text-right text-green-400">{Number(p.kd ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-yellow-400">{Number(p.kpr ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-purple-400">{Number(p.firstBloodRate ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-cyan-400">{Number(p.survivalRate ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-orange-400">{Number(p.assistsPerRound ?? 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             <h2 className="text-lg font-semibold mb-4">赛程图</h2>
             <BracketTree
               matches={matches}

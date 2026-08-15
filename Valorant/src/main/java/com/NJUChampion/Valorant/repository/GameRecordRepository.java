@@ -7,5 +7,6 @@ import java.util.List;
 
 public interface GameRecordRepository extends JpaRepository<GameRecord, Long> {
     List<GameRecord> findByMatchIdOrderByGameNumberAsc(Long matchId);
+    List<GameRecord> findByMatchIdIn(List<Long> matchIds);
     int countByMatchIdAndStatus(Long matchId, String status);
 }

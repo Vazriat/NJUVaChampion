@@ -133,6 +133,7 @@ export const adminApi = {
 export const tournamentApi = {
   list: () => api.get("/tournaments"),
   detail: (id: number) => api.get(`/tournaments/${id}`),
+  playerStats: (id: number) => api.get(`/tournaments/${id}/player-stats`),
   register: (tournamentId: number, teamId: number) =>
     api.post(`/tournaments/${tournamentId}/register`, { teamId }),
   unregister: (tournamentId: number, teamId: number) =>
@@ -264,6 +265,10 @@ export const careerApi = {
   get: (userId: number) => api.get("/career/" + userId),
   getMatches: (userId: number, page?: number) => api.get("/career/" + userId + "/matches", { params: { page } }),
   getStats: (userId: number) => api.get("/career/" + userId + "/stats"),
+  getAnalysis: (userId: number, ranks: string, tournaments?: string) =>
+    api.get("/career/" + userId + "/analysis", {
+      params: tournaments ? { ranks, tournaments } : { ranks },
+    }),
 };
 
 

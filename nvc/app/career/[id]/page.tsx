@@ -4,7 +4,18 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { careerApi, publicUserApi } from "@/lib/api";
+import HexagonChart from "@/components/HexagonChart";
+import { MAJOR_RANKS, majorRankOf } from "@/lib/ranks";
 import { getUser } from "@/lib/auth";
+
+const ANALYSIS_LABELS: Record<string, string> = {
+  acs: "ACS",
+  kd: "K/D",
+  kpr: "回合击杀",
+  survivalRate: "存活率",
+  assistsPerRound: "回合助攻",
+  firstBloodRate: "首杀率",
+};
 
 export default function CareerPage() {
   const params = useParams();
@@ -16,10 +27,32 @@ export default function CareerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedGame, setExpandedGame] = useState<number | null>(null);
+  const [selectedRanks, setSelectedRanks] = useState<string[]>([MAJOR_RANKS[3]]);
+  const [selectedTournaments, setSelectedTournaments] = useState<number[]>([]);
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
 
   useEffect(() => {
     loadData();
   }, [userId]);
+
+  const loadAnalysis = async (ranks: string[], tournamentIds: number[]) => {
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    try {
+      const res = await careerApi.getAnalysis(
+        userId,
+        ranks.join(","),
+        tournamentIds.length > 0 ? tournamentIds.join(",") : undefined
+      );
+      setAnalysis(res.data.data);
+    } catch (err: any) {
+      setAnalysisError(err.response?.data?.message || "Failed to load analysis data");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -29,8 +62,14 @@ export default function CareerPage() {
         careerApi.get(userId),
         careerApi.getMatches(userId),
       ]);
-      setCareer(cRes.data.data);
+      const careerData = cRes.data.data;
+      setCareer(careerData);
       setMatches(mRes.data.data || []);
+      const initialMajor = careerData?.verifiedRank ? majorRankOf(careerData.verifiedRank) : "";
+      const initialRanks = initialMajor ? [initialMajor] : [MAJOR_RANKS[3]];
+      setSelectedRanks(initialRanks);
+      loadAnalysis(initialRanks, []);
+
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to load career data");
     } finally {
@@ -95,9 +134,10 @@ export default function CareerPage() {
         {/* Additional stats row */}
         <div className="mb-8 grid gap-4 sm:grid-cols-3">
           {[
-            { label: "平均击杀", value: career?.avgKills ?? "-" },
-            { label: "平均死亡", value: career?.avgDeaths ?? "-" },
-            { label: "平均助攻", value: career?.avgAssists ?? "-" },
+            { label: "回合击杀", value: career?.killsPerRound != null ? Number(career.killsPerRound).toFixed(2) : "-" },
+            { label: "存活率", value: career?.survivalRate != null ? Number(career.survivalRate).toFixed(2) : "-" },
+            { label: "回合助攻", value: career?.assistsPerRound != null ? Number(career.assistsPerRound).toFixed(2) : "-" },
+            { label: "首杀率", value: career?.firstBloodRate != null ? Number(career.firstBloodRate).toFixed(2) : "-" },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-center">
               <p className="text-xs text-zinc-500">{item.label}</p>
@@ -105,13 +145,137 @@ export default function CareerPage() {
             </div>
           ))}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-center">
-            <p className="text-xs text-zinc-500">战绩</p>
+            <p className="text-xs text-zinc-500">生涯 K/D/A</p>
             <p className="mt-1 text-xl font-semibold text-zinc-300">
-              <span className="text-green-400">{career?.totalWins ?? 0}</span>
+              <span className="text-green-400">{career?.totalKills ?? 0}</span>
               <span className="text-zinc-600"> / </span>
-              <span className="text-red-400">{career?.totalLosses ?? 0}</span>
+              <span className="text-red-400">{career?.totalDeaths ?? 0}</span>
+              <span className="text-zinc-600"> / </span>
+              <span className="text-yellow-400">{career?.totalAssists ?? 0}</span>
             </p>
           </div>
+        </div>
+
+        {/* Data analysis */}
+        <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">数据分析</h2>
+              <p className="mt-1 text-xs text-zinc-500">对比基础集平均值，标注 TOP1-3 / BOT1-3</p>
+            </div>
+            <div>
+              <span className="mb-2 block text-xs text-zinc-400">基础段位（可多选）</span>
+              <div className="flex flex-wrap gap-1.5">
+                {MAJOR_RANKS.map((r) => {
+                  const active = selectedRanks.includes(r);
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => {
+                        const next = active
+                          ? selectedRanks.filter((x) => x !== r)
+                          : [...selectedRanks, r];
+                        if (next.length === 0) return;
+                        setSelectedRanks(next);
+                        loadAnalysis(next, selectedTournaments);
+                      }}
+                      className={
+                        "rounded-lg border px-3 py-1 text-sm transition " +
+                        (active
+                          ? "border-red-500 bg-red-600/20 text-red-400"
+                          : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500")
+                      }
+                    >
+                      {r}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {career?.tournaments?.length > 0 && (
+            <div className="mb-4">
+              <span className="mb-2 block text-xs text-zinc-400">赛事筛选（可多选，默认全部）</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTournaments([]);
+                    loadAnalysis(selectedRanks, []);
+                  }}
+                  className={
+                    "rounded-lg border px-3 py-1 text-sm transition " +
+                    (selectedTournaments.length === 0
+                      ? "border-red-500 bg-red-600/20 text-red-400"
+                      : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500")
+                  }
+                >
+                  全部
+                </button>
+                {career.tournaments.map((t: any) => {
+                  const active = selectedTournaments.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        const next = active
+                          ? selectedTournaments.filter((id) => id !== t.id)
+                          : [...selectedTournaments, t.id];
+                        setSelectedTournaments(next);
+                        loadAnalysis(selectedRanks, next);
+                      }}
+                      className={
+                        "rounded-lg border px-3 py-1 text-sm transition " +
+                        (active
+                          ? "border-blue-500 bg-blue-600/20 text-blue-400"
+                          : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-500")
+                      }
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {analysisLoading && <p className="py-8 text-center text-sm text-zinc-500">分析中...</p>}
+          {analysisError && <p className="py-4 text-center text-sm text-red-400">{analysisError}</p>}
+          {!analysisLoading && !analysisError && analysis && (
+            <div className="grid gap-6 md:grid-cols-2">
+              <HexagonChart
+                dimensions={analysis.dimensions.map((d: any) => ({
+                  key: d.key,
+                  label: ANALYSIS_LABELS[d.key] || d.key,
+                  value: d.value ?? 0,
+                  average: d.average ?? 0,
+                  topRank: d.topRank ?? null,
+                  botRank: d.botRank ?? null,
+                }))}
+              />
+              <div>
+                <p className="mb-2 text-xs text-zinc-500">
+                  基础集：{analysis.rank} · 共 {analysis.baseSetSize} 名有数据用户
+                </p>
+                <div className="space-y-2">
+                  {analysis.dimensions.map((d: any) => (
+                    <div key={d.key} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm">
+                      <span className="text-zinc-300">{ANALYSIS_LABELS[d.key] || d.key}</span>
+                      <span className="flex items-center gap-2">
+                        {d.topRank && <span className="rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-bold text-green-400">TOP{d.topRank}</span>}
+                        {d.botRank && !d.topRank && <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-400">BOT{d.botRank}</span>}
+                        <span className="text-zinc-500">均值 {Number(d.average ?? 0).toFixed(2)}</span>
+                        <span className="font-semibold text-red-400">{Number(d.value ?? 0).toFixed(2)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Top agents */}

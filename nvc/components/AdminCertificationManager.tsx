@@ -81,8 +81,11 @@ export default function CertificationManager() {
               className="cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900 p-4 transition hover:border-zinc-700">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-zinc-300">用户 #{r.userId}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{certTypeLabel(r.type)}{r.studentName ? " · " + r.studentName : ""}</p>
+                  <p className="text-sm font-medium text-zinc-300">{r.username || ("用户 #" + r.userId)}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {r.displayGameId || r.gameId ? (r.displayGameId || r.gameId) + " · " : ""}
+                    {certTypeLabel(r.type)}{r.studentName ? " · " + r.studentName : ""}
+                  </p>
                 </div>
                 <span className={"rounded px-2 py-0.5 text-xs font-medium " + (statusColor[r.status] || "bg-zinc-800 text-zinc-400")}>
                   {statusLabel[r.status] || r.status}
@@ -102,7 +105,8 @@ export default function CertificationManager() {
               <button onClick={() => setSelected(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
             </div>
             <div className="space-y-3 text-sm">
-              <div><span className="text-zinc-500">用户 ID：</span><span className="text-zinc-300">{selected.userId}</span></div>
+              <div><span className="text-zinc-500">用户：</span><span className="text-zinc-300">{selected.username || ("#" + selected.userId)}</span></div>
+              {selected.displayGameId && <div><span className="text-zinc-500">游戏 ID：</span><span className="text-zinc-300">{selected.displayGameId}</span></div>}
               <div><span className="text-zinc-500">类型：</span><span className="text-zinc-300">{certTypeLabel(selected.type)}</span></div>
               <div><span className="text-zinc-500">状态：</span><span className={"font-medium " + (selected.status === "APPROVED" ? "text-green-400" : selected.status === "REJECTED" ? "text-red-400" : "text-yellow-400")}>{statusLabel[selected.status]}</span></div>
               {selected.studentName && <div><span className="text-zinc-500">姓名：</span><span className="text-zinc-300">{selected.studentName}</span></div>}

@@ -53,6 +53,7 @@
 |------|------|------|
 | GET | /api/tournaments | 赛事列表 |
 | GET | /api/tournaments/{id} | 赛事详情（含报名队伍、对阵表、联赛积分榜 leagueStandings） |
+| GET | /api/tournaments/{id}/player-stats | 参赛选手在该赛事的数据表（acs/kd/kpr/首杀率/存活率/回合助攻等） |
 | POST | /api/tournaments/{id}/register | 报名参赛（需 teamId） |
 | POST | /api/tournaments/{id}/unregister | 取消报名（需 teamId） |
 
@@ -91,6 +92,14 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/search?q=keyword | 全局搜索（用户/战队/赛事） |
+
+## 生涯接口 /api/career
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/career/{userId} | 生涯总览：avgAcs、avgKd、回合数据（killsPerRound/deathsPerRound/assistsPerRound/firstBloodRate/survivalRate，均为小数）、生涯总 K/D/A（totalKills/totalDeaths/totalAssists）、胜率、常用特工、参赛赛事 |
+| GET | /api/career/{userId}/matches | 生涯比赛记录（按小局返回选手数据） |
+| GET | /api/career/{userId}/analysis?ranks=黄金,白银&tournaments=1,2 | 数据分析：以所选大段（可多选，逗号分隔）全部有数据用户为基础集；可选 tournaments 按赛事 ID 过滤数据集。返回六维数据（acs/kd/kpr/survivalRate/assistsPerRound/firstBloodRate）的当前用户值、基础集均值、baseSetSize，以及每维详细排名 topRank/botRank（1~3，不在前三则 null） |
 
 ## 管理员接口（需 ADMIN 角色）
 

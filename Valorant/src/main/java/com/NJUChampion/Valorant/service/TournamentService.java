@@ -16,6 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -607,6 +610,100 @@ public class TournamentService {
     public TournamentVO getById(Long tournamentId) {
         Tournament tournament = getTournament(tournamentId);
         return toVODetail(tournament);
+    }
+
+    public List<Map<String, Object>> getPlayerStats(Long tournamentId) {
+        getTournament(tournamentId);
+
+        List<TournamentMatch> matches = tournamentMatchRepository.findByTournamentIdOrderByRoundAscPositionAsc(tournamentId);
+        if (matches.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Long> matchIds = matches.stream().map(TournamentMatch::getId).collect(Collectors.toList());
+        List<GameRecord> games = gameRecordRepository.findByMatchIdIn(matchIds);
+        if (games.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Long, GameRecord> gameMap = games.stream()
+                .collect(Collectors.toMap(GameRecord::getId, g -> g, (a, b) -> a));
+        List<Long> gameIds = games.stream().map(GameRecord::getId).collect(Collectors.toList());
+        List<PlayerGameStat> stats = playerGameStatRepository.findByGameIdIn(gameIds);
+
+        Map<Long, double[]> acc = new HashMap<>();
+        Map<Long, Map<String, Object>> info = new LinkedHashMap<>();
+
+        for (PlayerGameStat stat : stats) {
+            if (stat.getUserId() == null) {
+                continue;
+            }
+            Long userId = stat.getUserId();
+            info.computeIfAbsent(userId, k -> {
+                User account = userRepository.findById(userId).orElse(null);
+                String playerName = account != null && account.getUsername() != null && !account.getUsername().isBlank()
+                        ? account.getUsername()
+                        : account != null ? account.getDisplayGameId() : stat.getPlayerName();
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("userId", userId);
+                m.put("playerName", playerName);
+                m.put("gameId", account != null ? account.getDisplayGameId() : null);
+                m.put("teamId", stat.getTeamId());
+                m.put("teamName", stat.getTeamId() != null
+                        ? teamRepository.findById(stat.getTeamId()).map(Team::getName).orElse(null)
+                        : null);
+                return m;
+            });
+
+            double[] a = acc.computeIfAbsent(userId, k -> new double[7]);
+            Map<String, Object> s = stat.getStats();
+            a[0]++; // games
+            a[1] += ((Number) s.getOrDefault("acs", 0)).doubleValue();
+            a[2] += ((Number) s.getOrDefault("kills", 0)).doubleValue();
+            a[3] += ((Number) s.getOrDefault("deaths", 0)).doubleValue();
+            a[4] += ((Number) s.getOrDefault("assists", 0)).doubleValue();
+            a[5] += ((Number) s.getOrDefault("firstBlood", 0)).doubleValue();
+
+            GameRecord game = gameMap.get(stat.getGameId());
+            if (game != null && game.getTeam1Score() != null && game.getTeam2Score() != null) {
+                a[6] += game.getTeam1Score() + game.getTeam2Score();
+            }
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<Long, double[]> entry : acc.entrySet()) {
+            double[] a = entry.getValue();
+            double gameCount = a[0];
+            double rounds = a[6];
+            double kills = a[2];
+            double deaths = a[3];
+            double assists = a[4];
+            double firstBloods = a[5];
+            double survivalRate = rounds > 0 ? 1 - deaths / rounds : 0;
+            survivalRate = Math.max(0, Math.min(1, survivalRate));
+
+            Map<String, Object> row = info.get(entry.getKey());
+            row.put("games", (int) gameCount);
+            row.put("rounds", (long) rounds);
+            row.put("acs", gameCount > 0 ? Math.round(a[1] / gameCount * 100) / 100.0 : 0);
+            row.put("kd", deaths > 0 ? Math.round(kills / deaths * 100) / 100.0 : Math.round(kills * 100) / 100.0);
+            row.put("kpr", rounds > 0 ? Math.round(kills / rounds * 100) / 100.0 : 0);
+            row.put("firstBloodRate", rounds > 0 ? Math.round(firstBloods / rounds * 100) / 100.0 : 0);
+            row.put("survivalRate", Math.round(survivalRate * 100) / 100.0);
+            row.put("assistsPerRound", rounds > 0 ? Math.round(assists / rounds * 100) / 100.0 : 0);
+            result.add(row);
+        }
+
+        result.sort(Comparator
+                .comparingDouble((Map<String, Object> p) -> ((Number) p.get("acs")).doubleValue())
+                .thenComparingDouble(p -> ((Number) p.get("kd")).doubleValue())
+                .thenComparingDouble(p -> ((Number) p.get("kpr")).doubleValue())
+                .thenComparingDouble(p -> ((Number) p.get("firstBloodRate")).doubleValue())
+                .thenComparingDouble(p -> ((Number) p.get("survivalRate")).doubleValue())
+                .thenComparingDouble(p -> ((Number) p.get("assistsPerRound")).doubleValue())
+                .reversed());
+
+        return result;
     }
 
     @Transactional

@@ -19,7 +19,7 @@ public class AdminCertificationController {
     private final CertificationService certificationService;
 
     @GetMapping
-    public Result<List<Certification>> list(@RequestParam(required = false) String status) {
+    public Result<List<Map<String, Object>>> list(@RequestParam(required = false) String status) {
         return Result.success(certificationService.listByStatus(status));
     }
 

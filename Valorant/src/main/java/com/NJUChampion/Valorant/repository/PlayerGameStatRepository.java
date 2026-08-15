@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface PlayerGameStatRepository extends JpaRepository<PlayerGameStat, Long> {
     List<PlayerGameStat> findByGameId(Long gameId);
+    List<PlayerGameStat> findByGameIdIn(List<Long> gameIds);
     List<PlayerGameStat> findByUserId(Long userId);
+    List<PlayerGameStat> findByUserIdIn(List<Long> userIds);
     void deleteByGameId(Long gameId);
 }

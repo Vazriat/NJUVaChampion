@@ -14,6 +14,21 @@ export const RANKS = [
 
 export type Rank = (typeof RANKS)[number];
 
+// 大段（段位组）：青铜/白银/黄金/铂金/钻石/超凡/神话 各包含 1/2/3 三个小段。
+export const MAJOR_RANKS = [
+  "黑铁",
+  "青铜", "白银", "黄金", "铂金", "钻石", "超凡", "神话",
+  "源能战魂",
+] as const;
+
+export type MajorRank = (typeof MAJOR_RANKS)[number];
+
+/** 由小段位（如 黄金2）得到所属大段（黄金）；非法值返回空字符串。 */
+export function majorRankOf(rank: string): string {
+  const major = rank.replace(/[123]$/, "");
+  return (MAJOR_RANKS as readonly string[]).includes(major) ? major : "";
+}
+
 // 段位评分表：黑铁 1 分；每个大段 base = 2 * 4^k，段内三小段为 base / base*1.5 / base*2。
 export const RANK_SCORES: Record<string, number> = {
   "黑铁": 1,

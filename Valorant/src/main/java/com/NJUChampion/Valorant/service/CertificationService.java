@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -103,11 +104,34 @@ public class CertificationService {
         return certificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
-    public List<Certification> listByStatus(String status) {
-        if (status != null && !status.isBlank()) {
-            return certificationRepository.findByStatusOrderByCreatedAtDesc(status);
-        }
-        return certificationRepository.findAll();
+    public List<Map<String, Object>> listByStatus(String status) {
+        List<Certification> certs = (status != null && !status.isBlank())
+                ? certificationRepository.findByStatusOrderByCreatedAtDesc(status)
+                : certificationRepository.findAll();
+        return certs.stream().map(this::toMap).collect(Collectors.toList());
+    }
+
+    private Map<String, Object> toMap(Certification cert) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", cert.getId());
+        m.put("userId", cert.getUserId());
+        m.put("type", cert.getType());
+        m.put("status", cert.getStatus());
+        m.put("studentName", cert.getStudentName());
+        m.put("studentId", cert.getStudentId());
+        m.put("description", cert.getDescription());
+        m.put("xuexinPath", cert.getXuexinPath());
+        m.put("evidencePaths", cert.getEvidencePaths());
+        m.put("rank", cert.getRank());
+        m.put("rejectReason", cert.getRejectReason());
+        m.put("reviewedAt", cert.getReviewedAt());
+        m.put("createdAt", cert.getCreatedAt());
+
+        User user = userRepository.findById(cert.getUserId()).orElse(null);
+        m.put("username", user != null ? user.getUsername() : null);
+        m.put("gameId", user != null ? user.getGameId() : null);
+        m.put("displayGameId", user != null ? user.getDisplayGameId() : null);
+        return m;
     }
 
     public Certification getById(Long id) {

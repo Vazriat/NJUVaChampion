@@ -49,4 +49,9 @@ public class TournamentController {
         tournamentService.unregisterTeam(id, teamId, user.getId());
         return Result.success();
     }
+
+    @GetMapping("/{id}/player-stats")
+    public Result<List<Map<String, Object>>> getPlayerStats(@PathVariable Long id) {
+        return Result.success(tournamentService.getPlayerStats(id));
+    }
 }
