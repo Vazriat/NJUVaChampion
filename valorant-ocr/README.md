@@ -1,6 +1,6 @@
 # Valorant-OCR 项目指南
 
-`Valorant-OCR-master/` 是一个独立的 Node.js OCR 微服务，用于识别 Valorant 结算截图，提取每位玩家的 IGN、特工、ACS、KDA、首杀。支持**三种调用方式**：CLI 命令行、HTTP API、程序化 SDK 调用。
+`valorant-ocr/` 是一个独立的 Node.js OCR 微服务，用于识别 Valorant 结算截图，提取每位玩家的 IGN、特工、ACS、KDA、首杀。支持**三种调用方式**：CLI 命令行、HTTP API、程序化 SDK 调用。
 
 ## 注意维护特工列表
 
@@ -33,7 +33,7 @@ conda run -n valorant-ocr python -c "from paddleocr import PaddleOCR; PaddleOCR(
 
 **步骤 4：安装 Node.js 依赖**
 ```powershell
-cd Valorant-OCR-master
+cd valorant-ocr
 npm install
 ```
 
@@ -43,14 +43,14 @@ npm install
 
 ### 方式一：CLI 命令行（调试/一次识别）
 ```powershell
-cd Valorant-OCR-master
+cd valorant-ocr
 npm run ocr:local ./截图.png
 ```
 结果打印到控制台，同时自动保存到 `result.json`。
 
 ### 方式二：HTTP API 服务（推荐集成方式）
 ```powershell
-cd Valorant-OCR-master
+cd valorant-ocr
 npm start
 ```
 服务默认监听 `http://0.0.0.0:3200`。

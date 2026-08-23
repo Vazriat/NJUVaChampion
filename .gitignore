@@ -69,12 +69,12 @@ __pycache__/
 .npm-cache/
 
 # ============ OCR Module Output ============
-Valorant-OCR-master/result/
-Valorant-OCR-master/result.json
-Valorant-OCR-master/debug-*.png
+valorant-ocr/result/
+valorant-ocr/result.json
+valorant-ocr/debug-*.png
 
 # ============ 上传数据（截图/认证文件，不入库） ============
-Valorant/uploads/
+backend/uploads/
 
 # ============ Misc ============
 HELP.md

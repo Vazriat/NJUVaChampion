@@ -88,7 +88,7 @@
 ## 后端包结构
 
 ```
-Valorant/src/main/java/com/NJUChampion/Valorant/
+backend/src/main/java/com/NJUChampion/Valorant/
 ├── ValorantApplication.java        # Spring Boot 入口
 ├── common/
 │   ├── Result.java                 # 统一响应 Result<T>
@@ -122,7 +122,7 @@ Valorant/src/main/java/com/NJUChampion/Valorant/
 ## 前端结构
 
 ```
-nvc/
+frontend/
 ├── app/
 │   ├── layout.tsx                  # 根布局（Geist 字体）
 │   ├── page.tsx                    # 首页

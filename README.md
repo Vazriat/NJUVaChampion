@@ -66,7 +66,7 @@ $env:DB_PASSWORD = "你的MySQL密码"
 再启动：
 
 ```bash
-cd Valorant
+cd backend
 mvn spring-boot:run
 ```
 
@@ -75,7 +75,7 @@ mvn spring-boot:run
 ### 3. 启动前端 (端口 3000)
 
 ```bash
-cd nvc
+cd frontend
 npm run dev
 ```
 

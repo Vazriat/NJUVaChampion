@@ -89,9 +89,9 @@ function Start-ServiceWin([string]$name, [string]$workdir, [int]$port, [string]$
     Write-Host ("[start] {0} -> :{1} (PID {2})" -f $name, $port, $proc.Id) -ForegroundColor Cyan
 }
 
-Start-ServiceWin 'backend'  (Join-Path $root 'Valorant')             8080 'mvn.cmd spring-boot:run'
-Start-ServiceWin 'frontend' (Join-Path $root 'nvc')                  3000 'npm run dev'
-Start-ServiceWin 'ocr'      (Join-Path $root 'Valorant-OCR-master')  3200 'npm start'
+Start-ServiceWin 'backend'  (Join-Path $root 'backend')             8080 'mvn.cmd spring-boot:run'
+Start-ServiceWin 'frontend' (Join-Path $root 'frontend')            3000 'npm run dev'
+Start-ServiceWin 'ocr'      (Join-Path $root 'valorant-ocr')        3200 'npm start'
 
 if ($pids.Count -eq 0) {
     Write-Host 'Nothing launched - all ports already busy.' -ForegroundColor Yellow

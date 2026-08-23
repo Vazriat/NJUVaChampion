@@ -4,19 +4,19 @@
 
 **后端（端口 8080）：**
 ```bash
-cd Valorant
+cd backend
 mvn spring-boot:run
 ```
 
 **前端（端口 3000，/api 代理到后端 8080）：**
 ```bash
-cd nvc
+cd frontend
 npm run dev
 ```
 
 **OCR 服务（端口 3200）— 需单独启动：**
 ```bash
-cd Valorant-OCR-master
+cd valorant-ocr
 npm start
 ```
 服务启动后显示 Valorant OCR 服务已启动: http://0.0.0.0:3200。
