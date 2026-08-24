@@ -50,6 +50,9 @@ export default function VerifyPage() {
       const f = form[type + "_xuexin"] as File | undefined;
       if (f) body.xuexinBase64 = await toBase64(f);
     }
+    if (type === "STUDENT" || type === "ALUMNI") {
+      body.enrollmentYear = form[type + "_year"] ? Number(form[type + "_year"]) : null;
+    }
     if (type === "RANK") {
       body.rank = form[type + "_rank"] || "";
       const files = (form[type + "_evidence"] as File[]) || [];
@@ -131,7 +134,8 @@ export default function VerifyPage() {
                       {statusBadge(rec)}
                       {rec?.status === "APPROVED" && (
                         <div className="mt-2 space-y-2">
-                          {st.type === "STUDENT" && <p className="text-xs text-zinc-400">{rec.studentName} · {rec.studentId}</p>}
+                          {st.type === "STUDENT" && <p className="text-xs text-zinc-400">{rec.studentName} · {rec.studentId}{rec.enrollmentYear ? " · " + rec.enrollmentYear + " 年入学" : ""}</p>}
+                          {st.type === "ALUMNI" && rec.enrollmentYear && <p className="text-xs text-zinc-400">{rec.enrollmentYear} 年入学</p>}
                           <button onClick={() => handleDelete(rec.id)}
                             className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
                         </div>
@@ -143,6 +147,9 @@ export default function VerifyPage() {
                             placeholder="姓名" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
                           <input value={form[st.type + "_id"] || ""} onChange={e => setForm({...form, [st.type + "_id"]: e.target.value, _type: st.type})}
                             placeholder="学号" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                          <input type="number" min="1900" max={new Date().getFullYear() + 1}
+                            value={form[st.type + "_year"] || ""} onChange={e => setForm({...form, [st.type + "_year"]: e.target.value, _type: st.type})}
+                            placeholder="入学年份（如 2023）" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
                           <input type="file" accept="image/*" onChange={e => setForm({...form, [st.type + "_xuexin"]: e.target.files?.[0], _type: st.type})}
                             className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white" />
                           <textarea value={form[st.type + "_desc"] || ""} onChange={e => setForm({...form, [st.type + "_desc"]: e.target.value, _type: st.type})}
@@ -152,6 +159,9 @@ export default function VerifyPage() {
                       )}
                       {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && st.type === "ALUMNI" && (
                         <div className="mt-2 space-y-2">
+                          <input type="number" min="1900" max={new Date().getFullYear() + 1}
+                            value={form[st.type + "_year"] || ""} onChange={e => setForm({...form, [st.type + "_year"]: e.target.value, _type: st.type})}
+                            placeholder="入学年份（如 2023）" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
                           <input type="file" accept="image/*" multiple onChange={e => setForm({...form, [st.type + "_evidence"]: Array.from(e.target.files || []), _type: st.type})}
                             className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white" />
                           <textarea value={form[st.type + "_desc"] || ""} onChange={e => setForm({...form, [st.type + "_desc"]: e.target.value, _type: st.type})}

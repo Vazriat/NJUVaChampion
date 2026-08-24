@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.Year;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,10 +36,14 @@ public class CertificationService {
     @Transactional
     public Certification apply(Long userId, String type, String studentName, String studentId,
                                 String description, String xuexinBase64, List<String> evidenceBase64s,
-                                String rank) {
+                                String rank, Integer enrollmentYear) {
         CertificationType certType = CertificationType.fromCode(type);
         if (certType == null) {
             throw new IllegalArgumentException("无效的认证类型");
+        }
+        if (certType.isNeedsEnrollmentYear()
+                && (enrollmentYear == null || enrollmentYear < 1900 || enrollmentYear > Year.now().getValue() + 1)) {
+            throw new IllegalArgumentException("请填写合法的入学年份");
         }
         Optional<Certification> existing = certificationRepository
                 .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(userId, type, "PENDING");
@@ -69,7 +74,8 @@ public class CertificationService {
 
         Certification cert = Certification.builder()
                 .userId(userId).type(type).status("PENDING")
-                .studentName(studentName).studentId(studentId).description(description)
+                .studentName(studentName).studentId(studentId).enrollmentYear(enrollmentYear)
+                .description(description)
                 .build();
 
         if (certType.isRank() && rank != null && !rank.isBlank()) {
@@ -119,6 +125,7 @@ public class CertificationService {
         m.put("status", cert.getStatus());
         m.put("studentName", cert.getStudentName());
         m.put("studentId", cert.getStudentId());
+        m.put("enrollmentYear", cert.getEnrollmentYear());
         m.put("description", cert.getDescription());
         m.put("xuexinPath", cert.getXuexinPath());
         m.put("evidencePaths", cert.getEvidencePaths());

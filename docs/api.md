@@ -72,11 +72,11 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | /api/certification/apply | 提交认证申请。type: STUDENT（在校生）/ ALUMNI（校友）/ RANK（段位）/ REFEREE（裁判）。STUDENT 需 studentName+studentId+xuexinBase64；RANK 需 rank+evidenceBase64s；ALUMNI 需 evidenceBase64s；REFEREE 仅需 description |
+| POST | /api/certification/apply | 提交认证申请。type: STUDENT（在校生）/ ALUMNI（校友）/ RANK（段位）/ REFEREE（裁判）。STUDENT 需 studentName+studentId+enrollmentYear+xuexinBase64；RANK 需 rank+evidenceBase64s；ALUMNI 需 enrollmentYear+evidenceBase64s；REFEREE 仅需 description |
 | GET | /api/certification/my | 我的认证记录 |
 | DELETE | /api/certification/{id} | 删除自己的认证 |
 
-认证规则：同组互斥（identity 组的在校生/校友只能保留一个活跃认证）；段位需从规范化段位列表中选择；段位认证通过后可通过重新提交申请更新段位，旧认证会标记为 SUPERSEDED。
+认证规则：同组互斥（identity 组的在校生/校友只能保留一个活跃认证）；在校生/校友认证需填写入学年份 `enrollmentYear`（整数，如 2023，范围为 1900 ~ 明年）；段位需从规范化段位列表中选择；段位认证通过后可通过重新提交申请更新段位，旧认证会标记为 SUPERSEDED。
 
 ### 认证审核 /api/admin/certifications（需 ADMIN 角色）
 

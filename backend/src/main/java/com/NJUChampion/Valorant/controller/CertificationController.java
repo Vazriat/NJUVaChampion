@@ -28,6 +28,11 @@ public class CertificationController {
         String description = (String) body.get("description");
         String xuexinBase64 = (String) body.get("xuexinBase64");
         String rank = (String) body.get("rank");
+        Integer enrollmentYear = null;
+        Object yearObj = body.get("enrollmentYear");
+        if (yearObj instanceof Number n) {
+            enrollmentYear = n.intValue();
+        }
         @SuppressWarnings("unchecked")
         List<String> evidenceBase64s = (List<String>) body.get("evidenceBase64s");
 
@@ -38,9 +43,12 @@ public class CertificationController {
         if (certType.isNeedsStudentInfo() && (studentName == null || studentId == null)) {
             return Result.error(400, "在校生认证需填写姓名和学号");
         }
+        if (certType.isNeedsEnrollmentYear() && enrollmentYear == null) {
+            return Result.error(400, "请填写入学年份");
+        }
 
         Certification cert = certificationService.apply(
-                user.getId(), type, studentName, studentId, description, xuexinBase64, evidenceBase64s, rank);
+                user.getId(), type, studentName, studentId, description, xuexinBase64, evidenceBase64s, rank, enrollmentYear);
         return Result.success(cert);
     }
 

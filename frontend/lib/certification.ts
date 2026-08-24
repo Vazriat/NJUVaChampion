@@ -4,15 +4,16 @@ export interface CertTypeDef {
   code: string;
   label: string;
   needsStudentInfo: boolean;
+  needsEnrollmentYear: boolean;
   group: string;
   isRank: boolean;
 }
 
 export const CERT_TYPES: CertTypeDef[] = [
-  { code: "STUDENT", label: "在校生", needsStudentInfo: true, group: "identity", isRank: false },
-  { code: "ALUMNI", label: "校友", needsStudentInfo: false, group: "identity", isRank: false },
-  { code: "RANK", label: "段位", needsStudentInfo: false, group: "rank", isRank: true },
-  { code: "REFEREE", label: "裁判", needsStudentInfo: false, group: "referee", isRank: false },
+  { code: "STUDENT", label: "在校生", needsStudentInfo: true, needsEnrollmentYear: true, group: "identity", isRank: false },
+  { code: "ALUMNI", label: "校友", needsStudentInfo: false, needsEnrollmentYear: true, group: "identity", isRank: false },
+  { code: "RANK", label: "段位", needsStudentInfo: false, needsEnrollmentYear: false, group: "rank", isRank: true },
+  { code: "REFEREE", label: "裁判", needsStudentInfo: false, needsEnrollmentYear: false, group: "referee", isRank: false },
 ];
 
 export function certTypeLabel(code: string): string {

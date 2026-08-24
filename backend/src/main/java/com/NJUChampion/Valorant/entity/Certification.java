@@ -33,6 +33,9 @@ public class Certification {
     @Column(name = "student_id", length = 50)
     private String studentId;
 
+    @Column(name = "enrollment_year")
+    private Integer enrollmentYear;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

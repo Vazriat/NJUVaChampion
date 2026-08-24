@@ -84,7 +84,7 @@ export default function CertificationManager() {
                   <p className="text-sm font-medium text-zinc-300">{r.username || ("用户 #" + r.userId)}</p>
                   <p className="mt-0.5 text-xs text-zinc-500">
                     {r.displayGameId || r.gameId ? (r.displayGameId || r.gameId) + " · " : ""}
-                    {certTypeLabel(r.type)}{r.studentName ? " · " + r.studentName : ""}
+                    {certTypeLabel(r.type)}{r.studentName ? " · " + r.studentName : ""}{r.enrollmentYear ? " · " + r.enrollmentYear + " 年入学" : ""}
                   </p>
                   <p className="mt-0.5 text-[11px] text-zinc-600">
                     申请：{r.createdAt ? new Date(r.createdAt).toLocaleDateString("zh-CN") : "-"}
@@ -118,6 +118,7 @@ export default function CertificationManager() {
               {selected.studentName && <div><span className="text-zinc-500">姓名：</span><span className="text-zinc-300">{selected.studentName}</span></div>}
               {selected.type === "RANK" && selected.rank && <div><span className="text-zinc-500">申请段位：</span><span className="text-zinc-300">{selected.rank}</span></div>}
               {selected.type !== "RANK" && selected.studentId && <div><span className="text-zinc-500">学号：</span><span className="text-zinc-300">{selected.studentId}</span></div>}
+              {selected.enrollmentYear && <div><span className="text-zinc-500">入学年份：</span><span className="text-zinc-300">{selected.enrollmentYear}</span></div>}
               {selected.rank && <div><span className="text-zinc-500">已认证段位：</span><span className="text-zinc-300">{selected.rank}</span></div>}
               {selected.description && <div><span className="text-zinc-500">说明：</span><p className="mt-1 text-zinc-300">{selected.description}</p></div>}
               {selected.rejectReason && <div><span className="text-zinc-500">驳回原因：</span><span className="text-red-400">{selected.rejectReason}</span></div>}
