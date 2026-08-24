@@ -2,6 +2,12 @@
 
 ## 快速启动
 
+> ⚠️ 首次运行或 clone 后，必须先装前端依赖再启动：
+> ```bash
+> cd frontend && npm ci
+> ```
+> 若 `start-all.ps1` / `npm run dev` 报 **"'next' 不是内部或外部命令"**，说明 `frontend/node_modules` 缺失或损坏——不要改脚本，直接重新执行 `npm ci`（有 package-lock.json，版本已锁定为 next 16.2.10）。
+
 **后端（端口 8080）：**
 ```bash
 cd backend
