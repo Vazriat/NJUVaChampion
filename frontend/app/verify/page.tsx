@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { certificationApi, authApi } from "@/lib/api";
-import { isLoggedIn } from "@/lib/auth";
+import { isLoggedIn, setUser } from "@/lib/auth";
 import { RANKS } from "@/lib/ranks";
 import { CERT_TYPES } from "@/lib/certification";
 
@@ -25,16 +25,39 @@ export default function VerifyPage() {
   const [form, setForm] = useState<any>({});
   const [rankPublic, setRankPublic] = useState(false);
   const [updatingRank, setUpdatingRank] = useState(false);
+  const [required, setRequired] = useState(false);
+  const requiredRef = useRef(false);
 
   useEffect(() => {
+    const isRequired = new URLSearchParams(window.location.search).get("required") === "1";
+    requiredRef.current = isRequired;
+    setRequired(isRequired);
+    if (isRequired) setExpanded("identity");
     if (!isLoggedIn()) { router.replace("/login"); return; }
     load();
     authApi.getProfile().then(r => setRankPublic(r.data.data?.rankPublic || false)).catch(() => {});
+    if (isRequired) {
+      const timer = setInterval(() => load(true), 5000);
+      return () => clearInterval(timer);
+    }
   }, []);
 
-  const load = () => {
-    setLoading(true);
-    certificationApi.my().then(r => setRecords(r.data.data || [])).catch(() => {}).finally(() => setLoading(false));
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
+    certificationApi.my().then(r => {
+      const records = r.data.data || [];
+      setRecords(records);
+      if (requiredRef.current) {
+        const approved = records.find((rec: any) =>
+          (rec.type === "STUDENT" || rec.type === "ALUMNI") && rec.status === "APPROVED");
+        if (approved) {
+          authApi.getProfile().then(p => {
+            setUser(p.data.data);
+            router.replace("/dashboard");
+          }).catch(() => {});
+        }
+      }
+    }).catch(() => {}).finally(() => { if (!silent) setLoading(false); });
   };
 
   const getRec = (type: string) => records.find((r: any) => r.type === type);
@@ -95,6 +118,11 @@ export default function VerifyPage() {
       <NavBar />
       <main className="mx-auto max-w-xl px-8 py-10">
         <h2 className="mb-6 text-2xl font-bold">选手认证</h2>
+        {required && (
+          <div className="mb-4 rounded-lg border border-red-800 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            请先完成在校生或校友身份认证，认证通过后方可使用平台其他功能。审核通过后将自动解锁。
+          </div>
+        )}
         {msg && <div className="mb-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>}
 
         <div className="space-y-4">

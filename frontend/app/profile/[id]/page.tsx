@@ -68,7 +68,7 @@ export default function ProfilePage() {
             )}
             <div className="mt-2 flex gap-2">
               <span className="rounded bg-zinc-800 px-3 py-0.5 text-xs text-zinc-400">{user.role}</span>
-              {user.verifiedType && (
+              {user.identityVerified && (
                 <span className={"rounded px-3 py-0.5 text-xs font-medium " + (user.verifiedType === "STUDENT" ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400")}>
                   {user.verifiedType === "STUDENT" ? "✔ 校内认证" : "✔ 校友认证"}
                 </span>

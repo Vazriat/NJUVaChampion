@@ -109,6 +109,11 @@ public class CertificationService {
     public List<Certification> getMyCertifications(Long userId) {
         return certificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
+    /** 是否已通过身份认证（在校生/校友任一 APPROVED 即可） */
+    public boolean isIdentityVerified(Long userId) {
+        return certificationRepository
+                .existsByUserIdAndTypeInAndStatus(userId, List.of("STUDENT", "ALUMNI"), "APPROVED");
+    }
 
     public List<Map<String, Object>> listByStatus(String status) {
         List<Certification> certs = (status != null && !status.isBlank())
@@ -175,7 +180,8 @@ public class CertificationService {
                         certificationRepository.save(old);
                     });
             user.setVerifiedRank(cert.getRank());
-        } else {
+        } else if (certType != null && "identity".equals(certType.getGroup())) {
+            // 仅身份认证（在校生/校友）写入 verifiedType；REFEREE 等不覆盖身份标记
             user.setVerifiedType(cert.getType());
         }
         userRepository.save(user);
@@ -200,8 +206,13 @@ public class CertificationService {
         certificationRepository.save(cert);
         User user = userRepository.findById(cert.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("\u7528\u6237\u4e0d\u5b58\u5728"));
-        user.setVerifiedType(null);
-        user.setVerifiedRank(null);
+        CertificationType certType = CertificationType.fromCode(cert.getType());
+        if (certType != null && certType.isRank()) {
+            user.setVerifiedRank(null);
+        } else if (certType != null && "identity".equals(certType.getGroup())) {
+            user.setVerifiedType(null);
+        }
+        // REFEREE 等非身份认证撤销时不影响身份标记
         userRepository.save(user);
     }
 
@@ -215,12 +226,21 @@ public class CertificationService {
         certificationRepository.save(cert);
         User user = userRepository.findById(cert.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("\u7528\u6237\u4e0d\u5b58\u5728"));
-        if ("RANK".equals(cert.getType())) {
+        CertificationType certType = CertificationType.fromCode(cert.getType());
+        if (certType != null && certType.isRank()) {
             user.setVerifiedRank(null);
-        } else {
+        } else if (certType != null && "identity".equals(certType.getGroup())) {
             user.setVerifiedType(null);
         }
+        // REFEREE 等非身份认证删除时不影响身份标记
         userRepository.save(user);
+    }
+
+    /** 是否通过裁判认证（REFEREE 认证 APPROVED） */
+    public boolean isReferee(Long userId) {
+        return certificationRepository
+                .findFirstByUserIdAndTypeAndStatusOrderByCreatedAtDesc(userId, "REFEREE", "APPROVED")
+                .isPresent();
     }
 
     public Optional<Certification> getActiveCertification(Long userId) {

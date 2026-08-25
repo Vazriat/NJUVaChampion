@@ -120,7 +120,7 @@ export default function DashboardPage() {
 
           <Link href="/competitions" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📋</div>
-            <h3 className="text-lg font-semibold group-hover:text-red-400">赛事报名</h3>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">活动报名</h3>
             <p className="mt-1 text-sm text-zinc-500">报名活动，由管理员分组后开赛</p>
           </Link>
 

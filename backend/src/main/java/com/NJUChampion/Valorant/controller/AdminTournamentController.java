@@ -69,8 +69,8 @@ public class AdminTournamentController {
     }
 
     @GetMapping("/{id}/swiss/standings")
-    public Result<List<com.NJUChampion.Valorant.entity.SwissStanding>> getSwissStandings(@PathVariable Long id) {
-        return Result.success(tournamentService.getSwissStandings(id));
+    public Result<List<com.NJUChampion.Valorant.dto.SwissStandingVO>> getSwissStandings(@PathVariable Long id) {
+        return Result.success(tournamentService.getSwissStandingVOs(id));
     }
 
     @GetMapping("/{id}/league/standings")

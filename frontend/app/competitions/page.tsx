@@ -35,7 +35,7 @@ export default function CompetitionsPage() {
       <NavBar />
       <main className="mx-auto max-w-5xl px-8 py-10">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">赛事报名</h1>
+          <h1 className="text-3xl font-bold">活动报名</h1>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

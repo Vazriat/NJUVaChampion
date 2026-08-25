@@ -32,6 +32,7 @@ public class TournamentVO {
     private Integer registeredCount;
     private Long championTeamId;
     private String championTeamName;
+    private String groupName;
     private LocalDateTime createdAt;
 
     private List<RegisteredTeamInfo> registeredTeams;
@@ -70,6 +71,11 @@ public class TournamentVO {
         private Long winnerId;
         private String status;
         private Integer gamesPerMatch;
+        private Integer team1Wins;
+        private Integer team2Wins;
+        private Integer team1Score;
+        private Integer team2Score;
+        private Boolean hasPendingSubmission;
     }
 
     @Data

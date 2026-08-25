@@ -20,6 +20,7 @@ public class UserVO {
     private Integer status;
     private String contact;
     private String verifiedType;
+    private Boolean identityVerified;
     private String verifiedRank;
     private Boolean rankPublic;
     private String displayPreference;

@@ -43,6 +43,13 @@ public class TournamentMatch {
     @Column(name = "winner_id")
     private Long winnerId;
 
+    /** 完结时填写的总比分（BO 胜局数），展示用 */
+    @Column(name = "team1_score")
+    private Integer team1Score;
+
+    @Column(name = "team2_score")
+    private Integer team2Score;
+
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String status = "PENDING";

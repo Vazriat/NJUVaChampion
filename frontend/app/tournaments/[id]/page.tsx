@@ -5,10 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import BracketTree from "@/components/BracketTree";
+import SwissSchedule from "@/components/SwissSchedule";
 import GameDetailPanel from "@/components/GameDetailPanel";
 import TournamentNotificationManager from "@/components/TournamentNotificationManager";
-import { tournamentApi, teamApi, matchApi } from "@/lib/api";
-import { getUser, isLoggedIn } from "@/lib/auth";
+import { tournamentApi, teamApi, matchApi, resultSubmissionApi, authApi } from "@/lib/api";
+import GameRecordWizard from "@/components/GameRecordWizard";
+import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
 
 const STATUS_MAP = {
   SETUP: "筹备中",
@@ -55,8 +57,41 @@ export default function TournamentDetailPage() {
   const [playerSortDir, setPlayerSortDir] = useState<"asc" | "desc">("desc");
   const [showTeamPicker, setShowTeamPicker] = useState(false);
   const [captainTeams, setCaptainTeams] = useState<any[]>([]);
+  const [submitMatch, setSubmitMatch] = useState<any>(null);
+  const [isReferee, setIsReferee] = useState(getUser()?.referee === true);
+  const [refereeMode, setRefereeModeState] = useState(getRefereeMode());
+  const [mySubmissions, setMySubmissions] = useState<any[]>([]);
+  const [submitChoice, setSubmitChoice] = useState<any>(null);
+  const [editSubmission, setEditSubmission] = useState<any>(null);
 
   const currentUser = getUser();
+
+  // 申报入口：跟踪本次申报，避免无提示重复申报
+  const openSubmitWizard = (m: any) => setSubmitMatch(m);
+  const handleRefereeSubmit = async (m: any) => {
+    // 点击时按需拉取我的申报，避免挂载时异步拉取未完成导致的漏判
+    let mine = mySubmissions.find(s => s.matchId === m.id);
+    if (!mine) {
+      try {
+        const res = await resultSubmissionApi.my();
+        const list: any[] = res.data.data || [];
+        setMySubmissions(list);
+        mine = list.find(s => s.matchId === m.id);
+      } catch { /* 拉取失败时按后端标记兜底 */ }
+    }
+    if (mine && mine.status === "PENDING") {
+      setSubmitChoice({ match: m, submission: mine });
+      return;
+    }
+    if (m.hasPendingSubmission) {
+      alert("该比赛已有裁判申报待审核，无法重复申报");
+      return;
+    }
+    if (mine && mine.status === "APPROVED") {
+      if (!confirm("该场已有通过审核的申报，重新申报审核通过后将覆盖现有结果。确定继续？")) return;
+    }
+    openSubmitWizard(m);
+  };
 
   const fetch = () => {
     setLoading(true);
@@ -68,8 +103,22 @@ export default function TournamentDetailPage() {
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace("/login"); return; }
+    // 刷新裁判标记（localStorage 可能过期）
+    authApi.getProfile().then(res => {
+      const isRef = res.data.data?.referee === true;
+      setIsReferee(isRef);
+      if (isRef) {
+        resultSubmissionApi.my().then(r => setMySubmissions(r.data.data || [])).catch(() => {});
+      }
+    }).catch(() => {});
     fetch();
   }, [id, router]);
+
+  useEffect(() => {
+    const handler = (e: Event) => setRefereeModeState((e as CustomEvent).detail === true);
+    window.addEventListener("referee-mode-change", handler);
+    return () => window.removeEventListener("referee-mode-change", handler);
+  }, []);
 
   useEffect(() => {
     if (!detailMatch) return;
@@ -346,13 +395,37 @@ export default function TournamentDetailPage() {
             </div>
 
             <h2 className="text-lg font-semibold mb-4">赛程图</h2>
-            <BracketTree
-              matches={matches}
-              format={tournament.format}
-              onMatchClick={(m: any) => {
-                if (m.team1Id && m.team2Id) setDetailMatch(m);
-              }}
-            />
+            {tournament.format === "SWISS_ELIM" ? (
+              <>
+                <SwissSchedule
+                  matches={matches}
+                  groupName={tournament.groupName}
+                  onMatchClick={(m: any) => {
+                    if (m.team1Id && m.team2Id) setDetailMatch(m);
+                  }}
+                />
+                {matches.some((m: any) => m.stage !== "SWISS") && (
+                  <div className="mt-8">
+                    <p className="mb-3 text-sm font-semibold">淘汰赛对阵</p>
+                    <BracketTree
+                      matches={matches.filter((m: any) => m.stage !== "SWISS")}
+                      format={tournament.knockoutFormat || "SINGLE_ELIM"}
+                      onMatchClick={(m: any) => {
+                        if (m.team1Id && m.team2Id) setDetailMatch(m);
+                      }}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <BracketTree
+                matches={matches}
+                format={tournament.format}
+                onMatchClick={(m: any) => {
+                  if (m.team1Id && m.team2Id) setDetailMatch(m);
+                }}
+              />
+            )}
             {tournament.status === "ENDED" && !tournament.championTeamName && (
               <div className="rounded-xl border border-dashed border-zinc-800 py-10 text-center">
                 <p className="text-sm text-zinc-500">赛事已结束，无冠军</p>
@@ -370,6 +443,17 @@ export default function TournamentDetailPage() {
               <button onClick={() => setDetailMatch(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
             </div>
             <p className="mb-4 text-xs text-zinc-500">{detailMatch.status === "COMPLETED" ? "已完结" : "进行中"}</p>
+            {mySubmissions.find(s => s.matchId === detailMatch.id && s.status === "PENDING") ? (
+              <span className="mb-3 inline-block rounded bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-400">我已申报 · 审核中（点击下方按钮可修改或撤销）</span>
+            ) : detailMatch.hasPendingSubmission ? (
+              <span className="mb-3 inline-block rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400">已申报 · 待审核</span>
+            ) : null}
+            {isReferee && refereeMode && (detailMatch.status === "PENDING" || detailMatch.status === "COMPLETED") && (
+              <button onClick={() => { handleRefereeSubmit(detailMatch); setDetailMatch(null); }}
+                className="mb-4 w-full rounded-lg bg-orange-600 py-2 text-sm font-semibold hover:bg-orange-700">
+                申报赛果（裁判）
+              </button>
+            )}
             {detailLoading ? (
               <p className="py-4 text-center text-xs text-zinc-500">加载中...</p>
             ) : detailGames.length > 0 ? (
@@ -386,6 +470,73 @@ export default function TournamentDetailPage() {
           </div>
         </div>
       )}
+{submitMatch && (
+        <GameRecordWizard
+          mode="submission"
+          tournamentId={Number(id)}
+          matchId={submitMatch.id}
+          team1Id={submitMatch.team1Id}
+          team2Id={submitMatch.team2Id}
+          team1Name={submitMatch.team1Name || "队伍1"}
+          team2Name={submitMatch.team2Name || "队伍2"}
+          onClose={() => setSubmitMatch(null)}
+          onComplete={(m) => { setMsg(m); setSubmitMatch(null); }}
+          onSubmitPayload={async (payload) => {
+            await resultSubmissionApi.create({ matchId: submitMatch.id, ...payload });
+          }}
+        />
+      )}
+
+{editSubmission && (
+        <GameRecordWizard
+          mode="submission"
+          tournamentId={editSubmission.detail.tournamentId}
+          matchId={editSubmission.detail.matchId}
+          team1Id={editSubmission.detail.team1Id || 0}
+          team2Id={editSubmission.detail.team2Id || 0}
+          team1Name={editSubmission.detail.team1Name || "队伍1"}
+          team2Name={editSubmission.detail.team2Name || "队伍2"}
+          initialPayload={editSubmission.detail.payload}
+          onClose={() => setEditSubmission(null)}
+          onComplete={(m) => { setMsg(m); setEditSubmission(null); }}
+          onSubmitPayload={async (payload) => {
+            await resultSubmissionApi.update(editSubmission.id, { matchId: editSubmission.detail.matchId, ...payload });
+          }}
+        />
+      )}
+
+{submitChoice && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+            <h3 className="mb-3 text-sm font-semibold">已有待审核申报</h3>
+            <p className="mb-4 text-xs text-zinc-400">
+              你已为 {submitChoice.match.team1Name} vs {submitChoice.match.team2Name} 提交过申报
+              （比分 {submitChoice.submission.team1Wins} : {submitChoice.submission.team2Wins}，提交于 {new Date(submitChoice.submission.createdAt).toLocaleString("zh-CN")}），当前审核中。
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setSubmitChoice(null)}
+                className="flex-1 rounded-lg border border-zinc-700 py-2 text-sm text-zinc-400 hover:border-zinc-500">取消</button>
+              <button onClick={async () => {
+                try {
+                  const res = await resultSubmissionApi.detail(submitChoice.submission.id);
+                  setSubmitChoice(null);
+                  setEditSubmission({ id: submitChoice.submission.id, detail: res.data.data });
+                } catch (err: any) { setMsg(err.response?.data?.message || "加载失败"); }
+              }}
+                className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-semibold hover:bg-blue-700">修改申报</button>
+              <button onClick={async () => {
+                try {
+                  await resultSubmissionApi.cancel(submitChoice.submission.id);
+                  setSubmitChoice(null);
+                  openSubmitWizard(submitChoice.match);
+                } catch (err: any) { setMsg(err.response?.data?.message || "操作失败"); }
+              }}
+                className="flex-1 rounded-lg bg-orange-600 py-2 text-sm font-semibold hover:bg-orange-700">撤销并重新申报</button>
+            </div>
+          </div>
+        </div>
+      )}
+
 {showTeamPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">

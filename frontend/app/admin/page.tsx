@@ -3,16 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import BracketTree from "@/components/BracketTree";
-import { adminApi, adminTournamentApi, adminRankReviewApi, searchApi, TournamentVO, MatchVO } from "@/lib/api";
+import { adminApi, adminTournamentApi, searchApi, TournamentVO } from "@/lib/api";
 import { getUser, removeToken, isLoggedIn } from "@/lib/auth";
 import CreateTournamentModal from "@/components/CreateTournamentModal";
-import GameDetailPanel from "@/components/GameDetailPanel";
 import ScreenshotManager from "@/components/AdminScreenshotManager";
 import AdminBannerManager from "@/components/AdminBannerManager";
 import AdminAnnouncementManager from "@/components/AdminAnnouncementManager";
 import CertificationManager from "@/components/AdminCertificationManager";
-import GameRecordWizard from "@/components/GameRecordWizard";
 import TeamRatingManager from "@/components/TeamRatingManager";
 import CompetitionManager from "@/components/CompetitionManager";
 
@@ -54,21 +51,12 @@ export default function AdminPage() {
   const [form, setForm] = useState<Record<string, any>>({});
 
   const [showCreateTournament, setShowCreateTournament] = useState(false);
-  const [selectedTournament, setSelectedTournament] = useState<TournamentVO | null>(null);
-  const [tournamentRankReview, setTournamentRankReview] = useState<any[]>([]);
-  const [rankReviewLoading, setRankReviewLoading] = useState(false);
-  const [tournamentMatches, setTournamentMatches] = useState<MatchVO[]>([]);
   const [showCreateEmptyTeam, setShowCreateEmptyTeam] = useState(false);
   const [emptyTeamName, setEmptyTeamName] = useState("");
   const [emptyTeamDesc, setEmptyTeamDesc] = useState("");
-  const [showBulkAddTeam, setShowBulkAddTeam] = useState(false);
-  const [swissStandings, setSwissStandings] = useState<any[]>([]);
-  const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>([]);
-  const [allTeamsList, setAllTeamsList] = useState<AdminTeam[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ users: any[]; teams: any[]; tournaments: any[] } | null>(null);
   const [searching, setSearching] = useState(false);
-  const [wizardMatch, setWizardMatch] = useState<{ tournamentId: number; matchId: number; team1Name: string; team2Name: string; team1Id: number; team2Id: number } | null>(null);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
 
@@ -76,6 +64,10 @@ export default function AdminPage() {
     if (!isLoggedIn()) { router.replace("/login"); return; }
     const u = getUser();
     if (u?.role !== "ADMIN") { router.replace("/dashboard"); return; }
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam && ["overview", "users", "teams", "ratings", "competitions", "tournaments", "screenshots", "certifications", "banners", "announcements"].includes(tabParam)) {
+      setTab(tabParam as Tab);
+    }
     fetchData();
   }, [router]);
 
@@ -103,29 +95,6 @@ export default function AdminPage() {
       });
       const json = await res.json();
       if (json.code === 200) setTournaments(json.data);
-    } catch {}
-  };
-
-  const loadTournamentDetail = async (t: TournamentVO) => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/tournaments/${t.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const json = await res.json();
-      if (json.code === 200) {
-        setSelectedTournament(json.data);
-        setTournamentMatches(json.data.matches || []);
-        if (json.data.status === "REGISTRATION") {
-          setRankReviewLoading(true);
-          adminRankReviewApi.tournamentReview(json.data.id)
-            .then((r) => setTournamentRankReview(r.data.data || []))
-            .catch(() => setTournamentRankReview([]))
-            .finally(() => setRankReviewLoading(false));
-        } else {
-          setTournamentRankReview([]);
-        }
-      }
     } catch {}
   };
 
@@ -166,54 +135,19 @@ export default function AdminPage() {
   };
 
   const handlePublish = async (id: number) => {
-    try { await adminTournamentApi.publish(id); showMsg("赛事已发布"); fetchTournaments(); loadTournamentDetail({ ...selectedTournament!, id } as TournamentVO); }
+    try { await adminTournamentApi.publish(id); showMsg("赛事已发布"); fetchTournaments(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
-  };
-
-  const loadSwissStandings = async (tournamentId: number) => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/tournaments/" + tournamentId + "/swiss/standings", {
-        headers: { Authorization: "Bearer " + token },
-      });
-      const json = await res.json();
-      if (json.code === 200) setSwissStandings(json.data);
-    } catch {}
   };
 
   const handleDeleteTournament = async (id: number) => {
     if (!confirm("确定删除该赛事？此操作不可恢复！")) return;
-    try { await adminTournamentApi.delete(id); showMsg("赛事已删除"); fetchTournaments(); setSelectedTournament(null); }
+    try { await adminTournamentApi.delete(id); showMsg("赛事已删除"); fetchTournaments(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
   const handleStart = async (id: number) => {
     try { await adminTournamentApi.start(id); showMsg("赛事已开始"); fetchTournaments(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
-  };
-
-  const passTournamentReviewUser = async (userId: number) => {
-    if (!selectedTournament) return;
-    try {
-      await adminRankReviewApi.passTournamentUser(selectedTournament.id, userId);
-      setTournamentRankReview((prev) => prev.filter((p) => p.userId !== userId));
-      showMsg("已通过该选手");
-    } catch { showMsg("操作失败"); }
-  };
-
-  const handleSetWinner = async (tournamentId: number, matchId: number) => {
-    const t = selectedTournament;
-    if (!t) return;
-    const m = tournamentMatches.find(x => x.id === matchId);
-    if (!m || !m.team1Id || !m.team2Id) return;
-    setWizardMatch({
-      tournamentId,
-      matchId,
-      team1Name: m.team1Name || '队伍1',
-      team2Name: m.team2Name || '队伍2',
-      team1Id: m.team1Id,
-      team2Id: m.team2Id,
-    });
   };
 
   const openEditUser = (u: AdminUser) => {
@@ -234,25 +168,6 @@ export default function AdminPage() {
   const activeTournaments = tournaments.filter((t) => t.status !== "ENDED").length;
   const currentUser = getUser();
 
-  const handleBulkAddTeams = async () => {
-    if (!selectedTournament || selectedTeamIds.length === 0) return;
-    try {
-      const res = await adminTournamentApi.batchRegister(selectedTournament.id, selectedTeamIds);
-      if (res.data.code === 200) {
-        showMsg(`成功添加 ${selectedTeamIds.length} 支队伍`);
-        setShowBulkAddTeam(false);
-        setSelectedTeamIds([]);
-        loadTournamentDetail(selectedTournament);
-      if (selectedTournament.format === "SWISS_ELIM") loadSwissStandings(selectedTournament.id);
-        fetchTournaments();
-      } else {
-        showMsg(res.data.message || "添加失败");
-      }
-    } catch (err: any) {
-      showMsg(err.response?.data?.message || "添加失败");
-    }
-  };
-
   const handleSearch = async () => {
     if (!searchQuery.trim()) { setSearchResults(null); return; }
     setSearching(true);
@@ -261,23 +176,6 @@ export default function AdminPage() {
       setSearchResults(res.data.data);
     } catch { showMsg("搜索失败"); }
     finally { setSearching(false); }
-  };
-
-    const handleRemoveTeam = async (teamId: number) => {
-    if (!selectedTournament || !confirm("确定从赛事中移除该队伍？")) return;
-    try {
-      const token = localStorage.getItem("token");
-      await fetch("/api/admin/tournaments/" + selectedTournament.id + "/unregister", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-        body: JSON.stringify({ teamId }),
-      });
-      showMsg("队伍已移除");
-      loadTournamentDetail(selectedTournament);
-      if (selectedTournament.format === "SWISS_ELIM") loadSwissStandings(selectedTournament.id);
-    } catch (err: any) {
-      showMsg(err.response?.data?.message || "移除失败");
-    }
   };
 
   const openCreateEmptyTeam = () => {
@@ -345,7 +243,7 @@ export default function AdminPage() {
       <main className="mx-auto max-w-6xl px-8 py-8">
         <div className="mb-8 flex gap-6 border-b border-zinc-800">
           {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => { setTab(key); setSelectedTournament(null); }}
+            <button key={key} onClick={() => setTab(key)}
               className={`pb-3 text-sm font-medium transition border-b-2 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
           ))}
         </div>
@@ -516,7 +414,7 @@ export default function AdminPage() {
                     <div className="flex gap-2">
                       <button onClick={() => handleDeleteTournament(t.id)} className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除</button>
                       <Link href={"/tournaments/"+t.id} className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:border-red-500 hover:text-red-400">查看</Link>
-                      <button onClick={() => loadTournamentDetail(t)}
+                      <button onClick={() => router.push("/admin/tournaments/" + t.id)}
                         className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:border-red-500 hover:text-red-400">详情</button>
                       {t.status === "SETUP" && (
                         <button onClick={() => handlePublish(t.id)}
@@ -542,203 +440,11 @@ export default function AdminPage() {
                 onSuccess={(msg) => { showMsg(msg); fetchTournaments(); }}
               />
             )}
-
-            {selectedTournament && (
-              <Modal title={selectedTournament.name} onClose={() => setSelectedTournament(null)}>
-                <div className="space-y-4">
-                  <p className="text-sm text-zinc-400">
-                    状态：{STATUS_MAP[selectedTournament.status]} · 报名 {selectedTournament.registeredCount}/{selectedTournament.maxTeams}
-                  </p>
-
-                  {selectedTournament.status === "SETUP" && (
-                    <button onClick={() => { handlePublish(selectedTournament.id); setSelectedTournament(null); }}
-                      className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold hover:bg-blue-700">发布赛事（进入报名阶段）</button>
-                  )}
-                  {selectedTournament.status === "REGISTRATION" && (
-                    <>
-                      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-                        <div className="mb-2 flex items-center justify-between">
-                          <p className="text-sm font-semibold">段位审核</p>
-                          <span className="text-xs text-zinc-500">{tournamentRankReview.length} 名选手需更新段位</span>
-                        </div>
-                        {rankReviewLoading ? (
-                          <p className="py-3 text-center text-xs text-zinc-500">加载中...</p>
-                        ) : tournamentRankReview.length === 0 ? (
-                          <p className="py-3 text-center text-xs text-zinc-500">暂无需要更新段位的选手</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {tournamentRankReview.map((p: any) => (
-                              <div key={p.userId} className="flex items-center justify-between rounded bg-zinc-800 px-3 py-2 text-xs">
-                                <div>
-                                  <span className="text-zinc-200">{p.username || p.displayGameId || ("#" + p.userId)}</span>
-                                  {p.displayGameId && <span className="ml-2 text-zinc-500">{p.displayGameId}</span>}
-                                  <div className="mt-0.5 text-zinc-500">
-                                    申请：{p.appliedAt ? new Date(p.appliedAt).toLocaleDateString("zh-CN") : "-"}
-                                    {" · "}通过：{p.reviewedAt ? new Date(p.reviewedAt).toLocaleDateString("zh-CN") : "无"}
-                                    {" · "}段位：{p.rank || "未认证"}
-                                  </div>
-                                </div>
-                                <button onClick={() => passTournamentReviewUser(p.userId)}
-                                  className="rounded bg-green-600 px-2 py-1 text-xs font-semibold hover:bg-green-700">通过</button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => { handleStart(selectedTournament.id); setSelectedTournament(null); }}
-                        className="w-full rounded-lg bg-green-600 py-2 text-sm font-semibold hover:bg-green-700">开始比赛（生成对阵表）</button>
-                    </>
-                  )}
-                  {selectedTournament.status === "PROGRESSION" && tournamentMatches.length > 0 && (
-                    <div>
-                      <p className="mb-3 text-sm font-semibold">对阵表</p>
-                      <div className="overflow-x-auto pb-4">
-                        <BracketTree
-                          matches={tournamentMatches}
-                          format={selectedTournament?.format}
-                          onMatchClick={(m: any) => {
-                            if (m.team1Id && m.team2Id && (m.status === "PENDING" || m.status === "COMPLETED")) {
-                              handleSetWinner(selectedTournament.id, m.id);
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {selectedTournament.status === "ENDED" && (
-                    <div>
-                      {selectedTournament.championTeamName ? (
-                        <div className="rounded-lg bg-yellow-500/10 p-6 text-center">
-                          <p className="text-sm text-yellow-500">🏆 冠军</p>
-                          <p className="mt-2 text-2xl font-bold text-yellow-400">{selectedTournament.championTeamName}</p>
-                        </div>
-                      ) : <p className="text-zinc-500">赛事已结束</p>}
-                    </div>
-                  )}
-
-                  {selectedTournament.format === "SWISS_ELIM" && swissStandings.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-sm font-semibold">瑞士轮排名</p>
-                      <div className="mb-3 space-y-1">
-                        {swissStandings.map((s: any, i: number) => (
-                          <div key={s.id} className="flex items-center gap-3 rounded bg-zinc-800 px-3 py-1.5 text-xs">
-                            <span className={"w-5 font-bold " + (i < 8 ? "text-red-400" : "text-zinc-600")}>{i + 1}</span>
-                            <span className="flex-1 text-zinc-300">{s.teamId} {s.wins}W-{s.losses}L</span>
-                            <span className="text-zinc-500">BU={s.buchholz}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {selectedTournament.currentStage === 0 && (selectedTournament.currentSwissRound ?? 0) >= (selectedTournament.swissRounds || 5) && (
-                        <button onClick={async () => {
-                          const token = localStorage.getItem("token");
-                          await fetch("/api/admin/tournaments/" + selectedTournament.id + "/swiss/generate-knockout", {
-                            method: "POST", headers: { Authorization: "Bearer " + token },
-                          });
-                          showMsg("八强对阵已生成");
-                          loadTournamentDetail(selectedTournament);
-      if (selectedTournament.format === "SWISS_ELIM") loadSwissStandings(selectedTournament.id);
-                        }}
-                          className="w-full rounded-lg bg-red-600 py-2 text-xs font-semibold hover:bg-red-700">生成八强对阵</button>
-                      )}
-                    </div>
-                  )}
-
-                  {(selectedTournament.format === "SINGLE_RR" || selectedTournament.format === "DOUBLE_RR") && (selectedTournament.leagueStandings || []).length > 0 && (
-                    <div>
-                      <p className="mb-2 text-sm font-semibold">常规赛积分</p>
-                      <div className="mb-3 space-y-1">
-                        {(selectedTournament.leagueStandings || []).map((s: any, i: number) => (
-                          <div key={s.teamId} className="flex items-center gap-3 rounded bg-zinc-800 px-3 py-1.5 text-xs">
-                            <span className="w-5 font-bold text-zinc-400">{i + 1}</span>
-                            <span className="flex-1 text-zinc-300">{s.teamName}</span>
-                            <span className="text-zinc-500">{s.wins}胜-{s.losses}负 · 净胜局{s.roundDiff}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTournament.registeredTeams && selectedTournament.registeredTeams.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-sm font-semibold">报名队伍</p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedTournament.registeredTeams.map((rt) => (
-                          <div key={rt.id} className="inline-flex items-center gap-1 rounded bg-zinc-800 px-3 py-1">
-                            <span className="text-xs text-zinc-300">
-                              {rt.teamName} <span className="text-zinc-500">#{rt.seed}</span>
-                            </span>
-                            {(selectedTournament.status === "SETUP" || selectedTournament.status === "REGISTRATION") && (
-                              <button onClick={() => handleRemoveTeam(rt.teamId)}
-                                className="ml-1 text-red-500 hover:text-red-400 text-xs leading-none">&times;</button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                  {(selectedTournament.status === "SETUP" || selectedTournament.status === "REGISTRATION") && (
-                    <button onClick={async () => { setShowBulkAddTeam(true); try { const res = await adminApi.listTeams(); setAllTeamsList(res.data.data || []); } catch {} }}
-                      className="mt-3 rounded-lg border border-dashed border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-blue-500 hover:text-blue-400 transition">
-                      + 批量添加队伍
-                    </button>
-                  )}
-                  {showBulkAddTeam && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-                      <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-                        <div className="mb-4 flex items-center justify-between">
-                          <h3 className="text-sm font-semibold">批量添加队伍</h3>
-                          <button onClick={() => { setShowBulkAddTeam(false); setSelectedTeamIds([]); }} className="text-zinc-500 hover:text-white text-xl">&times;</button>
-                        </div>
-                        <div className="max-h-96 space-y-1 overflow-y-auto">
-                          {allTeamsList
-                            .filter(t => t.status === 1 && !(selectedTournament?.registeredTeams || []).some(rt => rt.teamId === t.id))
-                            .map(t => {
-                              const checked = selectedTeamIds.includes(t.id);
-                              return (
-                                <label key={t.id} className={"flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition " + (checked ? "border-blue-500 bg-blue-500/10" : "border-zinc-700 bg-zinc-800 hover:border-zinc-600")}>
-                                  <input type="checkbox" checked={checked} onChange={() => {
-                                    setSelectedTeamIds(prev =>
-                                      prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
-                                    );
-                                  }} className="rounded border-zinc-600 bg-zinc-700 text-blue-500 focus:ring-blue-500" />
-                                  <span className="font-medium text-zinc-200">{t.name}</span>
-                                  <span className="ml-auto text-xs text-zinc-500">ID:{t.id} · {t.memberCount}人{t.captainId === 0 ? " · 无人战队" : ""}</span>
-                                </label>
-                              );
-                            })}
-                          {allTeamsList.filter(t => t.status === 1 && !(selectedTournament?.registeredTeams || []).some(rt => rt.teamId === t.id)).length === 0 && (
-                            <p className="py-8 text-center text-xs text-zinc-500">没有可添加的队伍</p>
-                          )}
-                        </div>
-                        {selectedTeamIds.length > 0 && (
-                          <div className="mt-4 border-t border-zinc-800 pt-4">
-                            <p className="mb-2 text-xs text-zinc-500">已选择 {selectedTeamIds.length} 支队伍</p>
-                            <button onClick={handleBulkAddTeams}
-                              className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold hover:bg-blue-700">确认批量添加</button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-              </Modal>
-            )}
           </div>
         )}
 
+            
 
-        {wizardMatch && (
-          <GameRecordWizard
-            tournamentId={wizardMatch.tournamentId}
-            matchId={wizardMatch.matchId}
-            team1Id={wizardMatch.team1Id}
-            team2Id={wizardMatch.team2Id}
-            team1Name={wizardMatch.team1Name}
-            team2Name={wizardMatch.team2Name}
-            onClose={() => setWizardMatch(null)}
-            onComplete={(msg) => { showMsg(msg); fetchTournaments(); loadTournamentDetail({ ...selectedTournament!, id: wizardMatch.tournamentId } as TournamentVO); }}
-          />
-        )}
 
         {tab === "ratings" && (
           <TeamRatingManager />

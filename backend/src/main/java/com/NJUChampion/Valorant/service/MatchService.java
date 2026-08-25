@@ -25,6 +25,7 @@ public class MatchService {
     private final TournamentRepository tournamentRepository;
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
+    private final MatchResultSubmissionRepository submissionRepository;
     private final TournamentService tournamentService;
 
     @Value("${app.upload.dir:uploads/screenshots}")
@@ -123,22 +124,8 @@ public class MatchService {
             throw new IllegalArgumentException("Match cannot be finalized, current status: " + match.getStatus());
         }
 
-        // Verify enough games to determine winner (BO3 can end at 2-0, BO5 at 3-0/3-1)
-        List<GameRecord> allGames = gameRecordRepository.findByMatchIdOrderByGameNumberAsc(matchId);
-        List<GameRecord> recorded = allGames.stream().filter(g -> "RECORDED".equals(g.getStatus())).toList();
-        long team1WinsInGames = recorded.stream().filter(g ->
-            g.getTeam1Score() != null && g.getTeam2Score() != null && g.getTeam1Score() > g.getTeam2Score()
-        ).count();
-        long team2WinsInGames = recorded.stream().filter(g ->
-            g.getTeam1Score() != null && g.getTeam2Score() != null && g.getTeam2Score() > g.getTeam1Score()
-        ).count();
-        int needed = match.getGamesPerMatch() / 2 + 1;
-        if (team1WinsInGames < needed && team2WinsInGames < needed) {
-            int totalRecorded = recorded.size();
-            if (totalRecorded < match.getGamesPerMatch()) {
-                throw new IllegalArgumentException("Not enough games to determine winner: need " + needed + " wins, have " + team1WinsInGames + "-" + team2WinsInGames);
-            }
-        }
+        // 最终比分仅按所选 BO 数校验，不依赖小局记录（与裁判申报/审核修正共用同一规则）
+        validateFinalScore(match.getGamesPerMatch(), req.getTeam1Wins(), req.getTeam2Wins());
 
         // Determine winner from total score
         Long winnerId;
@@ -151,6 +138,8 @@ public class MatchService {
         }
 
         match.setWinnerId(winnerId);
+        match.setTeam1Score(req.getTeam1Wins());
+        match.setTeam2Score(req.getTeam2Wins());
         match.setStatus("COMPLETED");
         matchRepository.save(match);
 
@@ -162,6 +151,99 @@ public class MatchService {
         } else {
             tournamentService.processCompletedMatch(tournament, match);
         }
+    }
+
+    // ========== 公共规则：BO 总比分校验（管理员录入 / 裁判申报 / 审核修正共用） ==========
+
+    public static int neededWins(int boType) {
+        return boType / 2 + 1;
+    }
+
+    public static void validateFinalScore(Integer boType, Integer team1Wins, Integer team2Wins) {
+        if (boType == null || (boType != 1 && boType != 3 && boType != 5)) {
+            throw new IllegalArgumentException("请选择合法的局制（BO1/BO3/BO5）");
+        }
+        if (team1Wins == null || team2Wins == null) {
+            throw new IllegalArgumentException("请填写双方总比分");
+        }
+        int needed = neededWins(boType);
+        if (team1Wins < 0 || team2Wins < 0) {
+            throw new IllegalArgumentException("比分不能为负数");
+        }
+        if (Math.max(team1Wins, team2Wins) != needed || Math.min(team1Wins, team2Wins) >= needed) {
+            throw new IllegalArgumentException("无效总比分：BO" + boType + " 需一方达到 " + needed + " 胜（例如 " + needed + "-0 或 " + needed + "-" + (needed - 1) + "）");
+        }
+    }
+
+    // ========== 申报落库：按 payload 写入正式比赛数据 ==========
+
+    /**
+     * 将申报/修正后的赛果写入正式比赛数据（单事务）：
+     * games 结构 = [{ gameNumber, team1Score, team2Score, screenshotPath, playerStats: [{userId,playerName,teamId,stats}] }]
+     * 随后调用 finalizeMatch 完结比赛并推进赛程。
+     */
+    @Transactional
+    public void applyResultPayload(Long matchId, Integer boType, int team1Wins, int team2Wins,
+                                   List<Map<String, Object>> games) {
+        TournamentMatch match = getMatch(matchId);
+
+        // 首次落库：写入 BO 并创建空小局占位（已有小局则不重建，避免覆盖历史数据）
+        if (match.getGamesPerMatch() == null) {
+            match.setGamesPerMatch(boType);
+            for (int i = 1; i <= boType; i++) {
+                gameRecordRepository.save(GameRecord.builder()
+                        .matchId(matchId).gameNumber(i).status("PENDING").build());
+            }
+            matchRepository.save(match);
+        }
+
+        // 按申报内容逐局写入（覆盖该局比分/截图/选手数据）
+        if (games != null) {
+            for (Map<String, Object> item : games) {
+                int gameNumber = item.get("gameNumber") instanceof Number n ? n.intValue() : 1;
+                Integer t1 = item.get("team1Score") instanceof Number n ? n.intValue() : null;
+                Integer t2 = item.get("team2Score") instanceof Number n ? n.intValue() : null;
+                if (t1 == null || t2 == null) {
+                    continue; // 未填比分的局不落数据
+                }
+                GameRecord game = gameRecordRepository.findByMatchIdAndGameNumber(matchId, gameNumber)
+                        .orElseGet(() -> gameRecordRepository.save(GameRecord.builder()
+                                .matchId(matchId).gameNumber(gameNumber).status("PENDING").build()));
+                game.setTeam1Score(t1);
+                game.setTeam2Score(t2);
+                game.setScreenshotPath(item.get("screenshotPath") != null ? item.get("screenshotPath").toString() : null);
+                game.setStatus("RECORDED");
+                gameRecordRepository.save(game);
+
+                playerGameStatRepository.deleteByGameId(game.getId());
+                Object statsObj = item.get("playerStats");
+                if (statsObj instanceof List<?> list) {
+                    for (Object o : list) {
+                        if (!(o instanceof Map<?, ?> pm)) {
+                            continue;
+                        }
+                        Long userId = pm.get("userId") instanceof Number n ? n.longValue() : null;
+                        Long teamId = pm.get("teamId") instanceof Number n ? n.longValue() : null;
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> stats = pm.get("stats") instanceof Map<?, ?> sm
+                                ? (Map<String, Object>) sm : new HashMap<>();
+                        playerGameStatRepository.save(PlayerGameStat.builder()
+                                .gameId(game.getId())
+                                .userId(userId)
+                                .playerName(pm.get("playerName") != null ? pm.get("playerName").toString() : null)
+                                .teamId(teamId)
+                                .stats(stats)
+                                .build());
+                    }
+                }
+            }
+        }
+
+        // 完结比赛（唯一赛程推进入口）
+        FinalizeMatchRequest req = new FinalizeMatchRequest();
+        req.setTeam1Wins(team1Wins);
+        req.setTeam2Wins(team2Wins);
+        finalizeMatch(matchId, req);
     }
 
     // ========== Query: Match detail with games and player stats ==========
@@ -216,9 +298,38 @@ public class MatchService {
         result.put("team2Id", match.getTeam2Id());
         result.put("team2Name", teamRepository.findById(match.getTeam2Id()).map(Team::getName).orElse(null));
         result.put("winnerId", match.getWinnerId());
+        result.put("team1Score", match.getTeam1Score());
+        result.put("team2Score", match.getTeam2Score());
         result.put("status", match.getStatus());
         result.put("gamesPerMatch", match.getGamesPerMatch());
         result.put("games", gameVOs);
+
+        // 关联的赛果申报信息（供管理员录入弹窗提示）
+        MatchResultSubmission pendingSub = submissionRepository
+                .findFirstByMatchIdAndStatus(matchId, "PENDING").orElse(null);
+        if (pendingSub != null) {
+            Map<String, Object> ps = new LinkedHashMap<>();
+            ps.put("id", pendingSub.getId());
+            ps.put("refereeId", pendingSub.getRefereeId());
+            userRepository.findById(pendingSub.getRefereeId())
+                    .ifPresent(u -> ps.put("refereeName", u.getUsername()));
+            ps.put("createdAt", pendingSub.getCreatedAt());
+            result.put("pendingSubmission", ps);
+        } else {
+            result.put("pendingSubmission", null);
+        }
+        MatchResultSubmission approvedSub = submissionRepository
+                .findFirstByMatchIdAndStatus(matchId, "APPROVED").orElse(null);
+        if (approvedSub != null) {
+            Map<String, Object> as = new LinkedHashMap<>();
+            as.put("id", approvedSub.getId());
+            as.put("refereeId", approvedSub.getRefereeId());
+            userRepository.findById(approvedSub.getRefereeId())
+                    .ifPresent(u -> as.put("refereeName", u.getUsername()));
+            result.put("approvedSubmission", as);
+        } else {
+            result.put("approvedSubmission", null);
+        }
 
         return result;
     }

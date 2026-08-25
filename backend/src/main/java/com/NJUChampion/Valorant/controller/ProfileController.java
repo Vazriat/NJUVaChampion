@@ -19,6 +19,7 @@ public class ProfileController {
 
     private final UserService userService;
     private final com.NJUChampion.Valorant.repository.UserRepository userRepository;
+    private final com.NJUChampion.Valorant.service.CertificationService certificationService;
 
     @GetMapping("/profile")
     public Result<Map<String, Object>> profile(@AuthenticationPrincipal User user) {
@@ -38,7 +39,11 @@ public class ProfileController {
         map.put("displayName", displayName);
         map.put("displayPreference", user.getDisplayPreference());
         map.put("rankPublic", user.getRankPublic());
+        map.put("verifiedType", user.getVerifiedType());
+        map.put("identityVerified", certificationService.isIdentityVerified(user.getId()));
+        map.put("verifiedRank", user.getVerifiedRank());
         map.put("updatedAt", user.getUpdatedAt());
+        map.put("referee", certificationService.isReferee(user.getId()));
         return Result.success(map);
     }
 

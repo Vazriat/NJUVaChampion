@@ -1,6 +1,7 @@
 package com.NJUChampion.Valorant.service;
 
 import com.NJUChampion.Valorant.dto.CreateTournamentRequest;
+import com.NJUChampion.Valorant.dto.SwissStandingVO;
 import com.NJUChampion.Valorant.dto.TournamentVO;
 import com.NJUChampion.Valorant.entity.*;
 import com.NJUChampion.Valorant.util.RoundRobinEngine;
@@ -38,6 +39,7 @@ public class TournamentService {
     private final GameRecordRepository gameRecordRepository;
     private final PlayerGameStatRepository playerGameStatRepository;
     private final LeagueStandingRepository leagueStandingRepository;
+    private final MatchResultSubmissionRepository submissionRepository;
 
     @Value("${app.upload.dir:uploads/screenshots}")
     private String uploadDir;
@@ -902,46 +904,34 @@ public class TournamentService {
     @Transactional
     public void completeSwissMatch(Tournament tournament, TournamentMatch match) {
         Long tournamentId = tournament.getId();
-        Long winnerId = match.getWinnerId();
-        Long loserId = match.getTeam1Id().equals(winnerId) ? match.getTeam2Id() : match.getTeam1Id();
 
-        // Update standings
-        SwissStanding ws = swissStandingRepository.findByTournamentIdAndTeamId(tournamentId, winnerId)
-                .orElseThrow(() -> new IllegalArgumentException("Standing not found for winner"));
-        ws.setWins(ws.getWins() + 1);
-        ws.setRoundDiff(ws.getRoundDiff() + (match.getGamesPerMatch() != null ? match.getGamesPerMatch() : 1));
-        ws.setOpponentIds(SwissPairingEngine.appendOpponent(ws.getOpponentIds(), loserId));
-        swissStandingRepository.save(ws);
+        // 幂等重建积分：每次结算都从已完结比赛重新推导，重录赛果不会累加
+        rebuildSwissStandings(tournamentId);
 
-        SwissStanding ls = swissStandingRepository.findByTournamentIdAndTeamId(tournamentId, loserId)
-                .orElseThrow(() -> new IllegalArgumentException("Standing not found for loser"));
-        ls.setLosses(ls.getLosses() + 1);
-        ls.setRoundDiff(ls.getRoundDiff() - (match.getGamesPerMatch() != null ? match.getGamesPerMatch() : 1));
-        ls.setOpponentIds(SwissPairingEngine.appendOpponent(ls.getOpponentIds(), winnerId));
-        swissStandingRepository.save(ls);
+        // 轮次推进守卫：仅当"该轮刚全部完成"且"尚未推进"时才生成下一轮
+        // currentSwissRound 语义 = 已完成的轮次数，当前轮 = currentSwissRound + 1
+        int swissRounds = tournament.getSwissRounds() != null ? tournament.getSwissRounds() : 5;
+        int currentRound = tournament.getCurrentSwissRound() != null ? tournament.getCurrentSwissRound() : 0;
+        if (match.getRound().equals(currentRound + 1)) {
+            long totalInRound = tournamentMatchRepository.findByTournamentIdAndStageAndRound(tournamentId, "SWISS", match.getRound()).size();
+            long completedInRound = tournamentMatchRepository.findByTournamentIdAndStageAndRound(tournamentId, "SWISS", match.getRound())
+                    .stream().filter(m -> "COMPLETED".equals(m.getStatus())).count();
+            if (totalInRound > 0 && totalInRound == completedInRound) {
+                tournament.setCurrentSwissRound(currentRound + 1);
+                tournamentRepository.save(tournament);
 
-        // Recalculate buchholz for all teams
-        recalculateBuchholz(tournamentId);
-
-        // Check if this round is complete
-        long round = match.getRound();
-        long totalInRound = tournamentMatchRepository.findByTournamentIdAndStageAndRound(tournamentId, "SWISS", (int) round).size();
-        long completedInRound = tournamentMatchRepository.findByTournamentIdAndStageAndRound(tournamentId, "SWISS", (int) round)
-                .stream().filter(m -> "COMPLETED".equals(m.getStatus())).count();
-
-        if (totalInRound == completedInRound) {
-            // Round complete
-            int swissRounds = tournament.getSwissRounds() != null ? tournament.getSwissRounds() : 5;
-            int currentRound = tournament.getCurrentSwissRound() != null ? tournament.getCurrentSwissRound() : 0;
-            tournament.setCurrentSwissRound(currentRound + 1);
-            tournamentRepository.save(tournament);
-
-            if (currentRound + 1 >= swissRounds) {
-                // All Swiss rounds done, transition to knockout
-                generateKnockoutBracket(tournament);
-            } else {
-                // Generate next round
-                generateNextSwissRound(tournament);
+                // 达到晋级线（3 胜）的队伍数 >= 8，或打满 swissRounds 轮时，进入淘汰赛
+                int qualifyWins = swissRounds / 2 + 1;
+                long qualified = swissStandingRepository.findByTournamentId(tournamentId).stream()
+                        .filter(s -> s.getWins() >= qualifyWins)
+                        .count();
+                if (qualified >= 8 || currentRound + 1 >= swissRounds) {
+                    // 8 队已晋级（或瑞士轮全部结束），生成淘汰赛
+                    generateKnockoutBracket(tournament);
+                } else {
+                    // 生成下一轮（仅未晋级/未淘汰队伍参与）
+                    generateNextSwissRound(tournament);
+                }
             }
         }
     }
@@ -951,8 +941,17 @@ public class TournamentService {
         Long tournamentId = tournament.getId();
         int nextRound = (tournament.getCurrentSwissRound() != null ? tournament.getCurrentSwissRound() : 0) + 1;
 
+        // 先达 3 胜晋级、3 负淘汰，晋级/淘汰的队伍不再参与后续配对
+        int qualifyWins = (tournament.getSwissRounds() != null ? tournament.getSwissRounds() : 5) / 2 + 1;
         List<SwissStanding> standings = swissStandingRepository
-                .findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId);
+                .findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId).stream()
+                .filter(s -> s.getWins() < qualifyWins && s.getLosses() < qualifyWins)
+                .collect(Collectors.toList());
+
+        // 剩余未定队伍不足两队的保护
+        if (standings.size() < 2) {
+            return;
+        }
 
         List<SwissPairingEngine.TeamPair> pairs = SwissPairingEngine.generatePairings(
                 standings, nextRound,
@@ -1035,22 +1034,81 @@ public class TournamentService {
         tournamentRepository.save(tournament);
     }
 
-    private void recalculateBuchholz(Long tournamentId) {
-        List<SwissStanding> all = swissStandingRepository.findByTournamentId(tournamentId);
-        for (SwissStanding s : all) {
-            List<Long> opponentIds = SwissPairingEngine.parseOpponentIds(s.getOpponentIds());
+    /**
+     * 幂等重建瑞士轮积分：删除旧记录后，从所有 COMPLETED 的 SWISS 比赛重新推导
+     * 胜/负/对手列表，再统一计算 BU（对手胜场之和）。重复结算/重录赛果不会累加。
+     */
+    @Transactional
+    public void rebuildSwissStandings(Long tournamentId) {
+        Map<Long, SwissStanding> standings = new LinkedHashMap<>();
+        for (TournamentTeam tt : tournamentTeamRepository.findByTournamentId(tournamentId)) {
+            standings.put(tt.getTeamId(), SwissStanding.builder()
+                    .tournamentId(tournamentId)
+                    .teamId(tt.getTeamId())
+                    .wins(0).losses(0).buchholz(0.0).roundDiff(0)
+                    .opponentIds("[]")
+                    .build());
+        }
+
+        List<TournamentMatch> swissMatches = tournamentMatchRepository
+                .findByTournamentIdAndStageOrderByRoundAscPositionAsc(tournamentId, "SWISS");
+        for (TournamentMatch m : swissMatches) {
+            if (!"COMPLETED".equals(m.getStatus()) || m.getWinnerId() == null
+                    || m.getTeam1Id() == null || m.getTeam2Id() == null) {
+                continue;
+            }
+            Long winnerId = m.getWinnerId();
+            Long loserId = m.getTeam1Id().equals(winnerId) ? m.getTeam2Id() : m.getTeam1Id();
+            SwissStanding ws = standings.get(winnerId);
+            SwissStanding ls = standings.get(loserId);
+            if (ws == null || ls == null) {
+                continue;
+            }
+            ws.setWins(ws.getWins() + 1);
+            ls.setLosses(ls.getLosses() + 1);
+            int bo = m.getGamesPerMatch() != null ? m.getGamesPerMatch() : 1;
+            ws.setRoundDiff(ws.getRoundDiff() + bo);
+            ls.setRoundDiff(ls.getRoundDiff() - bo);
+            ws.setOpponentIds(SwissPairingEngine.appendOpponent(ws.getOpponentIds(), loserId));
+            ls.setOpponentIds(SwissPairingEngine.appendOpponent(ls.getOpponentIds(), winnerId));
+        }
+
+        // BU = 所有交手过的对手胜场之和（基于重建后的 wins）
+        for (SwissStanding s : standings.values()) {
             double buchholz = 0;
-            for (Long oppId : opponentIds) {
-                SwissStanding opp = all.stream().filter(o -> o.getTeamId().equals(oppId)).findFirst().orElse(null);
-                if (opp != null) buchholz += opp.getWins();
+            for (Long oppId : SwissPairingEngine.parseOpponentIds(s.getOpponentIds())) {
+                SwissStanding opp = standings.get(oppId);
+                if (opp != null) {
+                    buchholz += opp.getWins();
+                }
             }
             s.setBuchholz(buchholz);
-            swissStandingRepository.save(s);
         }
+
+        // 必须用批量删除（立即执行 SQL），不能用派生 deleteBy（Hibernate 先插后删会撞唯一键）
+        List<SwissStanding> oldStandings = swissStandingRepository.findByTournamentId(tournamentId);
+        swissStandingRepository.deleteAllInBatch(oldStandings);
+        swissStandingRepository.saveAll(standings.values());
     }
 
-    public List<SwissStanding> getSwissStandings(Long tournamentId) {
-        return swissStandingRepository.findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId);
+    public List<SwissStandingVO> getSwissStandingVOs(Long tournamentId) {
+        Tournament tournament = getTournament(tournamentId);
+        int qualifyWins = (tournament.getSwissRounds() != null ? tournament.getSwissRounds() : 5) / 2 + 1;
+        return swissStandingRepository.findByTournamentIdOrderByWinsDescBuchholzDesc(tournamentId)
+                .stream().map(s -> {
+                    Team team = teamRepository.findById(s.getTeamId()).orElse(null);
+                    String status = s.getWins() >= qualifyWins ? "QUALIFIED"
+                            : (s.getLosses() >= qualifyWins ? "ELIMINATED" : "ACTIVE");
+                    return SwissStandingVO.builder()
+                            .teamId(s.getTeamId())
+                            .teamName(team != null ? team.getName() : "未知战队")
+                            .wins(s.getWins())
+                            .losses(s.getLosses())
+                            .buchholz(s.getBuchholz())
+                            .roundDiff(s.getRoundDiff())
+                            .status(status)
+                            .build();
+                }).collect(Collectors.toList());
     }
 
     public Tournament getTournament(Long id) {
@@ -1086,6 +1144,7 @@ public class TournamentService {
                 .registeredCount((int) registeredCount)
                 .championTeamId(t.getChampionTeamId())
                 .championTeamName(championName)
+                .groupName(t.getGroupName())
                 .createdAt(t.getCreatedAt())
                 .build();
     }
@@ -1112,6 +1171,11 @@ public class TournamentService {
         vo.setRegisteredTeams(teamInfos);
 
         List<TournamentMatch> matches = tournamentMatchRepository.findByTournamentIdOrderByRoundAscPositionAsc(t.getId());
+        List<Long> matchIds = matches.stream().map(TournamentMatch::getId).collect(Collectors.toList());
+        Map<Long, List<GameRecord>> gamesByMatch = gameRecordRepository.findByMatchIdIn(matchIds).stream()
+                .collect(Collectors.groupingBy(GameRecord::getMatchId));
+        Set<Long> pendingSubmissionMatchIds = submissionRepository.findByMatchIdInAndStatus(matchIds, "PENDING")
+                .stream().map(MatchResultSubmission::getMatchId).collect(Collectors.toSet());
         List<TournamentVO.MatchVO> matchVOs = matches.stream().map(m -> {
             String t1Name = null, t2Name = null;
             if (m.getTeam1Id() != null) {
@@ -1121,6 +1185,18 @@ public class TournamentService {
             if (m.getTeam2Id() != null) {
                 Team t2 = teamRepository.findById(m.getTeam2Id()).orElse(null);
                 t2Name = t2 != null ? t2.getName() : null;
+            }
+            int t1Wins = 0;
+            int t2Wins = 0;
+            for (GameRecord g : gamesByMatch.getOrDefault(m.getId(), List.of())) {
+                if (g.getTeam1Score() == null || g.getTeam2Score() == null) {
+                    continue;
+                }
+                if (g.getTeam1Score() > g.getTeam2Score()) {
+                    t1Wins++;
+                } else if (g.getTeam2Score() > g.getTeam1Score()) {
+                    t2Wins++;
+                }
             }
             return TournamentVO.MatchVO.builder()
                     .id(m.getId())
@@ -1134,6 +1210,11 @@ public class TournamentService {
                     .winnerId(m.getWinnerId())
                     .status(m.getStatus())
                     .gamesPerMatch(m.getGamesPerMatch())
+                    .team1Wins(t1Wins)
+                    .team2Wins(t2Wins)
+                    .team1Score(m.getTeam1Score())
+                    .team2Score(m.getTeam2Score())
+                    .hasPendingSubmission(pendingSubmissionMatchIds.contains(m.getId()))
                     .build();
         }).collect(Collectors.toList());
         vo.setMatches(matchVOs);

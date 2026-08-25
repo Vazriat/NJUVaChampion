@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authApi } from "@/lib/api";
-import { setToken, setUser } from "@/lib/auth";
+import { setToken, setUser, isIdentityVerified } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,9 +23,12 @@ export default function LoginPage() {
       const profile = await authApi.getProfile();
       setUser(profile.data.data);
 
-      // 管理员跳转到管理后台，普通用户跳转到仪表盘
-      if (profile.data.data.role === "ADMIN") {
+      const user = profile.data.data;
+      // 管理员跳转管理后台；未通过身份认证的用户强制先去认证
+      if (user.role === "ADMIN") {
         router.replace("/admin");
+      } else if (!isIdentityVerified(user)) {
+        router.replace("/verify?required=1");
       } else {
         router.replace("/dashboard");
       }

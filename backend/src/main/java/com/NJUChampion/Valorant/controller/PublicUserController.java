@@ -22,6 +22,7 @@ public class PublicUserController {
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final TeamRepository teamRepository;
+    private final com.NJUChampion.Valorant.service.CertificationService certificationService;
 
     @GetMapping
     public Result<List<UserVO>> list() {
@@ -53,6 +54,7 @@ public class PublicUserController {
                 .contact(user.getContactPublic() != null && user.getContactPublic() ? user.getContact() : null)
                 .contactPublic(user.getContactPublic())
                 .verifiedType(user.getVerifiedType())
+                .identityVerified(certificationService.isIdentityVerified(user.getId()))
                 .verifiedRank(user.getRankPublic() != null && user.getRankPublic() ? user.getVerifiedRank() : null)
                 .rankPublic(user.getRankPublic())
                 .displayPreference(user.getDisplayPreference())

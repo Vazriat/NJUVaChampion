@@ -19,6 +19,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // 身份认证门槛：未通过在校生/校友认证，拉回认证页
+    if (err.response?.data?.code === 40301 && typeof window !== "undefined") {
+      if (!window.location.pathname.startsWith("/verify")) {
+        window.location.href = "/verify?required=1";
+      }
+    }
     if (err.response?.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
@@ -64,6 +70,7 @@ export interface UserVO {
   contact?: string;
   contactPublic?: boolean;
   verifiedType?: string;
+  identityVerified?: boolean;
   verifiedRank?: string;
   rankPublic?: boolean;
   displayPreference?: string;
@@ -160,6 +167,7 @@ export interface TournamentVO {
   registeredCount: number;
   championTeamId: number | null;
   championTeamName: string | null;
+  groupName?: string | null;
   contact?: string;
   contactPublic?: boolean;
   verifiedType?: string;
@@ -197,6 +205,13 @@ export interface MatchVO {
   winnerId: number | null;
   status: string;
   gamesPerMatch?: number;
+  team1Wins?: number;
+  team2Wins?: number;
+  team1Score?: number;
+  team2Score?: number;
+  hasPendingSubmission?: boolean;
+  pendingSubmission?: { id: number; refereeId: number; refereeName?: string; createdAt?: string } | null;
+  approvedSubmission?: { id: number; refereeId: number; refereeName?: string } | null;
 }
 
 export interface LeagueStandingVO {
@@ -205,6 +220,16 @@ export interface LeagueStandingVO {
   wins: number;
   losses: number;
   roundDiff: number;
+}
+
+export interface SwissStandingVO {
+  teamId: number;
+  teamName: string;
+  wins: number;
+  losses: number;
+  buchholz: number;
+  roundDiff: number;
+  status?: "ACTIVE" | "QUALIFIED" | "ELIMINATED";
 }
 
 // ====== 管理员赛事接口 ======
@@ -258,6 +283,24 @@ export const matchApi = {
     api.post("/admin/matches/" + matchId + "/finalize", { team1Wins, team2Wins }),
   detail: (matchId: number) =>
     api.get("/admin/matches/" + matchId + "/detail"),
+};
+
+// ====== 赛果申报接口 ======
+export const resultSubmissionApi = {
+  create: (data: any) => api.post("/result-submissions", data),
+  update: (id: number, data: any) => api.put(`/result-submissions/${id}`, data),
+  my: () => api.get("/result-submissions/my"),
+  detail: (id: number) => api.get(`/result-submissions/${id}`),
+  cancel: (id: number) => api.delete(`/result-submissions/${id}`),
+};
+
+export const adminResultSubmissionApi = {
+  list: (params?: { status?: string; tournamentId?: number }) =>
+    api.get("/admin/result-submissions", { params }),
+  detail: (id: number) => api.get(`/admin/result-submissions/${id}`),
+  approve: (id: number, data: any) => api.post(`/admin/result-submissions/${id}/approve`, data),
+  reject: (id: number, data: { reviewNote: string }) =>
+    api.post(`/admin/result-submissions/${id}/reject`, data),
 };
 
 // ====== 生涯接口 ======
