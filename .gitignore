@@ -81,3 +81,10 @@ HELP.md
 .vercel
 .run/
 .codegraph/
+
+# ============ Docker / HTTPS ============
+certbot/
+
+# 部署/备份产物
+deploy-*.tar.gz
+backups/

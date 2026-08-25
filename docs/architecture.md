@@ -220,7 +220,7 @@ private int[] getSeedOrder(int totalTeams) {
 |------|------|
 | 数据库 | MySQL 8，库名 `njuvachampion`，用户 `root`，密码由部署环境注入（环境变量 `DB_PASSWORD`），不写入仓库 |
 | JPA | `ddl-auto: update`，自动建表 |
-| JWT | HS256，密钥 Base64 编码，24h 过期 |
+| JWT | HS256，密钥 Base64 编码，24h 过期；生产由环境变量 `APP_JWT_SECRET` 注入 |
 | CORS | 全局允许所有来源和方法 |
 | 前端代理 | `next.config.ts` 中 `rewrites` 将 `/api/*` 转发到 `http://127.0.0.1:8080/api/*`，`/ocr` 转发到 OCR 服务 `http://127.0.0.1:3200/ocr` |
 | UI 风格 | 深色背景 + 紫色/红色/橙色渐变（Valorant 主题），Tailwind CSS v4 |
