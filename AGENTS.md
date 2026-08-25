@@ -2,21 +2,27 @@
 
 ## 快速启动
 
+> ⚠️ 首次运行或 clone 后，必须先装前端依赖再启动：
+> ```bash
+> cd frontend && npm ci
+> ```
+> 若 `start-all.ps1` / `npm run dev` 报 **"'next' 不是内部或外部命令"**，说明 `frontend/node_modules` 缺失或损坏——不要改脚本，直接重新执行 `npm ci`（有 package-lock.json，版本已锁定为 next 16.2.10）。
+
 **后端（端口 8080）：**
 ```bash
-cd Valorant
+cd backend
 mvn spring-boot:run
 ```
 
 **前端（端口 3000，/api 代理到后端 8080）：**
 ```bash
-cd nvc
+cd frontend
 npm run dev
 ```
 
 **OCR 服务（端口 3200）— 需单独启动：**
 ```bash
-cd Valorant-OCR-master
+cd valorant-ocr
 npm start
 ```
 服务启动后显示 Valorant OCR 服务已启动: http://0.0.0.0:3200。

@@ -14,6 +14,25 @@ Set-Location $root
 $runDir = Join-Path $root '.run'
 if (-not (Test-Path $runDir)) { New-Item -ItemType Directory -Path $runDir | Out-Null }
 
+# ---------- load local env file (gitignored .env.local) ----------
+$envFile = Join-Path $root '.env.local'
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith('#')) {
+            $idx = $line.IndexOf('=')
+            if ($idx -gt 0) {
+                $key = $line.Substring(0, $idx).Trim()
+                $val = $line.Substring($idx + 1).Trim()
+                if ($null -eq [Environment]::GetEnvironmentVariable($key, 'Process')) {
+                    [Environment]::SetEnvironmentVariable($key, $val, 'Process')
+                }
+            }
+        }
+    }
+    Write-Host "[env] loaded $envFile" -ForegroundColor DarkGray
+}
+
 function Test-Port([int]$port) {
     $client = New-Object System.Net.Sockets.TcpClient
     try {
@@ -41,8 +60,8 @@ if (-not (Test-Port 3306)) {
 }
 
 if (-not $env:DB_PASSWORD) {
-    Write-Host '[WARN] DB_PASSWORD env var is not set; the backend cannot connect to MySQL.' -ForegroundColor Yellow
-    Write-Host '        Set it first, e.g.:  $env:DB_PASSWORD = "your-password"' -ForegroundColor Yellow
+    Write-Host '[WARN] DB_PASSWORD is not set (env var or .env.local); the backend cannot connect to MySQL.' -ForegroundColor Yellow
+    Write-Host '        Set it, e.g.:  $env:DB_PASSWORD = "your-password"  (or add DB_PASSWORD=... to .env.local)' -ForegroundColor Yellow
 }
 
 $paddlePythons = @(
@@ -70,9 +89,9 @@ function Start-ServiceWin([string]$name, [string]$workdir, [int]$port, [string]$
     Write-Host ("[start] {0} -> :{1} (PID {2})" -f $name, $port, $proc.Id) -ForegroundColor Cyan
 }
 
-Start-ServiceWin 'backend'  (Join-Path $root 'Valorant')             8080 'mvn.cmd spring-boot:run'
-Start-ServiceWin 'frontend' (Join-Path $root 'nvc')                  3000 'npm run dev'
-Start-ServiceWin 'ocr'      (Join-Path $root 'Valorant-OCR-master')  3200 'npm start'
+Start-ServiceWin 'backend'  (Join-Path $root 'backend')             8080 'mvn.cmd spring-boot:run'
+Start-ServiceWin 'frontend' (Join-Path $root 'frontend')            3000 'npm run dev'
+Start-ServiceWin 'ocr'      (Join-Path $root 'valorant-ocr')        3200 'npm start'
 
 if ($pids.Count -eq 0) {
     Write-Host 'Nothing launched - all ports already busy.' -ForegroundColor Yellow

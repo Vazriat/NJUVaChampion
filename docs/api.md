@@ -9,6 +9,29 @@
 
 ---
 
+## 身份认证门槛（code 40301）
+
+所有普通用户（非 ADMIN）必须先通过**在校生（STUDENT）或校友（ALUMNI）身份认证**，才能使用平台业务功能（战队、赛事、报名、比赛记录、搜索、通知等）。
+
+- 未通过认证时，访问白名单之外的接口返回 `HTTP 403`，响应体：`Result { code: 40301, message: "请先完成在校生/校友身份认证" }`
+- 判定依据：`certifications` 表中存在 type 为 STUDENT/ALUMNI 且 status 为 APPROVED 的记录（与 User.verifiedType 无关，REFEREE/RANK 认证不算身份认证）
+- 审核通过后**无需重新登录**，实时生效（每个请求实时查表判定）
+- 管理员（ADMIN）豁免；未登录游客不受影响（维持现有公开接口规则）
+
+### 未认证期间可用接口（白名单）
+
+| 路径 | 说明 |
+|------|------|
+| /api/auth/** | 登录 / 注册 |
+| /api/certification/** | 认证申请、我的认证记录、删除认证 |
+| /api/user/** | 个人资料查看与修改 |
+| /api/career/** | 生涯数据（公开只读） |
+| /uploads/** | 上传文件访问 |
+
+前端在收到 code 40301 时自动跳转到 `/verify?required=1` 引导用户完成认证。
+
+---
+
 ## 公开接口
 
 ### 认证 /api/auth
@@ -22,7 +45,7 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /api/user/profile | 获取当前用户资料 |
+| GET | /api/user/profile | 获取当前用户资料（含 verifiedType / verifiedRank / referee 裁判标记） |
 | PUT | /api/user/username | 修改用户名（管理员不可用） |
 | PUT | /api/user/email | 修改邮箱（管理员不可用） |
 | PUT | /api/user/game-id | 修改游戏 ID（管理员不可用） |
@@ -52,7 +75,10 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/tournaments | 赛事列表 |
-| GET | /api/tournaments/{id} | 赛事详情（含报名队伍、对阵表、联赛积分榜 leagueStandings） |
+| GET | /api/tournaments/{id} | 赛事详情（含报名队伍、对阵表、联赛积分榜 leagueStandings；对阵含 team1Wins/team2Wins 小局胜局数、team1Score/team2Score 总比分、hasPendingSubmission 待审核申报标记，赛事含 groupName） |
+| GET | /api/tournaments/{id}/player-stats | 参赛选手在该赛事的数据表（acs/kd/kpr/首杀率/存活率/回合助攻等） |
+| GET | /api/tournaments/{id}/announcements | 该赛事已发布的通知列表 |
+| GET | /api/tournament-notifications/my | 当前用户参赛赛事的最新通知 |
 | POST | /api/tournaments/{id}/register | 报名参赛（需 teamId） |
 | POST | /api/tournaments/{id}/unregister | 取消报名（需 teamId） |
 
@@ -69,11 +95,11 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | /api/certification/apply | 提交认证申请。type: STUDENT（在校生）/ ALUMNI（校友）/ RANK（段位）/ REFEREE（裁判）。STUDENT 需 studentName+studentId+xuexinBase64；RANK 需 rank+evidenceBase64s；ALUMNI 需 evidenceBase64s；REFEREE 仅需 description |
+| POST | /api/certification/apply | 提交认证申请。type: STUDENT（在校生）/ ALUMNI（校友）/ RANK（段位）/ REFEREE（裁判）。STUDENT 需 studentName+studentId+enrollmentYear+xuexinBase64；RANK 需 rank+evidenceBase64s；ALUMNI 需 enrollmentYear+evidenceBase64s；REFEREE 仅需 description |
 | GET | /api/certification/my | 我的认证记录 |
 | DELETE | /api/certification/{id} | 删除自己的认证 |
 
-认证规则：同组互斥（identity 组的在校生/校友只能保留一个活跃认证）；段位需从规范化段位列表中选择。
+认证规则：同组互斥（identity 组的在校生/校友只能保留一个活跃认证）；在校生/校友认证需填写入学年份 `enrollmentYear`（整数，如 2023，范围为 1900 ~ 明年）；段位需从规范化段位列表中选择；段位认证通过后可通过重新提交申请更新段位，旧认证会标记为 SUPERSEDED。
 
 ### 认证审核 /api/admin/certifications（需 ADMIN 角色）
 
@@ -91,6 +117,14 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/search?q=keyword | 全局搜索（用户/战队/赛事） |
+
+## 生涯接口 /api/career
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/career/{userId} | 生涯总览：avgAcs、avgKd、回合数据（killsPerRound/deathsPerRound/assistsPerRound/firstBloodRate/survivalRate，均为小数）、生涯总 K/D/A（totalKills/totalDeaths/totalAssists）、胜率、常用特工、参赛赛事 |
+| GET | /api/career/{userId}/matches | 生涯比赛记录（按小局返回选手数据） |
+| GET | /api/career/{userId}/analysis?ranks=黄金,白银&tournaments=1,2 | 数据分析：以所选大段（可多选，逗号分隔）全部有数据用户为基础集；可选 tournaments 按赛事 ID 过滤数据集。返回六维数据（acs/kd/kpr/survivalRate/assistsPerRound/firstBloodRate）的当前用户值、基础集均值、baseSetSize，以及每维详细排名 topRank/botRank（1~3，不在前三则 null） |
 
 ## 管理员接口（需 ADMIN 角色）
 
@@ -127,7 +161,16 @@
 | POST | /api/admin/tournaments/{id}/batch-register | 管理员批量添加队伍 | { teamIds: [id1, id2, ...] } |
 | POST | /api/admin/tournaments/{id}/unregister | 管理员手动移除队伍 | { teamId } |
 | GET | /api/admin/tournaments/{id}/league/standings | 联赛常规赛积分榜（胜/负/净胜局降序） |
+| GET | /api/admin/tournaments/{id}/swiss/standings | 瑞士轮积分榜（wins/losses/buchholz，含战队名 teamName；BU=交手对手胜场之和，按胜场+BU 降序） |
 | DELETE | /api/admin/tournaments/{id} | 删除赛事（级联删除对阵、小局、选手数据、截图文件、积分表） |
+| GET | /api/admin/tournaments/{id}/announcements | 赛事通知列表（含草稿） |
+| POST | /api/admin/tournaments/{id}/announcements | 创建赛事通知 |
+| PUT | /api/admin/tournaments/{id}/announcements/{nid} | 修改赛事通知 |
+| POST | /api/admin/tournaments/{id}/announcements/{nid}/publish | 发布赛事通知 |
+| DELETE | /api/admin/tournaments/{id}/announcements/{nid} | 删除赛事通知 |
+| GET | /api/admin/tournaments/{id}/rank-review | 段位审核列表（段位认证早于赛事/父活动创建时间的选手） |
+| POST | /api/admin/tournaments/{id}/rank-review/pass | 通过/豁免某选手 { userId } |
+| DELETE | /api/admin/tournaments/{id}/rank-review/pass?userId= | 取消豁免 |
 
 ### 报名活动管理 /api/admin/competitions
 
@@ -140,6 +183,9 @@
 | POST | /api/admin/competitions/{id}/batch-register | 管理员批量添加队伍 | { teamIds: [...] } |
 | POST | /api/admin/competitions/{id}/unregister | 管理员移除队伍 | { teamId } |
 | DELETE | /api/admin/competitions/{id} | 删除活动（仅删报名记录，子赛事保留） |
+| GET | /api/admin/competitions/{id}/rank-review | 活动分组前段位审核列表（以活动创建时间为基准） |
+| POST | /api/admin/competitions/{id}/rank-review/pass | 通过/豁免某选手 { userId } |
+| DELETE | /api/admin/competitions/{id}/rank-review/pass?userId= | 取消豁免 |
 
 ### 比赛小局 /api/admin/matches
 
@@ -147,8 +193,53 @@
 |------|------|------|
 | POST | /api/admin/matches/{matchId}/games/init | 初始化小局（BO1/BO3/BO5） | { boType } |
 | PUT | /api/admin/matches/{matchId}/games/{gameId} | 记录单小局（比分/截图/选手数据） |
-| POST | /api/admin/matches/{matchId}/finalize | 结算比赛，推进赛程 | { team1Wins, team2Wins } |
-| GET | /api/admin/matches/{matchId}/detail | 比赛详情（含小局与选手数据） |
+| POST | /api/admin/matches/{matchId}/finalize | 结算比赛，推进赛程 | { team1Wins, team2Wins }（校验：仅按所选 BO 限制，胜者须达 BO 半数+1 胜） |
+| GET | /api/admin/matches/{matchId}/detail | 比赛详情（含小局与选手数据；另含 pendingSubmission / approvedSubmission 申报信息，供录入弹窗提示） |
+
+### 赛果申报（裁判上报 + 管理员审核）
+
+**流程**：已通过裁判认证（REFEREE 认证）的用户完整录入赛果（BO/总比分/每局比分/截图/选手数据）→ 提交申报（PENDING）→ 管理员审核（可修正后通过，或驳回附原因）→ 通过后由后端将申报内容**落库到正式比赛数据**并推进赛程。
+
+**状态机**：PENDING → APPROVED / REJECTED；本人可撤销 PENDING → CANCELLED；驳回后可重新申报。
+
+**裁判端 /api/result-submissions**（需 REFEREE 认证；仍在身份认证门槛内）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/result-submissions | 提交申报（body 见下） |
+| PUT | /api/result-submissions/{id} | 修改自己的 PENDING 申报 |
+| GET | /api/result-submissions/my | 我的申报列表 |
+| GET | /api/result-submissions/{id} | 我的申报详情（含 payload） |
+| DELETE | /api/result-submissions/{id} | 撤销自己的 PENDING 申报 |
+
+**管理端 /api/admin/result-submissions**（ADMIN）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/admin/result-submissions?status=&tournamentId= | 申报列表 |
+| GET | /api/admin/result-submissions/{id} | 申报详情（含 payload、截图、裁判与比赛信息） |
+| POST | /api/admin/result-submissions/{id}/approve | 通过 { reviewNote?, 修正后的完整赛果可选 }；缺省用申报原稿 |
+| POST | /api/admin/result-submissions/{id}/reject | 驳回 { reviewNote（原因，必填） } |
+
+**申报 body（POST/PUT）**：
+
+```json
+{
+  "matchId": 123, "boType": 3,
+  "team1Wins": 2, "team2Wins": 1, "note": "备注",
+  "games": [
+    { "gameNumber": 1, "team1Score": 13, "team2Score": 9,
+      "screenshotBase64": "data:image/png;base64,...",
+      "screenshotPath": "已存在截图路径（编辑回传时）",
+      "playerStats": [
+        { "userId": 8, "playerName": "RazePro", "teamId": 3,
+          "stats": { "agent": "雷兹", "acs": 286, "kills": 19, "deaths": 12, "assists": 4, "firstBlood": 3 } }
+      ] }
+  ]
+}
+```
+
+**规则**：总比分与管理员录入共用同一 BO 校验（胜者须达 BO/2+1 胜）；同一比赛仅允许一条 PENDING 申报（前端会对自己的待审核申报提供「修改 / 撤销并重新申报」引导，对他人的待审核申报提示不可重复申报）；审核通过时若比赛尚未初始化小局则自动创建占位；已录小局不会被清空，按申报内容覆盖对应局号；申报截图保存于 /uploads/submissions/{id}/。
 
 
 ---

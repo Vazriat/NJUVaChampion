@@ -88,7 +88,7 @@
 ## 后端包结构
 
 ```
-Valorant/src/main/java/com/NJUChampion/Valorant/
+backend/src/main/java/com/NJUChampion/Valorant/
 ├── ValorantApplication.java        # Spring Boot 入口
 ├── common/
 │   ├── Result.java                 # 统一响应 Result<T>
@@ -122,7 +122,7 @@ Valorant/src/main/java/com/NJUChampion/Valorant/
 ## 前端结构
 
 ```
-nvc/
+frontend/
 ├── app/
 │   ├── layout.tsx                  # 根布局（Geist 字体）
 │   ├── page.tsx                    # 首页
@@ -222,7 +222,7 @@ private int[] getSeedOrder(int totalTeams) {
 | JPA | `ddl-auto: update`，自动建表 |
 | JWT | HS256，密钥 Base64 编码，24h 过期 |
 | CORS | 全局允许所有来源和方法 |
-| 前端代理 | `next.config.ts` 中 `rewrites` 将 `/api/*` 转发到 `http://127.0.0.1:8080/api/*` |
+| 前端代理 | `next.config.ts` 中 `rewrites` 将 `/api/*` 转发到 `http://127.0.0.1:8080/api/*`，`/ocr` 转发到 OCR 服务 `http://127.0.0.1:3200/ocr` |
 | UI 风格 | 深色背景 + 紫色/红色/橙色渐变（Valorant 主题），Tailwind CSS v4 |
 
 ## 对阵图可视化（BracketTree）
