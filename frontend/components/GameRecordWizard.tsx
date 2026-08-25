@@ -277,7 +277,7 @@ export default function GameRecordWizard({
       // Call OCR
       setLoading(true);
       try {
-        const ocrRes = await fetch("http://127.0.0.1:3200/ocr", {
+        const ocrRes = await fetch("/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ base64: base64Data }),
