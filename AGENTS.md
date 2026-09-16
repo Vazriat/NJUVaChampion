@@ -93,3 +93,8 @@ rank 是保留字，JPA @Column 或 ALTER TABLE 直接使用会报错。
 ### 8. PowerShell 转义导致 Python 代码异常
 在 python -c 中写转义序列时，PowerShell 和 Python 的转义层叠加，导致语法错误。
 解决：避免在 python -c 中使用复杂转义；改用 .py 脚本文件。
+
+### 9. Git Bash 里 mvn 报 ClassNotFoundException: Launcher
+`MAVEN_HOME` 是 Windows 路径（`C:\apache-maven-3.9.11-bin\...`），Git Bash 下 mvn 脚本拼接出的
+`-classpath` 无法解析，报 `找不到或无法加载主类 org.codehaus.plexus.classworlds.launcher.Launcher`。
+解决：**用 PowerShell 执行 mvn**，不要在 Git Bash 里跑（覆盖 MAVEN_HOME 为 `/c/...` 也无效）。
