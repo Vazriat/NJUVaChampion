@@ -172,12 +172,107 @@ crontab -e
 
 ## 7. 升级发布
 
+标准流程：
+
 ```bash
-git pull
-docker compose up -d --build
+cd ~/njuvachampion
+bash scripts/backup.sh                      # 先备份，出问题能回滚
+docker compose up -d --build                # 构建 + 重启（约 3~5 分钟）
+docker compose ps                           # 五个服务都应为 Up
+curl -s -o /dev/null -w '%{http_code}\n' https://njuvlr.online/
 ```
 
-数据库结构无需手动迁移（JPA ddl-auto: update 自动更新）。
+数据库结构无需手动迁移（JPA `ddl-auto: update` 自动更新）。
+
+### 7.1 ⚠️ 从这台服务器 fetch GitHub 会随机失败，必须显式用 HTTP/1.1
+
+腾讯云到 GitHub 的连接不稳，`git fetch` 会报下面两种错之一：
+
+```
+fatal: unable to access 'https://github.com/...': GnuTLS recv error (-110):
+       The TLS connection was non-properly terminated.
+fatal: unable to access 'https://github.com/...': Failed to connect to
+       github.com port 443 after 130781 ms: Connection timed out
+```
+
+注意它**时好时坏**——`git ls-remote` 可能成功、紧接着 `git fetch` 就失败，所以
+「刚才还能通」不能作为判断依据。加 `http.version=HTTP/1.1` 即可稳定成功：
+
+```bash
+git -c http.version=HTTP/1.1 fetch origin
+git merge --ff-only origin/hyl
+```
+
+或者一次性写进仓库配置：
+
+```bash
+git config http.version HTTP/1.1
+```
+
+### 7.2 不要在部署目录里手工改文件
+
+服务器上的工作区应当始终等于某个提交。一旦手工改了 `nginx/conf.d/*`、`scripts/*`
+这类文件，下次 `git pull` 会直接拒绝（`local changes would be overwritten`），
+而且**清理本地改动这一步会把这些文件从磁盘上删掉**——nginx 内存里还跑着旧配置，
+表面看不出问题，但任何 reload 或容器重启都会让配置残缺甚至站点起不来。
+
+正确做法是改仓库、推送、再 pull。临时应急改了的话，pull 之前先把要留下的文件
+复制到 `~/deploy-backup/<时间戳>/` 再撤销本地改动。
+
+### 7.3 2C4G 上要串行构建
+
+三个镜像并行构建有 OOM 风险（可用内存约 2.2G + 2G swap）。串行构建：
+
+```bash
+COMPOSE_PARALLEL_LIMIT=1 docker compose build && docker compose up -d
+```
+
+实测串行构建约 3 分钟，内存占用始终健康。**若构建失败，不要执行 `up -d`**，
+保持旧容器继续服务，修好再上。
+
+### 7.4 ⚠️ 构建全缓存命中时，容器不会被重建（镜像漂移）
+
+如果某个服务的构建上下文这次没有变化（例如只改了前端），它的镜像是**全缓存命中**，
+镜像 ID 不变。此时 `docker compose up -d` 可能只重建了镜像变化的服务，而把旧容器
+留在原地——旧容器可能挂在一个已被 retag 掉的镜像 ID 上，表现为：
+
+```
+$ docker ps
+njuvachampion-ocr   ...  IMAGE sha256:eb993d3c...     Up 3 weeks
+$ docker inspect njuvachampion-ocr:latest --format '{{.Id}}'
+sha256:e32ae60f...                                     # 和上面不是一个
+```
+
+代码虽然等价，但「跑着的」和「标签指的」不是同一个镜像，属于隐性漂移。对齐：
+
+```bash
+docker compose up -d --force-recreate --no-deps ocr
+```
+
+发布后建议逐个核对，不一致的就对齐：
+
+```bash
+for c in backend frontend ocr; do
+  printf '%-8s ' "$c"
+  a=$(docker inspect njuvachampion-$c --format '{{.Image}}')
+  b=$(docker inspect njuvachampion-$c:latest --format '{{.Id}}')
+  [ "$a" = "$b" ] && echo "一致" || echo "漂移！$a != $b"
+done
+```
+
+### 7.5 发布后核对清单
+
+```bash
+# 域名与跳转
+curl -sI https://njuvlr.online/ | head -1              # 200
+curl -sI https://www.njuvlr.online/ | grep -i location # 301 到主域名
+# 后端行为：未认证访问受保护接口应 401
+curl -s -o /dev/null -w '%{http_code}\n' https://njuvlr.online/api/tournaments
+# 数据量（与前次对比，确认没丢）
+docker exec -i njuvachampion-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N njuvachampion' <<'SQL'
+SELECT 'users', COUNT(*) FROM users;
+SQL
+```
 
 ## 8. 常见问题
 
