@@ -53,20 +53,28 @@ OCR 服务日志：`docker compose logs -f ocr`。
 
 ## 5. 数据备份（重要！）
 
+备份统一走 `scripts/backup.sh`（数据库 + 上传目录，并自动清理 7 天前的旧包）：
+
 ```bash
-mkdir -p backups
-# 数据库备份
-docker compose exec -T mysql sh -c "mysqldump -uroot -p\"$MYSQL_ROOT_PASSWORD\" njuvachampion" > backups/db-$(date +%F).sql
-# 上传目录（截图/认证件）备份
-docker run --rm -v njuvachampion_uploads-data:/data -v $(pwd)/backups:/backup alpine tar czf /backup/uploads-$(date +%F).tar.gz -C /data .
+./scripts/backup.sh          # 手动跑一次验证
 ```
 
-建议 crontab 每天 3:30 备份：
+建议 crontab 每天 3:30 备份。**必须用 `bash` 显式调用**，不要裸写脚本路径：
 
 ```bash
 crontab -e
-# 30 3 * * * cd /root/njuvachampion && docker compose exec -T mysql sh -c "mysqldump -uroot -p\"$MYSQL_ROOT_PASSWORD\" njuvachampion" > backups/db-$(date +\%F).sql
+# 30 3 * * * bash /home/ubuntu/njuvachampion/scripts/backup.sh >> /home/ubuntu/backups/backup.log 2>&1
 ```
+
+> ⚠️ 两种失败方式都会让备份静默停摆，务必确认：
+> 1. 裸路径调用依赖脚本的可执行位。仓库里 `scripts/backup.sh` 已置为 `100755`，
+>    但若服务器上被 reset 成 `644`，cron 只会往 log 里写 `Permission denied` 而不报警。
+>    用 `bash <路径>` 调用可绕开该依赖。
+> 2. 脚本内部需要 `sudo`（`sudo docker compose ...`）。确认该用户 sudo 免密，
+>    否则 cron 无人值守时会卡在密码提示上。
+>
+> 上线后请查一次 `~/backups/backup.log` 和 `ls -lh ~/backups/`，
+> 确认当天有新的 `db-*.sql.gz` 和 `uploads-*.tar.gz`。空包（几十字节）说明挂载路径有问题。
 
 定期下载一份到本地（云盘/学校电脑），不要把鸡蛋放一个篮子里。
 
