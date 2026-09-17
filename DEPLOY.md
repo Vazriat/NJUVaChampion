@@ -278,11 +278,34 @@ COMPOSE_PARALLEL_LIMIT=1 docker compose build && docker compose up -d
 保持旧容器继续服务，修好再上。（`scripts/deploy.sh` 已内置串行构建与「构建失败
 就不切容器」的门禁；手动执行时记得照抄这个环境变量。）
 
-### 7.4 ⚠️ 构建全缓存命中时，容器不会被重建（镜像漂移）
+### 7.4 镜像摘要漂移：一个会误报的坑，和一个真的坑
 
-如果某个服务的构建上下文这次没有变化（例如只改了前端），它的镜像是**全缓存命中**，
-镜像 ID 不变。此时 `docker compose up -d` 可能只重建了镜像变化的服务，而把旧容器
-留在原地——旧容器可能挂在一个已被 retag 掉的镜像 ID 上，表现为：
+#### 7.4.1 会误报的那个：BuildKit 的 attestation
+
+BuildKit 默认给镜像注入 provenance attestation，里面的元数据（构建时间戳等）**每次
+构建都不同**，于是 manifest list 摘要每次都变——即使所有层都是缓存命中、平台镜像
+逐字节相同。构建日志里能直接看到：
+
+```
+exporting manifest      sha256:3281e30a33...   ← 两次构建相同
+exporting config        sha256:c8afb33a...     ← 两次构建相同
+exporting manifest list sha256:44452c19...     ← 只有这行每次都不一样
+```
+
+后果是「容器镜像 vs `:latest`」的核对会**每次重建都误报漂移**，报警器一叫就没人
+信了。所以 `scripts/deploy.sh` 构建时固定带上：
+
+```bash
+BUILDX_NO_DEFAULT_ATTESTATIONS=1
+```
+
+关掉之后摘要可复现——实测连续两次构建，三个镜像 ID 完全不变。**这个环境变量别删。**
+
+#### 7.4.2 真的那个：容器没跟着新镜像重建
+
+如果某个服务的构建上下文这次没有变化（例如只改了前端），它是全缓存命中，镜像 ID
+不变；此时 `docker compose up -d` 可能只重建了镜像变化的服务，而把旧容器留在原地
+——旧容器可能挂在一个已被 retag 掉的镜像 ID 上，表现为：
 
 ```
 $ docker ps
@@ -308,7 +331,8 @@ for c in backend frontend ocr; do
 done
 ```
 
-`scripts/deploy.sh` 部署后会自动跑这段核对，发现漂移会直接打印对齐命令。
+`scripts/deploy.sh` 部署后会自动跑这段核对，**检测到漂移会就地强制重建该服务并复核**，
+保证部署结束时「跑着的」必定等于「刚构建的」——不会留一个「只报警、不自愈」的半成品状态。
 
 ### 7.5 发布后核对清单
 
