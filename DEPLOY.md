@@ -170,43 +170,87 @@ crontab -e
 
 同样用 `bash <绝对路径>` 显式调用（理由见第 5 节）。日志：`~/logs/renew-cert.log`。
 
-## 7. 升级发布
+## 7. 升级发布（手动，一键脚本）
 
-标准流程：
+**发布主线是 `master`**：开发在 `hyl` 上进行，通过 PR 合入 `master`；服务器跟踪 `master`。
+
+合并后**不会自动上线**——需要有人主动跑一次部署。这是有意的：自动部署意味着任何一次
+草率合并都会直接进生产，对比赛期间是不可接受的风险。
 
 ```bash
 cd ~/njuvachampion
-bash scripts/backup.sh                      # 先备份，出问题能回滚
-docker compose up -d --build                # 构建 + 重启（约 3~5 分钟）
-docker compose ps                           # 五个服务都应为 Up
-curl -s -o /dev/null -w '%{http_code}\n' https://njuvlr.online/
+git log --oneline -1          # 看看当前跑的是哪一版
+bash scripts/deploy.sh        # 一键上线
 ```
+
+`scripts/deploy.sh` 的步骤（每步都有日志，失败时明确告诉你「容器动没动」）：
+
+1. 前置检查：git / docker 可用、在项目根目录、**工作区干净**（不干净直接中止）
+2. 记录当前版本，给**当前运行中的**镜像打回滚标签 `rollback-<时间>-<完整sha>`
+3. `git fetch` + `git merge --ff-only origin/master`
+4. **部署前备份**数据库与上传目录（可 `--no-backup` 跳过）
+5. `COMPOSE_PARALLEL_LIMIT=1 docker compose build` —— **构建门禁**
+6. 只有构建成功才 `docker compose up -d` 切换容器；构建失败则代码回退、容器不动
+7. 部署后核对：站点状态码、各服务容器镜像与 `:latest` 是否对齐
+8. 清理超量的旧回滚标签（默认保留最近 3 个，用 `KEEP_ROLLBACKS` 调整）
+
+参数：`--branch=<分支>` 换分支、`--force` 强制重建、`--no-backup` 跳过备份。
+
+出问题回滚：
+
+```bash
+bash scripts/rollback.sh                                    # 列出所有回滚点
+bash scripts/rollback.sh rollback-20260917-201500-<sha>     # 回滚（支持唯一前缀）
+```
+
+回滚会同时切回旧镜像**并把代码 `git reset` 到对应提交**，保证「repo HEAD」与
+「运行中的镜像」一一对应。但这只是应急止血——`origin/master` 上那个有问题的提交仍在，
+下次跑 `deploy.sh` 会把它重新部署上来。彻底修复请在本地 `git revert` 后走 PR 合并。
 
 数据库结构无需手动迁移（JPA `ddl-auto: update` 自动更新）。
 
-### 7.1 ⚠️ 从这台服务器 fetch GitHub 会随机失败，必须显式用 HTTP/1.1
+### 7.1 ⚠️ 这台服务器连不上 GitHub 的 HTTPS，必须走 SSH
 
-腾讯云到 GitHub 的连接不稳，`git fetch` 会报下面两种错之一：
+实测结论（2026-09-17，从这台腾讯云轻量服务器出发）：
+
+| 通路 | 结果 |
+|---|---|
+| `github.com:443`（HTTPS） | **TCP 连不上**；`git fetch` 报 `GnuTLS recv error (-110)` 或 443 连接超时 |
+| `github.com:22`（SSH） | TCP 可连 |
+| `ssh.github.com:443`（SSH over 443） | TCP 可连，`ssh -T` 能走到认证环节 |
+
+**这个 HTTPS 故障是概率性的**，所以不能凭「刚才还能通」判断：`git ls-remote` 可能成功、
+紧接着 `git fetch` 就失败。`git config http.version HTTP/1.1` 只能缓解不能根治
+（实测仍会连续 6 次失败，且失败形态会从报错变成**卡住 45 秒后超时**）。
+
+因此服务器侧改用 SSH 远程，并让 `github.com` 走 443 端口的 SSH 入口。
+`~/.ssh/config` 已配好：
 
 ```
-fatal: unable to access 'https://github.com/...': GnuTLS recv error (-110):
-       The TLS connection was non-properly terminated.
-fatal: unable to access 'https://github.com/...': Failed to connect to
-       github.com port 443 after 130781 ms: Connection timed out
+Host github.com
+  HostName ssh.github.com
+  Port 443
+  User git
+  IdentityFile ~/.ssh/njuv_deploy
+  IdentitiesOnly yes
 ```
 
-注意它**时好时坏**——`git ls-remote` 可能成功、紧接着 `git fetch` 就失败，所以
-「刚才还能通」不能作为判断依据。加 `http.version=HTTP/1.1` 即可稳定成功：
+**还需在 GitHub 仓库 Settings → Deploy keys → Add deploy key 加入
+`~/.ssh/njuv_deploy.pub` 的内容，只读，不要勾选 Allow write access。** 验证：
 
 ```bash
-git -c http.version=HTTP/1.1 fetch origin
-git merge --ff-only origin/hyl
+ssh -T git@github.com
+# 期望：Hi Vazriat/NJUVaChampion! You've successfully authenticated...
 ```
 
-或者一次性写进仓库配置：
+未加公钥时的报错是瞬时的 `Permission denied (publickey)`；如果变成卡住几十秒超时，
+那才是网络层问题，不是密钥问题——两者要分清。
+
+当时做的切换（供参考，正常情况下不需要再做）：
 
 ```bash
-git config http.version HTTP/1.1
+git remote set-url origin git@github.com:Vazriat/NJUVaChampion.git
+git remote set-branches origin '*'    # 原先是单分支克隆，只跟踪 hyl，连 origin/master 都没有
 ```
 
 ### 7.2 不要在部署目录里手工改文件
@@ -216,8 +260,11 @@ git config http.version HTTP/1.1
 而且**清理本地改动这一步会把这些文件从磁盘上删掉**——nginx 内存里还跑着旧配置，
 表面看不出问题，但任何 reload 或容器重启都会让配置残缺甚至站点起不来。
 
-正确做法是改仓库、推送、再 pull。临时应急改了的话，pull 之前先把要留下的文件
-复制到 `~/deploy-backup/<时间戳>/` 再撤销本地改动。
+正确做法是改仓库、走 PR 合并、再跑 `scripts/deploy.sh`。`deploy.sh` 开头就会检查
+工作区是否干净，不干净直接中止，不会带着脏状态往下走。
+
+临时应急改了的话，pull 之前先把要留下的文件复制到 `~/deploy-backup/<时间戳>/`
+再撤销本地改动。
 
 ### 7.3 2C4G 上要串行构建
 
@@ -228,7 +275,8 @@ COMPOSE_PARALLEL_LIMIT=1 docker compose build && docker compose up -d
 ```
 
 实测串行构建约 3 分钟，内存占用始终健康。**若构建失败，不要执行 `up -d`**，
-保持旧容器继续服务，修好再上。
+保持旧容器继续服务，修好再上。（`scripts/deploy.sh` 已内置串行构建与「构建失败
+就不切容器」的门禁；手动执行时记得照抄这个环境变量。）
 
 ### 7.4 ⚠️ 构建全缓存命中时，容器不会被重建（镜像漂移）
 
@@ -260,15 +308,19 @@ for c in backend frontend ocr; do
 done
 ```
 
+`scripts/deploy.sh` 部署后会自动跑这段核对，发现漂移会直接打印对齐命令。
+
 ### 7.5 发布后核对清单
 
+`scripts/deploy.sh` 已自动检查第 1 项与镜像对齐；数据量核对建议人工扫一眼。
+
 ```bash
-# 域名与跳转
+# 1. 域名与跳转
 curl -sI https://njuvlr.online/ | head -1              # 200
 curl -sI https://www.njuvlr.online/ | grep -i location # 301 到主域名
-# 后端行为：未认证访问受保护接口应 401
+# 2. 后端行为：未认证访问受保护接口应 401
 curl -s -o /dev/null -w '%{http_code}\n' https://njuvlr.online/api/tournaments
-# 数据量（与前次对比，确认没丢）
+# 3. 数据量（与前次对比，确认没丢）
 docker exec -i njuvachampion-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N njuvachampion' <<'SQL'
 SELECT 'users', COUNT(*) FROM users;
 SQL

@@ -3,7 +3,7 @@
 > **发布状态：** 正式版（域名 + HTTPS 全站启用）
 > **发布日期：** 2026 年 9 月 17 日
 > **访问地址：** <https://njuvlr.online>
-> **分支 / 标签：** `hyl` / `v1.0`
+> **分支 / 标签：** `master`（PR #3 合入） / `v1.0`
 
 ---
 
@@ -99,7 +99,9 @@
 
 ## 发布信息
 
-- Git 标签：`v1.0`（分支 `hyl`）
+- Git 标签：`v1.0`（开发分支 `hyl`，已通过 PR #3 合入 `master`；服务器跟踪 `master`）
+- 上线方式：合并到 `master` 后**手动**执行 `scripts/deploy.sh`（构建门禁 + 部署前自动打镜像回滚标签），
+  出问题用 `scripts/rollback.sh` 回滚。不做自动部署，避免草率合并直接进生产。
 - 部署文档：`DEPLOY.md`（第 6 节含完整 HTTPS 流程与本次踩坑记录）
 - 移动端方案：`docs/mobile-adaptation.md`
 - 接口文档：`docs/api.md`
