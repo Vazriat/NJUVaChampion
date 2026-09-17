@@ -7,7 +7,8 @@
 
 - 腾讯云轻量服务器 2C4G（上海需备案；香港免备案），Ubuntu 22.04 LTS
 - 已在安全组/防火墙放行 22、80、443
-- 域名（可选，v0 可以先用 IP 访问）
+- 域名：njuvlr.online / www.njuvlr.online（已备案并配好 HTTPS，见第 6 节；
+  v0 阶段的裸 IP 访问仍保留）
 
 ## 1. 安装 Docker（Ubuntu 22.04）
 
@@ -80,28 +81,94 @@ crontab -e
 
 ## 6. HTTPS（备案 + 域名就绪后）
 
-1. 域名 A 记录解析到服务器公网 IP（备案通过后才能正式用）
-2. 签发证书（webroot 方式，nginx 容器需在跑）：
+正式域名：**njuvlr.online**（主域名），`www.njuvlr.online` 301 跳主域名。
+仓库已附带正式配置 `nginx/conf.d/https.conf`，换域名部署时才需要改（参考
+`https.conf.example`）。
+
+### 6.1 前置检查（少一样都会失败）
 
 ```bash
-docker run --rm \
-  -v $(pwd)/certbot/conf:/etc/letsencrypt \
-  -v $(pwd)/certbot/www:/var/www/certbot \
-  certbot/certbot certonly --webroot -w /var/www/certbot -d your-domain.com
+# 域名解析到本机公网 IP
+getent hosts njuvlr.online www.njuvlr.online
 ```
 
-3. 启用 HTTPS：把 `nginx/conf.d/https.conf.example` 里的 your-domain.com 替换后复制为 `https.conf`：
+**腾讯云控制台「防火墙」必须放行 TCP 80 和 443。** 只放 80 不够——443 未放行时
+表现为「HTTP 正常、HTTPS 从公网超时」，而 SSH 进去查 `iptables`/`ufw`/`ss` 一切
+正常、DNAT 规则也对称，极易误判成 nginx 配错。判定方法：
 
 ```bash
-cp nginx/conf.d/https.conf.example nginx/conf.d/https.conf
+# 服务器访问自己的公网 IP。80 通、443 超时 => 云端防火墙没放行，与 nginx 无关
+curl -s -o /dev/null -w '80 -> %{http_code}\n'  http://<公网IP>/
+curl -sk -o /dev/null -w '443 -> %{http_code}\n' https://<公网IP>/
+```
+
+### 6.2 签发证书（webroot，nginx 容器需在跑）
+
+```bash
+cd ~/njuvachampion
+docker run --rm \
+  -v /home/ubuntu/njuvachampion/certbot/conf:/etc/letsencrypt \
+  -v /home/ubuntu/njuvachampion/certbot/www:/var/www/certbot \
+  certbot/certbot certonly --webroot -w /var/www/certbot \
+  --register-unsafely-without-email --agree-tos --no-eff-email \
+  -d njuvlr.online -d www.njuvlr.online
+```
+
+`--register-unsafely-without-email` 表示不登记到期通知邮箱（证书照签，只是收不到
+Let's Encrypt 的到期/吊销提醒）。想收通知就换成 `-m 你的邮箱`；已签发后补登记：
+
+```bash
+docker run --rm -v /home/ubuntu/njuvachampion/certbot/conf:/etc/letsencrypt \
+  certbot/certbot update_account -m 你的邮箱 --no-eff-email
+```
+
+腾讯云访问 Docker Hub 会超时，但 `daemon.json` 已配 `mirror.ccs.tencentyun.com`
+镜像源，`docker pull certbot/certbot` 正常。
+
+### 6.3 启用 HTTPS
+
+```bash
+docker compose exec nginx nginx -t          # 先验语法
 docker compose exec nginx nginx -s reload
 ```
 
-4. 自动续期（crontab）：
+> reload 后立刻 curl 可能仍被旧 worker 响应（表现为该 301 的却是 200），等 1~2 秒再验证。
+
+### 6.4 ⚠️ bind mount 陈旧：改了配置却不生效的头号原因
+
+Docker 的 bind mount 在**容器创建那一刻**就固定了源目录的 inode。如果项目目录之后
+被整体替换过（重新解压 tarball、`rm -rf` 后重建同名目录等），容器仍指向那个已被
+删除的旧 inode——**宿主机改 nginx 配置、certbot 往 webroot 写挑战文件，容器里都看
+不到**，`nginx -s reload` 只是重载旧配置，全程零报错，非常难查。
+
+判定（宿主机新建文件，看容器里有没有）：
 
 ```bash
-# 0 0 * * * docker run --rm -v $(pwd)/certbot/conf:/etc/letsencrypt -v $(pwd)/certbot/www:/var/www/certbot certbot/certbot renew && docker compose exec nginx nginx -s reload
+touch ~/njuvachampion/nginx/conf.d/__probe.conf
+docker exec njuvachampion-nginx ls /etc/nginx/conf.d/   # 没有 __probe.conf 就是陈旧挂载
+rm -f ~/njuvachampion/nginx/conf.d/__probe.conf
 ```
+
+修复（重建容器会重新绑定目录）：
+
+```bash
+docker compose up -d --force-recreate --no-deps nginx
+```
+
+`--no-deps` 必须加，否则会连带重建 frontend。
+
+### 6.5 自动续期
+
+用 `scripts/renew-cert.sh`：`certbot renew` 是幂等的（未到期直接跳过），脚本无论
+是否真的续了证都会 `nginx -t` 后 reload 一次，避免「证书续了但 nginx 仍在用旧证书」。
+
+```bash
+./scripts/renew-cert.sh          # 手动跑一次验证
+crontab -e
+# 0 4,16 * * * bash /home/ubuntu/njuvachampion/scripts/renew-cert.sh >> /home/ubuntu/logs/renew-cert.log 2>&1 || echo "[renew] FAILED at $(date)" >> /home/ubuntu/logs/renew-cert.log
+```
+
+同样用 `bash <绝对路径>` 显式调用（理由见第 5 节）。日志：`~/logs/renew-cert.log`。
 
 ## 7. 升级发布
 

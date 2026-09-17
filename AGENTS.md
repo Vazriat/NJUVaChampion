@@ -162,3 +162,34 @@ rank 是保留字，JPA @Column 或 ALTER TABLE 直接使用会报错。
 `safe-delete[SAFE_DELETE_BULK_CONFIRM_REQUIRED]` 而中止——注意此时**编译、类型检查与
 页面静态生成其实都已成功**，失败只发生在最后的清理阶段，不是代码问题。
 规避：先把 `.next` 重命名为 `.next-bak`（重命名不触发删除保护）再构建；或改在普通终端里构建。
+
+### 13. 容器 bind mount 陈旧：改了配置却不生效，且零报错
+Docker 的 bind mount 在容器**创建那一刻**就固定了源目录的 inode。项目目录若之后被整体
+替换过（重新解压 tarball、`rm -rf` 后重建同名目录），容器仍指向那个已删除的旧 inode：
+宿主机上改 nginx 配置、certbot 往 webroot 写 ACME 挑战文件，容器里都看不到，
+`nginx -s reload` 只是重载旧配置。全程没有任何报错，极易误判成 nginx 语法问题。
+
+判定：宿主机新建文件，看容器里在不在。
+
+```bash
+touch nginx/conf.d/__probe.conf
+docker exec njuvachampion-nginx ls /etc/nginx/conf.d/   # 看不到就是陈旧挂载
+rm -f nginx/conf.d/__probe.conf
+```
+
+修复：`docker compose up -d --force-recreate --no-deps nginx`（`--no-deps` 必须加，
+否则连带重建 frontend）。详见 DEPLOY.md 6.4。
+
+### 14. 腾讯云轻量服务器 443 未放行：HTTP 通而 HTTPS 公网超时
+控制台「防火墙」只放行 80 时会表现为：服务器内 `ss` 显示 443 在监听、`curl https://127.0.0.1/`
+正常、`iptables`/`ufw` 干净、80/443 的 DNAT 规则对称，但**从公网连 443 直接超时**。
+SSH 里怎么查都查不出问题，因为拦截点在实例之外。
+
+判定：在服务器上访问自己的公网 IP，80 返回 200 而 443 超时，即云端防火墙未放行。
+
+```bash
+curl -s  -o /dev/null -w '80  -> %{http_code}\n' http://<公网IP>/
+curl -sk -o /dev/null -w '443 -> %{http_code}\n' https://<公网IP>/
+```
+
+修复：腾讯云控制台 → 轻量应用服务器 → 该实例 → 防火墙 → 放行 TCP 443。详见 DEPLOY.md 6.1。
