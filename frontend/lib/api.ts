@@ -19,17 +19,35 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    // 身份认证门槛：未通过在校生/校友认证，拉回认证页
-    if (err.response?.data?.code === 40301 && typeof window !== "undefined") {
+    if (typeof window === "undefined" || !err.response) {
+      return Promise.reject(err);
+    }
+
+    const status: number = err.response.status;
+    const body: any = err.response.data;
+
+    // 身份认证门槛：已登录但未通过在校生/校友认证，拉回认证页
+    if (body?.code === 40301) {
       if (!window.location.pathname.startsWith("/verify")) {
         window.location.href = "/verify?required=1";
       }
+      return Promise.reject(err);
     }
-    if (err.response?.status === 401 && typeof window !== "undefined") {
+
+    // 会话失效。
+    // 401 由后端 AuthenticationEntryPoint 返回；再对「403 且响应体为空」做兜底，
+    // 那是 Spring 默认入口点 Http403ForbiddenEntryPoint 的特征。
+    // 不能把所有 403 都当登出：40301（认证门槛）与 403（权限不足）都带 Result
+    // 业务码，属于正常业务响应，登出会造成误踢。
+    const emptyBody = body == null || body === "";
+    if (status === 401 || (status === 403 && emptyBody)) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
     }
+
     return Promise.reject(err);
   }
 );

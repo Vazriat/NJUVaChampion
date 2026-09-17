@@ -83,7 +83,12 @@ export default function AdminPage() {
       });
       const json = await res.json();
       if (json.code === 200) setTournaments(json.data);
-    } catch { removeToken(); router.replace("/login"); }
+    } catch (err: any) {
+      // 认证失效统一由 lib/api.ts 的响应拦截器处理（401 -> 清 token 跳登录）。
+      // 这里不能 removeToken()：请求被页面卸载中断、后端短暂不可用都会进入 catch，
+      // 无条件清 token 会导致「离开管理页时在途请求被 abort」把会话误清掉。
+      showMsg(err?.response?.data?.message || "数据加载失败");
+    }
     finally { setLoading(false); }
   };
 
