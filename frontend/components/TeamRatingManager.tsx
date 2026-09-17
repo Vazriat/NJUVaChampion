@@ -60,14 +60,14 @@ export default function TeamRatingManager() {
       )}
 
       {loading ? (
-        <p className="py-8 text-center text-zinc-500">加载中...</p>
+        <p className="py-8 text-center text-zinc-500 max-md:py-6">加载中...</p>
       ) : ratings.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center">
           <p className="text-sm text-zinc-500">暂无战队</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm max-md:min-w-[720px]">
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900 text-left text-xs text-zinc-500">
                 <th className="px-4 py-3">排名</th>

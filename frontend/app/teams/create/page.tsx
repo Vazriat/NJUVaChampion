@@ -26,9 +26,9 @@ export default function CreateTeamPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-lg px-8 py-14">
+      <main className="mx-auto max-w-lg px-8 py-14 max-md:px-4">
         <h2 className="mb-8 text-2xl font-bold">创建战队</h2>
 
         {error && (

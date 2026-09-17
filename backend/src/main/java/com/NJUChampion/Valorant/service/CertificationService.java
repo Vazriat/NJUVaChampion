@@ -119,10 +119,21 @@ public class CertificationService {
         List<Certification> certs = (status != null && !status.isBlank())
                 ? certificationRepository.findByStatusOrderByCreatedAtDesc(status)
                 : certificationRepository.findAll();
-        return certs.stream().map(this::toMap).collect(Collectors.toList());
+        // 批量取回涉及的用户，避免逐条 findById（N+1）；前端按类型/状态本地筛选，需要一次拿全量
+        Set<Long> userIds = certs.stream()
+                .map(Certification::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, User> userMap = userIds.isEmpty()
+                ? Map.of()
+                : userRepository.findAllById(userIds).stream()
+                        .collect(Collectors.toMap(User::getId, u -> u));
+        return certs.stream()
+                .map(cert -> toMap(cert, userMap.get(cert.getUserId())))
+                .collect(Collectors.toList());
     }
 
-    private Map<String, Object> toMap(Certification cert) {
+    private Map<String, Object> toMap(Certification cert, User user) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", cert.getId());
         m.put("userId", cert.getUserId());
@@ -139,7 +150,6 @@ public class CertificationService {
         m.put("reviewedAt", cert.getReviewedAt());
         m.put("createdAt", cert.getCreatedAt());
 
-        User user = userRepository.findById(cert.getUserId()).orElse(null);
         m.put("username", user != null ? user.getUsername() : null);
         m.put("gameId", user != null ? user.getGameId() : null);
         m.put("displayGameId", user != null ? user.getDisplayGameId() : null);

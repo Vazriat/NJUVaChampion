@@ -7,7 +7,8 @@
 
 - 腾讯云轻量服务器 2C4G（上海需备案；香港免备案），Ubuntu 22.04 LTS
 - 已在安全组/防火墙放行 22、80、443
-- 域名（可选，v0 可以先用 IP 访问）
+- 域名：njuvlr.online / www.njuvlr.online（已备案并配好 HTTPS，见第 6 节；
+  v0 阶段的裸 IP 访问仍保留）
 
 ## 1. 安装 Docker（Ubuntu 22.04）
 
@@ -53,56 +54,225 @@ OCR 服务日志：`docker compose logs -f ocr`。
 
 ## 5. 数据备份（重要！）
 
+备份统一走 `scripts/backup.sh`（数据库 + 上传目录，并自动清理 7 天前的旧包）：
+
 ```bash
-mkdir -p backups
-# 数据库备份
-docker compose exec -T mysql sh -c "mysqldump -uroot -p\"$MYSQL_ROOT_PASSWORD\" njuvachampion" > backups/db-$(date +%F).sql
-# 上传目录（截图/认证件）备份
-docker run --rm -v njuvachampion_uploads-data:/data -v $(pwd)/backups:/backup alpine tar czf /backup/uploads-$(date +%F).tar.gz -C /data .
+./scripts/backup.sh          # 手动跑一次验证
 ```
 
-建议 crontab 每天 3:30 备份：
+建议 crontab 每天 3:30 备份。**必须用 `bash` 显式调用**，不要裸写脚本路径：
 
 ```bash
 crontab -e
-# 30 3 * * * cd /root/njuvachampion && docker compose exec -T mysql sh -c "mysqldump -uroot -p\"$MYSQL_ROOT_PASSWORD\" njuvachampion" > backups/db-$(date +\%F).sql
+# 30 3 * * * bash /home/ubuntu/njuvachampion/scripts/backup.sh >> /home/ubuntu/backups/backup.log 2>&1
 ```
+
+> ⚠️ 两种失败方式都会让备份静默停摆，务必确认：
+> 1. 裸路径调用依赖脚本的可执行位。仓库里 `scripts/backup.sh` 已置为 `100755`，
+>    但若服务器上被 reset 成 `644`，cron 只会往 log 里写 `Permission denied` 而不报警。
+>    用 `bash <路径>` 调用可绕开该依赖。
+> 2. 脚本内部需要 `sudo`（`sudo docker compose ...`）。确认该用户 sudo 免密，
+>    否则 cron 无人值守时会卡在密码提示上。
+>
+> 上线后请查一次 `~/backups/backup.log` 和 `ls -lh ~/backups/`，
+> 确认当天有新的 `db-*.sql.gz` 和 `uploads-*.tar.gz`。空包（几十字节）说明挂载路径有问题。
 
 定期下载一份到本地（云盘/学校电脑），不要把鸡蛋放一个篮子里。
 
 ## 6. HTTPS（备案 + 域名就绪后）
 
-1. 域名 A 记录解析到服务器公网 IP（备案通过后才能正式用）
-2. 签发证书（webroot 方式，nginx 容器需在跑）：
+正式域名：**njuvlr.online**（主域名），`www.njuvlr.online` 301 跳主域名。
+仓库已附带正式配置 `nginx/conf.d/https.conf`，换域名部署时才需要改（参考
+`https.conf.example`）。
+
+### 6.1 前置检查（少一样都会失败）
 
 ```bash
-docker run --rm \
-  -v $(pwd)/certbot/conf:/etc/letsencrypt \
-  -v $(pwd)/certbot/www:/var/www/certbot \
-  certbot/certbot certonly --webroot -w /var/www/certbot -d your-domain.com
+# 域名解析到本机公网 IP
+getent hosts njuvlr.online www.njuvlr.online
 ```
 
-3. 启用 HTTPS：把 `nginx/conf.d/https.conf.example` 里的 your-domain.com 替换后复制为 `https.conf`：
+**腾讯云控制台「防火墙」必须放行 TCP 80 和 443。** 只放 80 不够——443 未放行时
+表现为「HTTP 正常、HTTPS 从公网超时」，而 SSH 进去查 `iptables`/`ufw`/`ss` 一切
+正常、DNAT 规则也对称，极易误判成 nginx 配错。判定方法：
 
 ```bash
-cp nginx/conf.d/https.conf.example nginx/conf.d/https.conf
+# 服务器访问自己的公网 IP。80 通、443 超时 => 云端防火墙没放行，与 nginx 无关
+curl -s -o /dev/null -w '80 -> %{http_code}\n'  http://<公网IP>/
+curl -sk -o /dev/null -w '443 -> %{http_code}\n' https://<公网IP>/
+```
+
+### 6.2 签发证书（webroot，nginx 容器需在跑）
+
+```bash
+cd ~/njuvachampion
+docker run --rm \
+  -v /home/ubuntu/njuvachampion/certbot/conf:/etc/letsencrypt \
+  -v /home/ubuntu/njuvachampion/certbot/www:/var/www/certbot \
+  certbot/certbot certonly --webroot -w /var/www/certbot \
+  --register-unsafely-without-email --agree-tos --no-eff-email \
+  -d njuvlr.online -d www.njuvlr.online
+```
+
+`--register-unsafely-without-email` 表示不登记到期通知邮箱（证书照签，只是收不到
+Let's Encrypt 的到期/吊销提醒）。想收通知就换成 `-m 你的邮箱`；已签发后补登记：
+
+```bash
+docker run --rm -v /home/ubuntu/njuvachampion/certbot/conf:/etc/letsencrypt \
+  certbot/certbot update_account -m 你的邮箱 --no-eff-email
+```
+
+腾讯云访问 Docker Hub 会超时，但 `daemon.json` 已配 `mirror.ccs.tencentyun.com`
+镜像源，`docker pull certbot/certbot` 正常。
+
+### 6.3 启用 HTTPS
+
+```bash
+docker compose exec nginx nginx -t          # 先验语法
 docker compose exec nginx nginx -s reload
 ```
 
-4. 自动续期（crontab）：
+> reload 后立刻 curl 可能仍被旧 worker 响应（表现为该 301 的却是 200），等 1~2 秒再验证。
+
+### 6.4 ⚠️ bind mount 陈旧：改了配置却不生效的头号原因
+
+Docker 的 bind mount 在**容器创建那一刻**就固定了源目录的 inode。如果项目目录之后
+被整体替换过（重新解压 tarball、`rm -rf` 后重建同名目录等），容器仍指向那个已被
+删除的旧 inode——**宿主机改 nginx 配置、certbot 往 webroot 写挑战文件，容器里都看
+不到**，`nginx -s reload` 只是重载旧配置，全程零报错，非常难查。
+
+判定（宿主机新建文件，看容器里有没有）：
 
 ```bash
-# 0 0 * * * docker run --rm -v $(pwd)/certbot/conf:/etc/letsencrypt -v $(pwd)/certbot/www:/var/www/certbot certbot/certbot renew && docker compose exec nginx nginx -s reload
+touch ~/njuvachampion/nginx/conf.d/__probe.conf
+docker exec njuvachampion-nginx ls /etc/nginx/conf.d/   # 没有 __probe.conf 就是陈旧挂载
+rm -f ~/njuvachampion/nginx/conf.d/__probe.conf
 ```
+
+修复（重建容器会重新绑定目录）：
+
+```bash
+docker compose up -d --force-recreate --no-deps nginx
+```
+
+`--no-deps` 必须加，否则会连带重建 frontend。
+
+### 6.5 自动续期
+
+用 `scripts/renew-cert.sh`：`certbot renew` 是幂等的（未到期直接跳过），脚本无论
+是否真的续了证都会 `nginx -t` 后 reload 一次，避免「证书续了但 nginx 仍在用旧证书」。
+
+```bash
+./scripts/renew-cert.sh          # 手动跑一次验证
+crontab -e
+# 0 4,16 * * * bash /home/ubuntu/njuvachampion/scripts/renew-cert.sh >> /home/ubuntu/logs/renew-cert.log 2>&1 || echo "[renew] FAILED at $(date)" >> /home/ubuntu/logs/renew-cert.log
+```
+
+同样用 `bash <绝对路径>` 显式调用（理由见第 5 节）。日志：`~/logs/renew-cert.log`。
 
 ## 7. 升级发布
 
+标准流程：
+
 ```bash
-git pull
-docker compose up -d --build
+cd ~/njuvachampion
+bash scripts/backup.sh                      # 先备份，出问题能回滚
+docker compose up -d --build                # 构建 + 重启（约 3~5 分钟）
+docker compose ps                           # 五个服务都应为 Up
+curl -s -o /dev/null -w '%{http_code}\n' https://njuvlr.online/
 ```
 
-数据库结构无需手动迁移（JPA ddl-auto: update 自动更新）。
+数据库结构无需手动迁移（JPA `ddl-auto: update` 自动更新）。
+
+### 7.1 ⚠️ 从这台服务器 fetch GitHub 会随机失败，必须显式用 HTTP/1.1
+
+腾讯云到 GitHub 的连接不稳，`git fetch` 会报下面两种错之一：
+
+```
+fatal: unable to access 'https://github.com/...': GnuTLS recv error (-110):
+       The TLS connection was non-properly terminated.
+fatal: unable to access 'https://github.com/...': Failed to connect to
+       github.com port 443 after 130781 ms: Connection timed out
+```
+
+注意它**时好时坏**——`git ls-remote` 可能成功、紧接着 `git fetch` 就失败，所以
+「刚才还能通」不能作为判断依据。加 `http.version=HTTP/1.1` 即可稳定成功：
+
+```bash
+git -c http.version=HTTP/1.1 fetch origin
+git merge --ff-only origin/hyl
+```
+
+或者一次性写进仓库配置：
+
+```bash
+git config http.version HTTP/1.1
+```
+
+### 7.2 不要在部署目录里手工改文件
+
+服务器上的工作区应当始终等于某个提交。一旦手工改了 `nginx/conf.d/*`、`scripts/*`
+这类文件，下次 `git pull` 会直接拒绝（`local changes would be overwritten`），
+而且**清理本地改动这一步会把这些文件从磁盘上删掉**——nginx 内存里还跑着旧配置，
+表面看不出问题，但任何 reload 或容器重启都会让配置残缺甚至站点起不来。
+
+正确做法是改仓库、推送、再 pull。临时应急改了的话，pull 之前先把要留下的文件
+复制到 `~/deploy-backup/<时间戳>/` 再撤销本地改动。
+
+### 7.3 2C4G 上要串行构建
+
+三个镜像并行构建有 OOM 风险（可用内存约 2.2G + 2G swap）。串行构建：
+
+```bash
+COMPOSE_PARALLEL_LIMIT=1 docker compose build && docker compose up -d
+```
+
+实测串行构建约 3 分钟，内存占用始终健康。**若构建失败，不要执行 `up -d`**，
+保持旧容器继续服务，修好再上。
+
+### 7.4 ⚠️ 构建全缓存命中时，容器不会被重建（镜像漂移）
+
+如果某个服务的构建上下文这次没有变化（例如只改了前端），它的镜像是**全缓存命中**，
+镜像 ID 不变。此时 `docker compose up -d` 可能只重建了镜像变化的服务，而把旧容器
+留在原地——旧容器可能挂在一个已被 retag 掉的镜像 ID 上，表现为：
+
+```
+$ docker ps
+njuvachampion-ocr   ...  IMAGE sha256:eb993d3c...     Up 3 weeks
+$ docker inspect njuvachampion-ocr:latest --format '{{.Id}}'
+sha256:e32ae60f...                                     # 和上面不是一个
+```
+
+代码虽然等价，但「跑着的」和「标签指的」不是同一个镜像，属于隐性漂移。对齐：
+
+```bash
+docker compose up -d --force-recreate --no-deps ocr
+```
+
+发布后建议逐个核对，不一致的就对齐：
+
+```bash
+for c in backend frontend ocr; do
+  printf '%-8s ' "$c"
+  a=$(docker inspect njuvachampion-$c --format '{{.Image}}')
+  b=$(docker inspect njuvachampion-$c:latest --format '{{.Id}}')
+  [ "$a" = "$b" ] && echo "一致" || echo "漂移！$a != $b"
+done
+```
+
+### 7.5 发布后核对清单
+
+```bash
+# 域名与跳转
+curl -sI https://njuvlr.online/ | head -1              # 200
+curl -sI https://www.njuvlr.online/ | grep -i location # 301 到主域名
+# 后端行为：未认证访问受保护接口应 401
+curl -s -o /dev/null -w '%{http_code}\n' https://njuvlr.online/api/tournaments
+# 数据量（与前次对比，确认没丢）
+docker exec -i njuvachampion-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N njuvachampion' <<'SQL'
+SELECT 'users', COUNT(*) FROM users;
+SQL
+```
 
 ## 8. 常见问题
 

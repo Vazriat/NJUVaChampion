@@ -48,9 +48,9 @@ export default function TournamentsPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-4xl px-8 py-10">
+      <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
         <h2 className="mb-4 text-2xl font-bold">赛事中心</h2>
         <input
           type="text"
@@ -67,7 +67,7 @@ export default function TournamentsPage() {
             <Link
               key={t.id}
               href={`/tournaments/${t.id}`}
-              className="group block rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50"
+              className="group block rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4"
             >
               <div className="flex items-start justify-between">
                 <div>

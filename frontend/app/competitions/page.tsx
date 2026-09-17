@@ -31,9 +31,9 @@ export default function CompetitionsPage() {
   const filtered = list.filter((c) => q === "" || c.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-5xl px-8 py-10">
+      <main className="mx-auto max-w-5xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold">活动报名</h1>
           <input
@@ -45,7 +45,7 @@ export default function CompetitionsPage() {
         </div>
 
         {loading ? (
-          <p className="py-8 text-center text-zinc-500">加载中...</p>
+          <p className="py-8 text-center text-zinc-500 max-md:py-6">加载中...</p>
         ) : filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center">
             <p className="text-sm text-zinc-500">暂无报名活动</p>

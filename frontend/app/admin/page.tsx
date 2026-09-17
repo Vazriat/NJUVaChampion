@@ -83,7 +83,12 @@ export default function AdminPage() {
       });
       const json = await res.json();
       if (json.code === 200) setTournaments(json.data);
-    } catch { removeToken(); router.replace("/login"); }
+    } catch (err: any) {
+      // 认证失效统一由 lib/api.ts 的响应拦截器处理（401 -> 清 token 跳登录）。
+      // 这里不能 removeToken()：请求被页面卸载中断、后端短暂不可用都会进入 catch，
+      // 无条件清 token 会导致「离开管理页时在途请求被 abort」把会话误清掉。
+      showMsg(err?.response?.data?.message || "数据加载失败");
+    }
     finally { setLoading(false); }
   };
 
@@ -206,8 +211,8 @@ export default function AdminPage() {
 
   };
     const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+      <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">{title}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -218,12 +223,12 @@ export default function AdminPage() {
   );
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-zinc-950"><p className="text-zinc-400">加载中...</p></div>;
+    return <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh"><p className="text-zinc-400">加载中...</p></div>;
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
+      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4 max-md:px-4">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold text-red-500">VALORANT</h1>
           <span className="text-sm text-zinc-600">管理后台</span>
@@ -240,11 +245,11 @@ export default function AdminPage() {
         <div className="mx-8 mt-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>
       )}
 
-      <main className="mx-auto max-w-6xl px-8 py-8">
-        <div className="mb-8 flex gap-6 border-b border-zinc-800">
+      <main className="mx-auto max-w-6xl px-8 py-8 max-md:px-4 max-md:py-6">
+        <div className="mb-8 flex gap-6 border-b border-zinc-800 max-md:-mx-4 max-md:gap-4 max-md:overflow-x-auto max-md:px-4">
           {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
-              className={`pb-3 text-sm font-medium transition border-b-2 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
+              className={`pb-3 text-sm font-medium transition border-b-2  max-md:whitespace-nowrap max-md:min-h-11 max-md:px-1 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
           ))}
         </div>
 
@@ -329,7 +334,7 @@ export default function AdminPage() {
               { label: "活跃战队", value: activeTeams, color: "text-green-400" },
               { label: "进行中赛事", value: activeTournaments, color: "text-red-400" },
             ].map((item) => (
-              <div key={item.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+              <div key={item.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
                 <p className="text-sm text-zinc-500">{item.label}</p>
                 <p className={`mt-2 text-4xl font-bold ${item.color}`}>{item.value}</p>
               </div>
@@ -339,7 +344,7 @@ export default function AdminPage() {
 
         {tab === "users" && (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm max-md:min-w-[720px]">
               <thead><tr className="border-b border-zinc-800 text-left text-zinc-500">
                 <th className="pb-3 pr-4">ID</th><th className="pb-3 pr-4">用户名</th><th className="pb-3 pr-4">游戏ID</th>
                 <th className="pb-3 pr-4">角色</th><th className="pb-3 pr-4">状态</th><th className="pb-3 pr-4">操作</th>
@@ -365,7 +370,7 @@ export default function AdminPage() {
         {tab === "teams" && (
           <div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm max-md:min-w-[720px]">
               <thead><tr className="border-b border-zinc-800 text-left text-zinc-500">
                 <th className="pb-3 pr-4">ID</th><th className="pb-3 pr-4">战队名</th><th className="pb-3 pr-4">人数</th>
                 <th className="pb-3 pr-4">状态</th><th className="pb-3 pr-4">操作</th>
@@ -431,7 +436,7 @@ export default function AdminPage() {
                   )}
                 </div>
               ))}
-              {tournaments.length === 0 && <p className="text-center text-zinc-500 py-8">暂无赛事</p>}
+              {tournaments.length === 0 && <p className="text-center text-zinc-500 py-8 max-md:py-6">暂无赛事</p>}
             </div>
 
             {showCreateTournament && (
@@ -515,8 +520,8 @@ export default function AdminPage() {
 
 
         {showCreateEmptyTeam && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <button onClick={() => setShowCreateEmptyTeam(false)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
               </div>

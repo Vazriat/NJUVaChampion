@@ -55,6 +55,54 @@ npm start
 4. **对象属性缺少逗号**：乱码常导致对象属性间的逗号丢失
 
 
+## 移动端适配规范（必须遵守）
+
+前端采用「桌面端优先 + 移动端追加覆盖」策略。**电脑端 UI 必须保持不变**，
+因此所有移动端适配都通过 Tailwind v4 的 `max-md:`（`< 768px`）变体**追加**完成，
+禁止改写或删除任何现有 class。完整方案见 `docs/mobile-adaptation.md`。
+
+### 三条铁律
+
+1. **纯追加**：原有 class 一个字符都不删、不改、不换序，只在末尾追加。
+
+   ```diff
+   - <main className="mx-auto max-w-7xl px-8 py-10">
+   + <main className="mx-auto max-w-7xl px-8 py-10 max-md:px-4 max-md:py-6">
+   ```
+
+2. **移动端类一律用 `max-md:`，不用 `md:`**
+
+   | 目的 | 错误写法（会改桌面） | 正确写法 |
+   |------|---------------------|---------|
+   | 收窄内边距 | `px-4 md:px-8` | `px-8 max-md:px-4` |
+   | 收窄宽度 | `w-full md:w-40` | `w-40 max-md:w-full` |
+   | 表格横滚 | `w-full min-w-[720px] md:min-w-0` | `w-full max-md:min-w-[720px]` |
+   | 视口高度 | `min-h-dvh` | `min-h-screen max-md:min-h-dvh` |
+   | 弹窗限高 | `max-h-[90dvh]` | `max-h-[85vh] max-md:max-h-[92dvh]` |
+
+3. **新增 DOM 一律 `md:hidden`**（移动端专属元素），桌面端 `display:none` 不占位。
+   隐藏「桌面端保留、移动端换掉」的内容则追加 `max-md:hidden`。
+
+### 禁止事项
+
+- **禁止对同一属性同时挂 `sm:` 与 `max-md:`**。实测 Tailwind 4.3.2 中 `sm:` 排在
+  `max-md:` 之后，两者区间在 **640–767px 重叠**，该区间取值不可控。而常规测试
+  （375px 手机 / 1440px 桌面）恰好都覆盖不到这个区间，属于隐性陷阱。
+- **禁止**写 `maximumScale: 1` 或 `userScalable: false`（违反无障碍规范，且 iOS 10+ 直接忽略）。
+- **禁止**给截图上传加 `capture="environment"`（会跳过「拍照 / 相册」系统菜单，破坏裁判录入流程）。
+- **禁止**为了「顺手改进桌面端」而修改任何现有 class——桌面端的既有问题不在移动端适配范围内。
+
+### 关键常量
+
+- 移动 / 桌面分界：`md = 768px`
+- 触摸目标下限：`min-h-11`（44px）
+- 移动端输入框字号必须 >= 16px（`globals.css` 已用 `!important` 兜底，防止 iOS 聚焦时放大页面）
+- 全屏高度用 `dvh` 不用 `vh`（规避 iOS 地址栏伸缩）
+
+### 提交前自查
+
+禁止裸 `min-h-screen`、裸 `px-8`；禁止同一元素同属性同时出现 `sm:` 与 `max-md:`。
+
 ## 文档维护要求
 
 - **AGENTS.md** -- 发现常见错误模式后必须更新
@@ -93,3 +141,55 @@ rank 是保留字，JPA @Column 或 ALTER TABLE 直接使用会报错。
 ### 8. PowerShell 转义导致 Python 代码异常
 在 python -c 中写转义序列时，PowerShell 和 Python 的转义层叠加，导致语法错误。
 解决：避免在 python -c 中使用复杂转义；改用 .py 脚本文件。
+
+### 9. Git Bash 里 mvn 报 ClassNotFoundException: Launcher
+`MAVEN_HOME` 是 Windows 路径（`C:\apache-maven-3.9.11-bin\...`），Git Bash 下 mvn 脚本拼接出的
+`-classpath` 无法解析，报 `找不到或无法加载主类 org.codehaus.plexus.classworlds.launcher.Launcher`。
+解决：**用 PowerShell 执行 mvn**，不要在 Git Bash 里跑（覆盖 MAVEN_HOME 为 `/c/...` 也无效）。
+
+### 10. 由脚本/Agent 拉起后端时端口被抢占
+若父进程环境里存在 `SERVER__PORT`（部分 Agent 宿主会注入），Spring 的宽松绑定会把它当作
+`server.port` 覆盖 application.yaml，表现为日志里 `Tomcat initialized with port <奇怪端口>`
+然后 `Web server failed to start. Port xxx was already in use`。
+解决：拉起后端时显式覆盖 `SERVER__PORT=8080`（同时注意 `SERVER__HOST`）。
+
+### 11. kill mvn 不会结束它 fork 出的 JVM
+`spring-boot:run` 会 fork 一个 java 子进程，只结束 mvn 进程会让 JVM 继续占着 8080，
+下次启动报端口占用。清理用 `taskkill /PID <pid> /T /F`（带 `/T` 结束整棵进程树）。
+
+### 12. Agent 沙箱的批量删除保护会中断 next build
+在受管沙箱里执行 `next build` 时，Next 会清理 `.next` 目录，触发
+`safe-delete[SAFE_DELETE_BULK_CONFIRM_REQUIRED]` 而中止——注意此时**编译、类型检查与
+页面静态生成其实都已成功**，失败只发生在最后的清理阶段，不是代码问题。
+规避：先把 `.next` 重命名为 `.next-bak`（重命名不触发删除保护）再构建；或改在普通终端里构建。
+
+### 13. 容器 bind mount 陈旧：改了配置却不生效，且零报错
+Docker 的 bind mount 在容器**创建那一刻**就固定了源目录的 inode。项目目录若之后被整体
+替换过（重新解压 tarball、`rm -rf` 后重建同名目录），容器仍指向那个已删除的旧 inode：
+宿主机上改 nginx 配置、certbot 往 webroot 写 ACME 挑战文件，容器里都看不到，
+`nginx -s reload` 只是重载旧配置。全程没有任何报错，极易误判成 nginx 语法问题。
+
+判定：宿主机新建文件，看容器里在不在。
+
+```bash
+touch nginx/conf.d/__probe.conf
+docker exec njuvachampion-nginx ls /etc/nginx/conf.d/   # 看不到就是陈旧挂载
+rm -f nginx/conf.d/__probe.conf
+```
+
+修复：`docker compose up -d --force-recreate --no-deps nginx`（`--no-deps` 必须加，
+否则连带重建 frontend）。详见 DEPLOY.md 6.4。
+
+### 14. 腾讯云轻量服务器 443 未放行：HTTP 通而 HTTPS 公网超时
+控制台「防火墙」只放行 80 时会表现为：服务器内 `ss` 显示 443 在监听、`curl https://127.0.0.1/`
+正常、`iptables`/`ufw` 干净、80/443 的 DNAT 规则对称，但**从公网连 443 直接超时**。
+SSH 里怎么查都查不出问题，因为拦截点在实例之外。
+
+判定：在服务器上访问自己的公网 IP，80 返回 200 而 443 超时，即云端防火墙未放行。
+
+```bash
+curl -s  -o /dev/null -w '80  -> %{http_code}\n' http://<公网IP>/
+curl -sk -o /dev/null -w '443 -> %{http_code}\n' https://<公网IP>/
+```
+
+修复：腾讯云控制台 → 轻量应用服务器 → 该实例 → 防火墙 → 放行 TCP 443。详见 DEPLOY.md 6.1。

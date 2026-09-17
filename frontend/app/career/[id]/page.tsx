@@ -79,9 +79,9 @@ export default function CareerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
         <NavBar />
-        <main className="mx-auto max-w-4xl px-8 py-10">
+        <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
           <p className="text-zinc-500">加载中...</p>
         </main>
       </div>
@@ -90,9 +90,9 @@ export default function CareerPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
         <NavBar />
-        <main className="mx-auto max-w-4xl px-8 py-10">
+        <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
           <p className="text-red-400">{error}</p>
         </main>
       </div>
@@ -100,9 +100,9 @@ export default function CareerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-4xl px-8 py-10">
+      <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
         {/* Profile header */}
         <div className="mb-8 flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600/20 text-xl font-bold text-red-400">
@@ -242,7 +242,7 @@ export default function CareerPage() {
             </div>
           )}
 
-          {analysisLoading && <p className="py-8 text-center text-sm text-zinc-500">分析中...</p>}
+          {analysisLoading && <p className="py-8 text-center text-sm text-zinc-500 max-md:py-6">分析中...</p>}
           {analysisError && <p className="py-4 text-center text-sm text-red-400">{analysisError}</p>}
           {!analysisLoading && !analysisError && analysis && (
             <div className="grid gap-6 md:grid-cols-2">
@@ -296,7 +296,7 @@ export default function CareerPage() {
         {/* Match history */}
         <h2 className="mb-3 text-lg font-semibold">最近比赛</h2>
         {matches.length === 0 ? (
-          <p className="py-8 text-center text-sm text-zinc-500">暂无比赛记录</p>
+          <p className="py-8 text-center text-sm text-zinc-500 max-md:py-6">暂无比赛记录</p>
         ) : (
           <div className="space-y-3">
             {matches.map((m: any) => {
@@ -336,8 +336,8 @@ export default function CareerPage() {
                   </button>
 
                   {isExpanded && m.playerStats && (
-                    <div className="border-t border-zinc-800 px-4 pb-4 pt-3">
-                      <table className="w-full text-xs">
+                    <div className="border-t border-zinc-800 px-4 pb-4 pt-3 max-md:overflow-x-auto">
+                      <table className="w-full text-xs max-md:min-w-[720px]">
                         <thead>
                           <tr className="border-b border-zinc-800 text-left text-zinc-500 uppercase tracking-wider">
                             <th className="pb-2 pr-3">选手</th>

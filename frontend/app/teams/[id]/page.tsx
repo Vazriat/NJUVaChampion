@@ -61,12 +61,12 @@ export default function TeamDetailPage() {
   };
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-zinc-950"><NavBar /><p className="text-zinc-500">加载中...</p></div>;
+    return <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh"><NavBar /><p className="text-zinc-500">加载中...</p></div>;
   }
 
   if (error || !team) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <NavBar />
         <div className="text-center">
           <p className="text-red-400">{error || "战队不存在"}</p>
@@ -77,9 +77,9 @@ export default function TeamDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-3xl px-8 py-10">
+      <main className="mx-auto max-w-3xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-8 flex items-start justify-between">
           <div className="flex items-center gap-5">
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-red-600/20 text-3xl font-bold text-red-400">
@@ -102,18 +102,18 @@ export default function TeamDetailPage() {
           <div className="flex gap-3">
             {!isMember && team.status === 1 && (
               <button onClick={handleJoin} disabled={actionLoading}
-                className="rounded-lg bg-red-600 px-6 py-2 font-semibold transition hover:bg-red-700 disabled:opacity-50">
+                className="rounded-lg bg-red-600 px-6 py-2 font-semibold transition hover:bg-red-700 disabled:opacity-50 max-md:px-4">
                 {actionLoading ? "处理中..." : "加入战队"}
               </button>
             )}
             {isMember && !isCaptain && (
               <button onClick={handleLeave} disabled={actionLoading}
-                className="rounded-lg border border-zinc-700 px-6 py-2 font-semibold text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50">
+                className="rounded-lg border border-zinc-700 px-6 py-2 font-semibold text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50 max-md:px-4">
                 {actionLoading ? "处理中..." : "退出战队"}
               </button>
             )}
             {isCaptain && (
-              <span className="rounded-lg bg-yellow-600/20 px-6 py-2 text-sm text-yellow-400">队长</span>
+              <span className="rounded-lg bg-yellow-600/20 px-6 py-2 text-sm text-yellow-400 max-md:px-4">队长</span>
             )}
           </div>
         </div>

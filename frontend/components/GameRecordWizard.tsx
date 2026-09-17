@@ -432,8 +432,8 @@ export default function GameRecordWizard({
   const allSaved = games.length > 0 && games.every(g => g.saved);
 
   return (
-    <div className={isPage ? "min-h-screen bg-zinc-950 text-white" : "fixed inset-0 z-50 flex items-center justify-center bg-black/60"}>
-      <div className={isPage ? "mx-auto w-full max-w-7xl px-4 py-8 sm:px-8" : "w-full max-w-6xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[90vh] overflow-y-auto"}>
+    <div className={isPage ? "min-h-screen bg-zinc-950 text-white max-md:min-h-dvh" : "fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end"}>
+      <div className={isPage ? "mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 max-md:py-6" : "w-full max-w-6xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[90vh] overflow-y-auto max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl"}>
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -441,9 +441,9 @@ export default function GameRecordWizard({
               {mode === "review" ? "审核赛果申报" : mode === "submission" ? "申报赛果" : "记录比赛结果"}
             </h3>
             <div className="flex gap-1.5">
-              <span className={"rounded px-2 py-0.5 text-[10px] font-medium " + (step >= 1 ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-600")}>BO</span>
-              <span className={"rounded px-2 py-0.5 text-[10px] font-medium " + (step >= 2 ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-600")}>小局</span>
-              <span className={"rounded px-2 py-0.5 text-[10px] font-medium " + (step >= 3 ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-600")}>完结</span>
+              <span className={"rounded px-2 py-0.5 text-[10px] font-medium max-md:px-2.5 max-md:py-1 max-md:text-xs " + (step >= 1 ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-600")}>BO</span>
+              <span className={"rounded px-2 py-0.5 text-[10px] font-medium max-md:px-2.5 max-md:py-1 max-md:text-xs " + (step >= 2 ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-600")}>小局</span>
+              <span className={"rounded px-2 py-0.5 text-[10px] font-medium max-md:px-2.5 max-md:py-1 max-md:text-xs " + (step >= 3 ? "bg-red-600/20 text-red-400" : "bg-zinc-800 text-zinc-600")}>完结</span>
             </div>
           </div>
           <button onClick={() => {
@@ -484,7 +484,7 @@ export default function GameRecordWizard({
             <div className="flex gap-3">
               {[1, 3, 5].map(n => (
                 <button key={n} onClick={() => setBoType(n)}
-                  className={"flex-1 rounded-lg border py-4 text-lg font-semibold transition " + (boType === n ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>
+                  className={"flex-1 rounded-lg border py-4 text-lg font-semibold transition max-md:py-3 " + (boType === n ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>
                   BO{n}
                 </button>
               ))}
@@ -533,7 +533,7 @@ export default function GameRecordWizard({
                     <div>
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-zinc-700 py-8 text-sm text-zinc-500 hover:border-red-500 hover:text-red-400 transition"
+                        className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-zinc-700 py-8 text-sm text-zinc-500 hover:border-red-500 hover:text-red-400 transition max-md:py-6"
                       >
                         点击上传截图（将自动OCR识别选手数据）
                       </div>
@@ -672,7 +672,7 @@ export default function GameRecordWizard({
 
             
                         {/* Navigation */}
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-2 max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:mt-4 max-md:border-t max-md:border-zinc-800 max-md:bg-zinc-900/95 max-md:px-4 max-md:py-3 max-md:backdrop-blur">
               {currentGameIdx > 0 && (
                 <button onClick={() => { setCurrentGameIdx(i => i - 1); setError(""); }}
                   className="flex-1 rounded-lg border border-zinc-700 py-2 text-sm text-zinc-400 hover:border-zinc-500">
@@ -721,7 +721,7 @@ export default function GameRecordWizard({
                 <input type="number" min={0} max={boType}
                   value={finalScore1}
                   onChange={e => setFinalScore1(Number(e.target.value))}
-                  className="w-24 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-3 text-center text-2xl font-bold text-white outline-none focus:border-red-500"
+                  className="w-24 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-3 text-center text-2xl font-bold text-white outline-none focus:border-red-500 max-md:w-20 max-md:text-xl"
                 />
               </div>
               <span className="text-2xl font-bold text-zinc-500">:</span>
@@ -730,7 +730,7 @@ export default function GameRecordWizard({
                 <input type="number" min={0} max={boType}
                   value={finalScore2}
                   onChange={e => setFinalScore2(Number(e.target.value))}
-                  className="w-24 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-3 text-center text-2xl font-bold text-white outline-none focus:border-red-500"
+                  className="w-24 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-3 text-center text-2xl font-bold text-white outline-none focus:border-red-500 max-md:w-20 max-md:text-xl"
                 />
               </div>
             </div>
@@ -770,14 +770,14 @@ export default function GameRecordWizard({
         {/* Image viewer */}
         {enlargedImg && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80" onClick={() => setEnlargedImg(null)}>
-            <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg" alt="enlarged screenshot" />
+            <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg max-md:max-h-[90dvh]" alt="enlarged screenshot" />
           </div>
         )}
 
         {/* Close confirmation */}
         {showCloseConfirm && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
-            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 max-md:items-end">
+            <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
               <h3 className="text-lg font-semibold">确认关闭？</h3>
               <p className="mt-2 text-sm text-zinc-400">当前有未保存的数据，关闭后将丢失。</p>
               <div className="mt-4 flex gap-3">

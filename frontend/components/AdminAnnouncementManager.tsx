@@ -50,7 +50,7 @@ export default function AdminAnnouncementManager() {
         <span className="text-sm text-zinc-500">共 {items.length} 条</span>
         <button onClick={openNew} className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-semibold hover:bg-red-700">+ 新增</button>
       </div>
-      {loading ? <p className="py-8 text-center text-zinc-500">加载中...</p>
+      {loading ? <p className="py-8 text-center text-zinc-500 max-md:py-6">加载中...</p>
       : items.length === 0 ? <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center"><p className="text-sm text-zinc-500">暂无通知</p></div>
       : <div className="space-y-2">
           {items.map((a: any) => (
@@ -66,8 +66,8 @@ export default function AdminAnnouncementManager() {
         </div>}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <h3 className="mb-4 text-lg font-semibold">{edit.id ? "编辑" : "新增"}通知</h3>
             <div className="space-y-3 text-sm">
               <div><label className="mb-1 block text-xs text-zinc-500">标题</label>

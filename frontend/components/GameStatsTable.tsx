@@ -182,9 +182,9 @@ export default function GameStatsTable({
     if (teamPlayers.length === 0) return null;
     const startIdx = players.indexOf(teamPlayers[0]);
     return (
-      <div className="mb-4">
+      <div className="mb-4 max-md:hidden">
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">{label} ({teamPlayers.length}人)</h4>
-        <table className="w-full">
+        <table className="w-full max-md:min-w-[720px]">
           <thead>
             <tr className="border-b border-zinc-700 text-left text-[11px] text-zinc-500 uppercase tracking-wider">
               <th className="pb-2 px-3 w-8">#</th>
@@ -204,6 +204,100 @@ export default function GameStatsTable({
     );
   };
 
+  // 移动端卡片视图：桌面表格有 4 + N 列（N 为数据列，通常 6~8 个），
+  // 手机宽度下即使横滚也需要滚 3 屏才能看到最后一列，编辑时键盘反复收起。
+  // 因此手机上改为每人一张卡片，字段用两列栅格排布。
+  const renderMobileCard = (p: PlayerStatEntry, globalIdx: number) => (
+    <div key={globalIdx} className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-3">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="shrink-0 text-xs text-zinc-500">#{globalIdx + 1}</span>
+        {columns.find(c => c.key === "agent" && c.editable) ? (
+          <input
+            type="text"
+            value={p.playerName || p.userName || ""}
+            onChange={e => {
+              const updated = [...players];
+              updated[globalIdx] = { ...updated[globalIdx], playerName: e.target.value, userName: e.target.value };
+              onChange(updated);
+            }}
+            className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-red-500"
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-200">{p.playerName || p.userName || "?"}</span>
+        )}
+      </div>
+
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11px] text-zinc-500">队伍</span>
+          <select
+            value={p.teamId || 0}
+            onChange={e => {
+              const updated = [...players];
+              updated[globalIdx] = { ...updated[globalIdx], teamId: Number(e.target.value) };
+              onChange(updated);
+            }}
+            className={"w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs outline-none " + (p.teamId ? "text-white" : "text-amber-300")}
+          >
+            <option value={0} style={{color:'#999'}}>未分配</option>
+            <option value={team1Id}>{team1Name || "队伍A"}</option>
+            <option value={team2Id}>{team2Name || "队伍B"}</option>
+          </select>
+        </label>
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11px] text-zinc-500">绑定用户</span>
+          <select
+            value={p.userId || 0}
+            onChange={e => {
+              const uid = Number(e.target.value);
+              const allM = (team1Members || []).concat(team2Members || []);
+              const member = allM.find(m => m.userId === uid);
+              const updated = [...players];
+              if (member) {
+                const inTeam1 = (team1Members || []).some(m => m.userId === uid);
+                updated[globalIdx] = { ...updated[globalIdx], userId: uid, teamId: inTeam1 ? team1Id : team2Id };
+              } else {
+                updated[globalIdx] = { ...updated[globalIdx], userId: 0 };
+              }
+              onChange(updated);
+            }}
+            className={"w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs outline-none " + (p.userId ? "text-white" : "text-amber-300")}
+          >
+            <option value={0}>不绑定</option>
+            {(p.teamId && p.teamId !== 0
+              ? (p.teamId === team1Id ? (team1Members || []) : (team2Members || []))
+              : (team1Members || []).concat(team2Members || [])
+            ).map(m => (
+              <option key={m.userId} value={m.userId}>{m.username}{m.displayName && m.displayName !== m.username ? " (" + m.displayName + ")" : ""}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {columns.map(col => (
+          <label key={col.key} className="block min-w-0 [&_input]:w-full [&_select]:w-full">
+            <span className="mb-1 block truncate text-[11px] text-zinc-500">{col.label}</span>
+            {renderCell(p, globalIdx, col)}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderMobileSection = (teamPlayers: PlayerStatEntry[], label: string) => {
+    if (teamPlayers.length === 0) return null;
+    const startIdx = players.indexOf(teamPlayers[0]);
+    return (
+      <div>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">{label} ({teamPlayers.length}人)</h4>
+        <div className="space-y-2">
+          {teamPlayers.map((p, i) => renderMobileCard(p, startIdx + i))}
+        </div>
+      </div>
+    );
+  };
+
   // Unassigned players (teamId not matching either team)
   const unassignedPlayers = players.filter(p => p.teamId !== team1Id && p.teamId !== team2Id);
 
@@ -213,8 +307,15 @@ export default function GameStatsTable({
       {renderTeamSection(team2Players, team2Name || "队伍 B")}
       {renderTeamSection(unassignedPlayers, "未分配")}
       {players.length === 0 && (
-        <p className="py-8 text-center text-xs text-zinc-500">暂无选手数据</p>
+        <p className="py-8 text-center text-xs text-zinc-500 max-md:py-6">暂无选手数据</p>
       )}
+
+      {/* 移动端卡片视图（容器 md:hidden，桌面端不渲染可见内容） */}
+      <div className="md:hidden space-y-4">
+        {renderMobileSection(team1Players, team1Name || "队伍 A")}
+        {renderMobileSection(team2Players, team2Name || "队伍 B")}
+        {renderMobileSection(unassignedPlayers, "未分配")}
+      </div>
     </div>
   );
 }

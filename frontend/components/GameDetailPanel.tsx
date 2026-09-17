@@ -103,7 +103,7 @@ export default function GameDetailPanel({ games, team1Name, team2Name, team1Id, 
       {/* Image viewer */}
       {enlargedImg && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80" onClick={() => setEnlargedImg(null)}>
-          <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg" alt="截图" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg max-md:max-h-[90dvh]" alt="截图" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         </div>
       )}
     </div>
@@ -112,9 +112,9 @@ export default function GameDetailPanel({ games, team1Name, team2Name, team1Id, 
   function renderTeamTable(teamStats: any[], label: string) {
     if (teamStats.length === 0) return null;
     return (
-      <div className="mb-3 last:mb-0">
+      <div className="mb-3 last:mb-0 max-md:overflow-x-auto">
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">{label} ({teamStats.length}人)</p>
-        <table className="w-full text-xs">
+        <table className="w-full text-xs max-md:min-w-[720px]">
           <thead>
             <tr className="border-b border-zinc-800 text-left text-zinc-500">
               <th className="pb-1.5 pr-2">选手</th>

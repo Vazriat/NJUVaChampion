@@ -40,8 +40,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-      <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
+      <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-8 shadow-2xl max-md:p-4">
         <h1 className="mb-2 text-center text-3xl font-bold text-red-500">VALORANT</h1>
         <p className="mb-8 text-center text-sm text-zinc-400">赛事平台 · 登录</p>
 

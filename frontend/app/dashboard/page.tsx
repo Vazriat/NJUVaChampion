@@ -52,7 +52,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <p className="text-zinc-400">加载中...</p>
       </div>
     );
@@ -60,15 +60,15 @@ export default function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <p className="text-zinc-400">用户信息加载失败</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
+      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4 max-md:px-4">
         <h1 className="text-2xl font-bold text-red-500">VALORANT 赛事平台</h1>
         <div className="flex items-center gap-4">
           <span className="text-zinc-400">{user.displayName || user.displayGameId || user.username}</span>
@@ -79,7 +79,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-8 py-12 relative">
+      <main className="mx-auto max-w-4xl px-8 py-12 relative max-md:px-4">
         {/* 左侧宣传栏 */}
         <div className="hidden lg:block fixed" style={{left:"calc(50% - 760px)",top:"185px",width:"288px",zIndex:10}}>
           <BannerCard />
@@ -98,45 +98,45 @@ export default function DashboardPage() {
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/hall"
-            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🏠</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">用户大厅</h3>
             <p className="mt-1 text-sm text-zinc-500">浏览所有用户，查看个人主页</p>
           </Link>
 
           <Link href="/teams"
-            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🏆</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">战队管理</h3>
             <p className="mt-1 text-sm text-zinc-500">创建战队、查看队员、加入或退出</p>
           </Link>
 
           <Link href={`/profile/${user.id}?from=dashboard`}
-            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">👤</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">我的主页</h3>
             <p className="mt-1 text-sm text-zinc-500">查看个人资料和公开信息</p>
           </Link>
 
-          <Link href="/competitions" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+          <Link href="/competitions" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📋</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">活动报名</h3>
             <p className="mt-1 text-sm text-zinc-500">报名活动，由管理员分组后开赛</p>
           </Link>
 
-          <Link href="/tournaments" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+          <Link href="/tournaments" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🎮</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">赛事中心</h3>
             <p className="mt-1 text-sm text-zinc-500">浏览赛事、报名参赛、查看对阵</p>
           </Link>
 
-          <Link href={"/career/" + user.id} className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+          <Link href={"/career/" + user.id} className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📊</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">个人生涯</h3>
             <p className="mt-1 text-sm text-zinc-500">查看比赛记录、统计数据、历史战绩</p>
           </Link>
 
-          <Link href="/verify" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50">
+          <Link href="/verify" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🪪</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">选手认证</h3>
             <p className="mt-1 text-sm text-zinc-500">认证学生身份，获取认证标识</p>
@@ -162,7 +162,7 @@ export default function DashboardPage() {
 
         <h3 className="mb-4 mt-12 text-sm font-semibold text-zinc-500">账号</h3>
         <Link href="/settings"
-          className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-6 py-4 transition hover:border-red-500/50">
+          className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-6 py-4 transition hover:border-red-500/50 max-md:px-4">
           <div>
             <p className="font-medium">账号设置</p>
             <p className="text-sm text-zinc-500">修改用户名、游戏 ID、邮箱、密码</p>

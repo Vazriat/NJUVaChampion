@@ -1,21 +1,47 @@
-# 使用前：把 your-domain.com 替换为你的域名
-# 1) cp nginx/conf.d/https.conf.example nginx/conf.d/https.conf
-# 2) docker compose exec nginx nginx -s reload
-# 证书按 DEPLOY.md「HTTPS」小节签发
+# ============================================================================
+# HTTPS 配置模板（换域名部署时复制为 https.conf 并替换 your-domain.com）
+#
+#   cp nginx/conf.d/https.conf.example nginx/conf.d/https.conf
+#   sed -i 's/your-domain.com/你的域名/g' nginx/conf.d/https.conf
+#   docker compose exec nginx nginx -t
+#   docker compose exec nginx nginx -s reload
+#
+# 本仓库已附带针对 njuvlr.online 的正式 https.conf，可直接参考。
+# 证书按 DEPLOY.md「HTTPS」小节签发（webroot 方式，nginx 容器需在跑）。
+#
+# 设计要点：apex 为主域名，www 301 到 apex。两个名字签在同一张证书里，
+# 因此 443 的 www 块复用 apex 的证书路径，不必单独签。
+# ============================================================================
+
+# ---------- HTTP：放行 ACME 挑战，其余 301 到 HTTPS ----------
 server {
     listen 80;
     server_name your-domain.com;
+
     location /.well-known/acme-challenge/ { root /var/www/certbot; }
-    location / { return 301 https://$host$request_uri; }
+    location / { return 301 https://your-domain.com$request_uri; }
 }
 
+server {
+    listen 80;
+    server_name www.your-domain.com;
+
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://your-domain.com$request_uri; }
+}
+
+# ---------- HTTPS 主站 ----------
 server {
     listen 443 ssl;
     http2 on;
     server_name your-domain.com;
 
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
 
     location / {
         proxy_pass http://frontend:3000;
@@ -25,4 +51,16 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+}
+
+# ---------- HTTPS：www 301 到主域名 ----------
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name www.your-domain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    return 301 https://your-domain.com$request_uri;
 }

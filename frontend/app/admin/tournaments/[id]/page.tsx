@@ -137,7 +137,7 @@ export default function AdminTournamentDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-white max-md:min-h-dvh">
         <p className="text-zinc-400">加载中...</p>
       </div>
     );
@@ -145,7 +145,7 @@ export default function AdminTournamentDetailPage() {
 
   if (error || !tournament) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-white max-md:min-h-dvh">
         <div className="text-center">
           <p className="text-red-400">{error || "赛事不存在"}</p>
           <button onClick={() => router.replace("/admin?tab=tournaments")}
@@ -160,8 +160,8 @@ export default function AdminTournamentDetailPage() {
   const t = tournament;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
+      <header className="flex items-center justify-between border-b border-zinc-800 px-8 py-4 max-md:px-4">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push("/admin?tab=tournaments")}
             className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-400 transition hover:border-red-500 hover:text-red-400">
@@ -183,7 +183,7 @@ export default function AdminTournamentDetailPage() {
         <div className="mx-8 mt-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>
       )}
 
-      <main className="mx-auto max-w-7xl px-8 py-8 space-y-6">
+      <main className="mx-auto max-w-7xl px-8 py-8 space-y-6 max-md:px-4 max-md:py-6">
         {/* 状态操作 */}
         {t.status === "SETUP" && (
           <button onClick={handlePublish}
@@ -196,7 +196,7 @@ export default function AdminTournamentDetailPage() {
 
         {/* 段位审核 */}
         {t.status === "REGISTRATION" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold">段位审核</p>
               <span className="text-xs text-zinc-500">{rankReview.length} 名选手需更新段位</span>
@@ -229,7 +229,7 @@ export default function AdminTournamentDetailPage() {
 
         {/* 赛程：瑞士轮按轮次展示，淘汰赛用对阵图 */}
         {t.status === "PROGRESSION" && matches.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
             <p className="mb-4 text-sm font-semibold">
               {t.format === "SWISS_ELIM" ? "瑞士轮赛程（点击比赛卡片录入结果）" : "对阵表（点击比赛卡片录入结果）"}
             </p>
@@ -295,7 +295,7 @@ export default function AdminTournamentDetailPage() {
           </div>
         )}
         {t.status === "ENDED" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-center">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-center max-md:p-4">
             {t.championTeamName ? (
               <p className="text-2xl font-bold text-yellow-400">🏆 冠军：{t.championTeamName}</p>
             ) : <p className="text-zinc-500">赛事已结束</p>}
@@ -304,7 +304,7 @@ export default function AdminTournamentDetailPage() {
 
         {/* 瑞士轮排名 */}
         {t.format === "SWISS_ELIM" && swissStandings.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
             <p className="mb-3 text-sm font-semibold">瑞士轮排名</p>
             <div className="grid gap-2 md:grid-cols-2">
               {swissStandings.map((s: any, i: number) => (
@@ -335,7 +335,7 @@ export default function AdminTournamentDetailPage() {
         )}
 
         {/* 赛果申报审核 */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold">赛果申报审核</p>
             <span className="text-xs text-zinc-500">{submissions.length} 条待审核</span>
@@ -375,7 +375,7 @@ export default function AdminTournamentDetailPage() {
 
         {/* 联赛积分 */}
         {(t.format === "SINGLE_RR" || t.format === "DOUBLE_RR") && (t.leagueStandings || []).length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
             <p className="mb-3 text-sm font-semibold">常规赛积分</p>
             <div className="grid gap-2 md:grid-cols-2">
               {(t.leagueStandings || []).map((s: any, i: number) => (
@@ -391,7 +391,7 @@ export default function AdminTournamentDetailPage() {
 
         {/* 报名队伍 */}
         {t.registeredTeams && t.registeredTeams.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
             <p className="mb-3 text-sm font-semibold">报名队伍</p>
             <div className="flex flex-wrap gap-2">
               {t.registeredTeams.map((rt: any) => (
@@ -449,8 +449,8 @@ export default function AdminTournamentDetailPage() {
       )}
 
       {rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <h3 className="mb-3 text-sm font-semibold">驳回申报</h3>
             <p className="mb-3 text-xs text-zinc-500">
               {rejectTarget.team1Name} vs {rejectTarget.team2Name}（裁判：{rejectTarget.refereeName || "#" + rejectTarget.refereeId}）
@@ -477,8 +477,8 @@ export default function AdminTournamentDetailPage() {
       )}
 
       {showBulkAddTeam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold">批量添加队伍</h3>
               <button onClick={() => { setShowBulkAddTeam(false); setSelectedTeamIds([]); }} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -501,7 +501,7 @@ export default function AdminTournamentDetailPage() {
                   );
                 })}
               {allTeamsList.filter((x: any) => x.status === 1 && !(t.registeredTeams || []).some((rt: any) => rt.teamId === x.id)).length === 0 && (
-                <p className="py-8 text-center text-xs text-zinc-500">没有可添加的队伍</p>
+                <p className="py-8 text-center text-xs text-zinc-500 max-md:py-6">没有可添加的队伍</p>
               )}
             </div>
             {selectedTeamIds.length > 0 && (

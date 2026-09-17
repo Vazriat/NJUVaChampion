@@ -47,11 +47,11 @@ Thumbs.db
 *~
 
 # ============ Env & Secrets ============
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# 一次性覆盖 .env / .env.local / .env.bak / .env.production 等所有变体，
+# 避免只写具体文件名时漏掉 .env.bak 这类手工备份（会带出数据库密码）。
+.env*
+!.env.example
+!*.env.example
 *.pem
 
 # ============ Logs ============

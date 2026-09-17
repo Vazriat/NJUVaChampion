@@ -202,7 +202,7 @@ export default function TournamentDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <NavBar />
         <p className="text-zinc-500">加载中...</p>
       </div>
@@ -212,9 +212,9 @@ export default function TournamentDetailPage() {
   if (!tournament) return null;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-7xl px-8 py-10">
+      <main className="mx-auto max-w-7xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-10">
           <div className="flex items-start justify-between gap-6">
             <div className="flex-1">
@@ -241,7 +241,7 @@ export default function TournamentDetailPage() {
         )}
 
         {tournament.status === "ENDED" && tournament.championTeamName && (
-          <div className="mb-10 mx-auto max-w-3xl rounded-2xl border border-yellow-600/30 bg-gradient-to-br from-yellow-600/10 to-transparent p-8 text-center">
+          <div className="mb-10 mx-auto max-w-3xl rounded-2xl border border-yellow-600/30 bg-gradient-to-br from-yellow-600/10 to-transparent p-8 text-center max-md:p-4">
             <div className="text-5xl mb-3">🏆</div>
             <h2 className="text-2xl font-black text-yellow-400">{tournament.championTeamName}</h2>
             <p className="mt-1 text-sm text-zinc-500">冠军队伍</p>
@@ -301,7 +301,7 @@ export default function TournamentDetailPage() {
               <div className="mb-6">
                 <h2 className="text-lg font-semibold mb-4">常规赛积分</h2>
                 <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm max-md:min-w-[720px]">
                     <thead>
                       <tr className="border-b border-zinc-800 bg-zinc-900 text-left text-xs text-zinc-500">
                         <th className="px-4 py-3">排名</th>
@@ -334,10 +334,10 @@ export default function TournamentDetailPage() {
               {playerStatsLoading ? (
                 <p className="py-6 text-center text-sm text-zinc-500">加载中...</p>
               ) : sortedPlayerStats.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-zinc-800 py-8 text-center text-sm text-zinc-500">暂无选手数据</p>
+                <p className="rounded-xl border border-dashed border-zinc-800 py-8 text-center text-sm text-zinc-500 max-md:py-6">暂无选手数据</p>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm max-md:min-w-[720px]">
                     <thead>
                       <tr className="border-b border-zinc-800 bg-zinc-900 text-left text-xs text-zinc-500">
                         <th className="px-4 py-3">#</th>
@@ -427,7 +427,7 @@ export default function TournamentDetailPage() {
               />
             )}
             {tournament.status === "ENDED" && !tournament.championTeamName && (
-              <div className="rounded-xl border border-dashed border-zinc-800 py-10 text-center">
+              <div className="rounded-xl border border-dashed border-zinc-800 py-10 text-center max-md:py-8">
                 <p className="text-sm text-zinc-500">赛事已结束，无冠军</p>
               </div>
             )}
@@ -436,8 +436,8 @@ export default function TournamentDetailPage() {
       </main>
 
       {detailMatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-3xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-3xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[85vh] overflow-y-auto max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">{detailMatch.team1Name || "队伍A"} vs {detailMatch.team2Name || "队伍B"}</h3>
               <button onClick={() => setDetailMatch(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -506,8 +506,8 @@ export default function TournamentDetailPage() {
       )}
 
 {submitChoice && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <h3 className="mb-3 text-sm font-semibold">已有待审核申报</h3>
             <p className="mb-4 text-xs text-zinc-400">
               你已为 {submitChoice.match.team1Name} vs {submitChoice.match.team2Name} 提交过申报
@@ -538,8 +538,8 @@ export default function TournamentDetailPage() {
       )}
 
 {showTeamPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">选择战队</h3>
               <button onClick={() => setShowTeamPicker(false)} className="text-zinc-500 hover:text-white text-xl transition">&times;</button>
