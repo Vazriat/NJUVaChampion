@@ -98,3 +98,13 @@ rank 是保留字，JPA @Column 或 ALTER TABLE 直接使用会报错。
 `MAVEN_HOME` 是 Windows 路径（`C:\apache-maven-3.9.11-bin\...`），Git Bash 下 mvn 脚本拼接出的
 `-classpath` 无法解析，报 `找不到或无法加载主类 org.codehaus.plexus.classworlds.launcher.Launcher`。
 解决：**用 PowerShell 执行 mvn**，不要在 Git Bash 里跑（覆盖 MAVEN_HOME 为 `/c/...` 也无效）。
+
+### 10. 由脚本/Agent 拉起后端时端口被抢占
+若父进程环境里存在 `SERVER__PORT`（部分 Agent 宿主会注入），Spring 的宽松绑定会把它当作
+`server.port` 覆盖 application.yaml，表现为日志里 `Tomcat initialized with port <奇怪端口>`
+然后 `Web server failed to start. Port xxx was already in use`。
+解决：拉起后端时显式覆盖 `SERVER__PORT=8080`（同时注意 `SERVER__HOST`）。
+
+### 11. kill mvn 不会结束它 fork 出的 JVM
+`spring-boot:run` 会 fork 一个 java 子进程，只结束 mvn 进程会让 JVM 继续占着 8080，
+下次启动报端口占用。清理用 `taskkill /PID <pid> /T /F`（带 `/T` 结束整棵进程树）。
