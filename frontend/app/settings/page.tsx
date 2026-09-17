@@ -82,16 +82,16 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <p className="text-zinc-400">加载中...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-xl px-8 py-10">
+      <main className="mx-auto max-w-xl px-8 py-10 max-md:px-4 max-md:py-8">
         <h2 className="mb-8 text-2xl font-bold">账号设置</h2>
 
         {msg && (
@@ -100,7 +100,7 @@ export default function SettingsPage() {
           }`}>{msg}</div>
         )}
 
-        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">当前用户名</label>
           <p className="mb-3 text-lg font-medium">{user?.username}</p>
           <div className="flex gap-3">
@@ -113,7 +113,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">当前游戏 ID</label>
           <p className="text-lg font-medium">{user?.displayGameId || "未设置"}</p>
           <button onClick={async () => {
@@ -136,7 +136,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">显示名称</label>
           <p className="mb-3 text-sm text-zinc-400">当前：{user?.displayName || user?.username || "未设置"}</p>
           <div className="flex gap-3">
@@ -157,7 +157,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">当前邮箱</label>
           <p className="mb-3 text-lg font-medium">{user?.email || "未设置"}</p>
           <div className="flex gap-3">
@@ -170,7 +170,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">联系方式</label>
           <p className="mb-3 text-sm text-zinc-400">{user?.contact || "未设置"}</p>
           <div className="flex gap-3 mb-3">
@@ -193,7 +193,7 @@ export default function SettingsPage() {
           </label>
         </section>
 
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">修改密码</label>
           <p className="mb-3 text-lg font-medium">********</p>
           <div className="space-y-3">

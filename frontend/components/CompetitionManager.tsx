@@ -162,7 +162,7 @@ export default function CompetitionManager() {
       </div>
 
       {loading ? (
-        <p className="py-8 text-center text-zinc-500">加载中...</p>
+        <p className="py-8 text-center text-zinc-500 max-md:py-6">加载中...</p>
       ) : comps.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center">
           <p className="text-sm text-zinc-500">暂无报名活动</p>
@@ -198,8 +198,8 @@ export default function CompetitionManager() {
 
       {/* 创建活动弹窗 */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">创建报名活动</h3>
               <button onClick={() => setShowCreate(false)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -218,8 +218,8 @@ export default function CompetitionManager() {
 
       {/* 管理弹窗 */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-3xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-3xl rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[85vh] overflow-y-auto max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">管理 · {selected.name}</h3>
               <button onClick={() => setSelected(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -351,8 +351,8 @@ export default function CompetitionManager() {
 
       {/* 批量添加队伍弹窗 */}
       {showAddTeams && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold">批量添加队伍</h3>
               <button onClick={() => setShowAddTeams(false)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -375,7 +375,7 @@ export default function CompetitionManager() {
                   );
                 })}
               {allTeamsList.filter((t) => t.status === 1 && !(selected?.registeredTeams || []).some((rt: any) => rt.teamId === t.id)).length === 0 && (
-                <p className="py-8 text-center text-xs text-zinc-500">没有可添加的队伍</p>
+                <p className="py-8 text-center text-xs text-zinc-500 max-md:py-6">没有可添加的队伍</p>
               )}
             </div>
             {selectedTeamIds.length > 0 && (

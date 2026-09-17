@@ -63,13 +63,13 @@ export default function RefereeCenterPage() {
   };
 
   if (loading) {
-    return <div className="min-h-screen bg-zinc-950 text-white"><NavBar /><main className="mx-auto max-w-4xl px-8 py-10"><p className="text-zinc-500">加载中...</p></main></div>;
+    return <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh"><NavBar /><main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8"><p className="text-zinc-500">加载中...</p></main></div>;
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-4xl px-8 py-10">
+      <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">申报中心</h2>
           <span className="text-sm text-zinc-500">赛果申报由管理员审核后生效</span>
@@ -149,7 +149,7 @@ export default function RefereeCenterPage() {
 
       {enlargedImg && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80" onClick={() => setEnlargedImg(null)}>
-          <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg" alt="enlarged" />
+          <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg max-md:max-h-[90dvh]" alt="enlarged" />
         </div>
       )}
     </div>

@@ -199,7 +199,7 @@ export default function CertificationManager() {
 
       {/* ===== 列表 ===== */}
       {loading ? (
-        <p className="py-8 text-center text-zinc-500">加载中...</p>
+        <p className="py-8 text-center text-zinc-500 max-md:py-6">加载中...</p>
       ) : visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center">
           <p className="text-sm text-zinc-500">{hasFilter ? "没有符合筛选条件的认证申请" : "暂无认证记录"}</p>
@@ -247,8 +247,8 @@ export default function CertificationManager() {
 
       {/* ===== 详情弹窗 ===== */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-h-[80vh] overflow-y-auto max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">认证详情</h3>
               <button onClick={() => setSelected(null)} className="text-zinc-500 hover:text-white text-xl">&times;</button>
@@ -337,7 +337,7 @@ export default function CertificationManager() {
 
       {enlargedImg && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80" onClick={() => setEnlargedImg(null)}>
-          <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg" alt="" />
+          <img src={enlargedImg} className="max-h-[90vh] max-w-[90vw] rounded-lg max-md:max-h-[90dvh]" alt="" />
         </div>
       )}
     </div>

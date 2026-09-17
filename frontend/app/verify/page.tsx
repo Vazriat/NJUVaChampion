@@ -111,12 +111,12 @@ export default function VerifyPage() {
     return <span className="text-zinc-600">— 未申请</span>;
   };
 
-  if (loading) return <div className="min-h-screen bg-zinc-950 text-white"><NavBar /><main className="mx-auto max-w-xl px-8 py-10"><p className="text-zinc-500">加载中...</p></main></div>;
+  if (loading) return <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh"><NavBar /><main className="mx-auto max-w-xl px-8 py-10 max-md:px-4 max-md:py-8"><p className="text-zinc-500">加载中...</p></main></div>;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-xl px-8 py-10">
+      <main className="mx-auto max-w-xl px-8 py-10 max-md:px-4 max-md:py-8">
         <h2 className="mb-6 text-2xl font-bold">选手认证</h2>
         {required && (
           <div className="mb-4 rounded-lg border border-red-800 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -165,36 +165,36 @@ export default function VerifyPage() {
                           {st.type === "STUDENT" && <p className="text-xs text-zinc-400">{rec.studentName} · {rec.studentId}{rec.enrollmentYear ? " · " + rec.enrollmentYear + " 年入学" : ""}</p>}
                           {st.type === "ALUMNI" && rec.enrollmentYear && <p className="text-xs text-zinc-400">{rec.enrollmentYear} 年入学</p>}
                           <button onClick={() => handleDelete(rec.id)}
-                            className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
+                            className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20 max-md:px-4 max-md:py-2.5 max-md:text-sm">删除认证</button>
                         </div>
                       )}
                       {rec?.status === "REJECTED" && <p className="mt-1 text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
                       {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && st.type === "STUDENT" && (
                         <div className="mt-2 space-y-2">
                           <input value={form[st.type + "_name"] || ""} onChange={e => setForm({...form, [st.type + "_name"]: e.target.value, _type: st.type})}
-                            placeholder="姓名" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                            placeholder="姓名" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
                           <input value={form[st.type + "_id"] || ""} onChange={e => setForm({...form, [st.type + "_id"]: e.target.value, _type: st.type})}
-                            placeholder="学号" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                            placeholder="学号" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
                           <input type="number" min="1900" max={new Date().getFullYear() + 1}
                             value={form[st.type + "_year"] || ""} onChange={e => setForm({...form, [st.type + "_year"]: e.target.value, _type: st.type})}
-                            placeholder="入学年份（如 2023）" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                            placeholder="入学年份（如 2023）" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
                           <input type="file" accept="image/*" onChange={e => setForm({...form, [st.type + "_xuexin"]: e.target.files?.[0], _type: st.type})}
-                            className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white" />
+                            className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white max-md:text-sm max-md:file:py-2" />
                           <textarea value={form[st.type + "_desc"] || ""} onChange={e => setForm({...form, [st.type + "_desc"]: e.target.value, _type: st.type})}
-                            placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
-                          <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700">提交申请</button>
+                            placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
+                          <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
                         </div>
                       )}
                       {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && st.type === "ALUMNI" && (
                         <div className="mt-2 space-y-2">
                           <input type="number" min="1900" max={new Date().getFullYear() + 1}
                             value={form[st.type + "_year"] || ""} onChange={e => setForm({...form, [st.type + "_year"]: e.target.value, _type: st.type})}
-                            placeholder="入学年份（如 2023）" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
+                            placeholder="入学年份（如 2023）" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
                           <input type="file" accept="image/*" multiple onChange={e => setForm({...form, [st.type + "_evidence"]: Array.from(e.target.files || []), _type: st.type})}
-                            className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white" />
+                            className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white max-md:text-sm max-md:file:py-2" />
                           <textarea value={form[st.type + "_desc"] || ""} onChange={e => setForm({...form, [st.type + "_desc"]: e.target.value, _type: st.type})}
-                            placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
-                          <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700">提交申请</button>
+                            placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
+                          <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
                         </div>
                       )}
                     </div>
@@ -248,9 +248,9 @@ export default function VerifyPage() {
                       </label>
                       <div className="flex gap-2">
                         <button onClick={() => { setUpdatingRank(true); setForm({ ...form, _type: "RANK" }); }}
-                          className="flex-1 rounded border border-blue-700 px-3 py-1 text-xs text-blue-400 hover:bg-blue-600/20">更新段位</button>
+                          className="flex-1 rounded border border-blue-700 px-3 py-1 text-xs text-blue-400 hover:bg-blue-600/20 max-md:py-2.5 max-md:text-sm">更新段位</button>
                         <button onClick={() => handleDelete(rec.id)}
-                          className="flex-1 rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
+                          className="flex-1 rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20 max-md:px-4 max-md:py-2.5 max-md:text-sm">删除认证</button>
                       </div>
                     </div>
                   )}
@@ -259,18 +259,18 @@ export default function VerifyPage() {
                     <div className="space-y-2">
                       {rec?.status === "APPROVED" && (
                         <button onClick={() => setUpdatingRank(false)}
-                          className="text-xs text-zinc-500 hover:text-zinc-300 transition">取消更新</button>
+                          className="text-xs text-zinc-500 hover:text-zinc-300 transition max-md:py-2.5 max-md:text-sm">取消更新</button>
                       )}
                       <select value={form["RANK_rank"] || ""} onChange={e => setForm({...form, "RANK_rank": e.target.value, _type: "RANK"})}
-                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500">
+                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base">
                         <option value="" disabled>请选择段位</option>
                         {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
                       <input type="file" accept="image/*" multiple onChange={e => setForm({...form, "RANK_evidence": Array.from(e.target.files || [])})}
-                        className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white" />
+                        className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white max-md:text-sm max-md:file:py-2" />
                       <textarea value={form["RANK_desc"] || ""} onChange={e => setForm({...form, "RANK_desc": e.target.value})}
-                        placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
-                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700">提交申请</button>
+                        placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
+                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
                     </div>
                   )}
                 </div>
@@ -300,7 +300,7 @@ export default function VerifyPage() {
                     <div className="space-y-2">
                       {rec.description && <p className="text-xs text-zinc-400">{rec.description}</p>}
                       <button onClick={() => handleDelete(rec.id)}
-                        className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20">删除认证</button>
+                        className="rounded border border-red-700 px-3 py-1 text-xs text-red-400 hover:bg-red-600/20 max-md:px-4 max-md:py-2.5 max-md:text-sm">删除认证</button>
                     </div>
                   )}
                   {rec?.status === "REJECTED" && <p className="text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
@@ -308,8 +308,8 @@ export default function VerifyPage() {
                     <div className="space-y-2">
                       <textarea value={form["REFEREE_desc"] || ""} onChange={e => setForm({...form, "REFEREE_desc": e.target.value, _type: "REFEREE"})}
                         placeholder="说明（如裁判经验、资质等）" rows={3}
-                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500" />
-                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700">提交申请</button>
+                        className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
+                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
                     </div>
                   )}
                 </div>

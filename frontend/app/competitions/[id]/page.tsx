@@ -75,7 +75,7 @@ export default function CompetitionDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <NavBar />
         <p className="text-zinc-500">加载中...</p>
       </div>
@@ -89,9 +89,9 @@ export default function CompetitionDetailPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-5xl px-8 py-10">
+      <main className="mx-auto max-w-5xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold">{comp.name}</h1>
@@ -170,8 +170,8 @@ export default function CompetitionDetailPage() {
       </main>
 
       {showPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h3 className="text-lg font-bold">选择战队</h3>
               <button onClick={() => setShowPicker(false)} className="text-zinc-500 hover:text-white text-xl transition">&times;</button>

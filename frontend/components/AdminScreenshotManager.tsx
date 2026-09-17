@@ -202,7 +202,7 @@ export default function ScreenshotManager() {
 
       {/* 列表 */}
       {loading ? (
-        <p className="py-8 text-center text-zinc-500">加载中...</p>
+        <p className="py-8 text-center text-zinc-500 max-md:py-6">加载中...</p>
       ) : screenshots.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-800 py-16 text-center">
           <p className="text-sm text-zinc-500">暂无截图</p>
@@ -260,7 +260,7 @@ export default function ScreenshotManager() {
       {/* 大图查看 */}
       {enlarged && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80" onClick={() => setEnlarged(null)}>
-          <img src={enlarged} className="max-h-[90vh] max-w-[90vw] rounded-lg" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <img src={enlarged} className="max-h-[90vh] max-w-[90vw] rounded-lg max-md:max-h-[90dvh]" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         </div>
       )}
     </div>

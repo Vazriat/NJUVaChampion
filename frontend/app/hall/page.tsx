@@ -26,9 +26,9 @@ export default function HallPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-4xl px-8 py-10">
+      <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
         <h2 className="mb-4 text-2xl font-bold">用户大厅</h2>
         <input
           type="text"

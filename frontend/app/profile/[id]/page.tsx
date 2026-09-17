@@ -31,7 +31,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <NavBar />
         <p className="text-zinc-500">加载中...</p>
       </div>
@@ -40,7 +40,7 @@ export default function ProfilePage() {
 
   if (error || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 max-md:min-h-dvh">
         <NavBar />
         <div className="text-center">
           <p className="text-red-400">{error || "用户不存在"}</p>
@@ -50,9 +50,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-2xl px-8 py-12">
+      <main className="mx-auto max-w-2xl px-8 py-12 max-md:px-4">
         <div className="mb-10 flex items-center gap-6">
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-red-600/20 text-4xl font-bold text-red-400">
             {(user.displayGameId || user.username).charAt(0).toUpperCase()}
@@ -131,7 +131,7 @@ export default function ProfilePage() {
         {isSelf && (
           <div className="mt-10 text-center">
             <Link href="/settings"
-              className="inline-block rounded-lg border border-zinc-700 px-6 py-2 text-sm text-zinc-400 transition hover:border-red-500 hover:text-red-400">
+              className="inline-block rounded-lg border border-zinc-700 px-6 py-2 text-sm text-zinc-400 transition hover:border-red-500 hover:text-red-400 max-md:px-4">
               编辑个人信息
             </Link>
           </div>

@@ -170,6 +170,55 @@ function buildConnectorPaths(byRound, keys, yMap) {
   }
   return paths;
 }
+// Mobile fallback: matches grouped by round, stacked vertically.
+// The 864px-wide absolute-positioned tree is unreadable on a phone (the淘汰赛
+// promotion relationship is lost once you have to scroll), so mobile gets a
+// per-round list instead. Reuses groupByRound/getRoundLabel above.
+function renderBracketList(matches: any, label: any, onMatchClick: any) {
+  var grouped = groupByRound(matches);
+  var byRound = grouped.byRound;
+  var keys = grouped.keys;
+  if (keys.length === 0) return null;
+
+  return React.createElement("div", { className: "space-y-5" },
+    label ? React.createElement("h3", { className: "text-xs font-bold uppercase tracking-wider text-zinc-400" }, label) : null,
+    keys.map(function(r, ri) {
+      var ms = byRound[r] || [];
+      var roundLabel = getRoundLabel(ms, ri, keys, label);
+      var isFinal = ri === keys.length - 1 && ms.length === 1;
+      return React.createElement("section", { key: r },
+        React.createElement("h4", { className: "mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-500" },
+          isFinal && label !== "胜者组" && label !== "败者组" ? "总决赛" : roundLabel,
+          isFinal ? React.createElement("span", { className: "ml-2 text-[10px] text-yellow-500" }, "🏆") : null
+        ),
+        React.createElement("div", { className: "space-y-2" },
+          ms.map(function(m) {
+            var isComplete = m.status === "COMPLETED";
+            var hasBothTeams = m.team1Id && m.team2Id;
+            var w1 = m.winnerId === m.team1Id;
+            var w2 = m.winnerId === m.team2Id;
+            return React.createElement("button", {
+              key: m.id,
+              onClick: function() { if (hasBothTeams && onMatchClick) onMatchClick(m); },
+              className: "w-full rounded-lg border p-3 text-left transition " +
+                (isComplete ? "border-green-700/50 bg-green-900/15" : "border-zinc-700/60 bg-zinc-800/80") +
+                (hasBothTeams ? " cursor-pointer" : " cursor-default")
+            },
+              React.createElement("div", { className: "flex items-center justify-between text-sm " + (w1 ? "text-green-300" : "text-zinc-300") },
+                React.createElement("span", { className: "truncate font-medium" }, m.team1Name || "待定"),
+                w1 ? React.createElement("span", { className: "ml-2 shrink-0 text-[10px] font-bold text-green-400" }, "W") : null
+              ),
+              React.createElement("div", { className: "mt-1.5 flex items-center justify-between text-sm " + (w2 ? "text-green-300" : "text-zinc-500") },
+                React.createElement("span", { className: "truncate font-medium" }, m.team2Name || "待定"),
+                w2 ? React.createElement("span", { className: "ml-2 shrink-0 text-[10px] font-bold text-green-400" }, "W") : null
+              )
+            );
+          })
+        )
+      );
+    })
+  );
+}
 // Render one stage as a horizontal bracket tree
 function StageBracket(props: any) {
   var label = props.label;
@@ -275,7 +324,13 @@ export default function BracketTree(props: any) {
   if (format !== "DOUBLE_ELIM" || stageKeys.length <= 1) {
     var sorted = sortMatchesByRoundPos(matches);
     var isLeague = format === "SINGLE_RR" || format === "DOUBLE_RR";
-    return React.createElement(StageBracket, { matches: sorted, onMatchClick: onMatchClick, label: isLeague ? "常规赛" : null });
+    var stageLabel = isLeague ? "常规赛" : null;
+    return React.createElement(React.Fragment, null,
+      React.createElement(StageBracket, { matches: sorted, onMatchClick: onMatchClick, label: stageLabel }),
+      React.createElement("div", { className: "md:hidden" },
+        renderBracketList(sorted, stageLabel, onMatchClick)
+      )
+    );
   }
 
   // For double elimination
@@ -288,11 +343,20 @@ export default function BracketTree(props: any) {
   if (lb.length > 0) sections.push({ label: "\u8d25\u8005\u7ec4", data: lb });
   if (gf.length > 0) sections.push({ label: "\u603b\u51b3\u8d5b", data: gf });
 
-  return React.createElement("div", { className: "space-y-10" },
-    sections.map(function(sec) {
-      return React.createElement("div", { key: sec.label },
-        React.createElement(StageBracket, { label: sec.label, matches: sec.data, onMatchClick: onMatchClick })
-      );
-    })
+  return React.createElement(React.Fragment, null,
+    React.createElement("div", { className: "space-y-10" },
+      sections.map(function(sec) {
+        return React.createElement("div", { key: sec.label },
+          React.createElement(StageBracket, { label: sec.label, matches: sec.data, onMatchClick: onMatchClick })
+        );
+      })
+    ),
+    React.createElement("div", { className: "md:hidden space-y-8" },
+      sections.map(function(sec) {
+        return React.createElement("div", { key: sec.label },
+          renderBracketList(sec.data, sec.label, onMatchClick)
+        );
+      })
+    )
   );
 }

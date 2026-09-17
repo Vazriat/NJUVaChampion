@@ -97,8 +97,8 @@ export default function CreateTournamentModal({ onClose, onSuccess }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 max-md:items-end">
+      <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">创建赛事</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-white text-xl">&times;</button>

@@ -24,3 +24,43 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ============================================================
+   移动端专属样式（视口 < 768px）
+   全部包在媒体查询内，桌面端不匹配该条件，渲染结果零影响。
+   ============================================================ */
+@media (max-width: 767px) {
+  /* 防止 iOS 横屏时自动放大字体 */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* 移动端字体栈。
+     桌面端保持原有 Arial 声明不变（见上方 body 规则），此处仅补上
+     Geist 变量与中文字体回退。 */
+  body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--font-geist-sans), system-ui, -apple-system,
+                 "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  /* iOS Safari 在输入框字号小于 16px 时，聚焦会自动放大整个页面且不缩回。
+     必须用 !important 覆盖各处的 text-xs / text-sm 等工具类。 */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* iPhone 刘海 / 灵动岛 / Home 指示条安全区。
+     仅被带 md:hidden 的移动端专属元素引用。 */
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}

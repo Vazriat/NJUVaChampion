@@ -27,9 +27,9 @@ export default function TeamsPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
       <NavBar />
-      <main className="mx-auto max-w-5xl px-8 py-10">
+      <main className="mx-auto max-w-5xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-8 flex items-center justify-between">
           <h2 className="text-2xl font-bold">全部战队</h2>
           <Link
@@ -55,7 +55,7 @@ export default function TeamsPage() {
             <Link
               key={team.id}
               href={`/teams/${team.id}`}
-              className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50"
+              className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4"
             >
               <div className="mb-3 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-lg font-bold text-red-400">
