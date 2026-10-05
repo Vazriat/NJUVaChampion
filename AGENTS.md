@@ -193,3 +193,22 @@ curl -sk -o /dev/null -w '443 -> %{http_code}\n' https://<公网IP>/
 ```
 
 修复：腾讯云控制台 → 轻量应用服务器 → 该实例 → 防火墙 → 放行 TCP 443。详见 DEPLOY.md 6.1。
+
+### 15. mvn 输出被管道吞掉：编译成功却看起来像静默失败
+
+在 PowerShell 工具里执行 `mvn ... | Select-String -Pattern "ERROR|BUILD"` 或
+`$out = mvn ... | Out-String` 时，**拿到的输出可能是空的**——即使构建实际成功。
+表现为 `Status: completed` 但 stdout 为 `(no output)`，很容易误判成 mvn 没跑或构建挂了。
+
+判定：不要靠管道判断，先落盘再读。
+
+```powershell
+Set-Location backend
+mvn -DskipTests compile *> compile-out.txt
+Get-Content compile-out.txt -Tail 40
+```
+
+补充两点：
+- Maven 增量编译下，第二次执行会输出 `Nothing to compile - all classes are up to date.`
+  这是**正常**的（第一次已编译成功），不是失败。
+- 想确认新文件真的编译过，直接查 `target/classes/**` 里对应 `.class` 的时间戳，比看日志可靠。

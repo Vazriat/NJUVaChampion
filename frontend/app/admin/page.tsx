@@ -12,8 +12,9 @@ import AdminAnnouncementManager from "@/components/AdminAnnouncementManager";
 import CertificationManager from "@/components/AdminCertificationManager";
 import TeamRatingManager from "@/components/TeamRatingManager";
 import CompetitionManager from "@/components/CompetitionManager";
+import AdminRecruitmentManager from "@/components/AdminRecruitmentManager";
 
-type Tab = "overview" | "users" | "teams" | "ratings" | "competitions" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements";
+type Tab = "overview" | "users" | "teams" | "ratings" | "competitions" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements" | "recruitments";
 
 interface AdminUser {
   id: number; username: string; gameId: string | null; displayGameId: string | null;
@@ -65,7 +66,7 @@ export default function AdminPage() {
     const u = getUser();
     if (u?.role !== "ADMIN") { router.replace("/dashboard"); return; }
     const tabParam = new URLSearchParams(window.location.search).get("tab");
-    if (tabParam && ["overview", "users", "teams", "ratings", "competitions", "tournaments", "screenshots", "certifications", "banners", "announcements"].includes(tabParam)) {
+    if (tabParam && ["overview", "users", "teams", "ratings", "competitions", "tournaments", "screenshots", "certifications", "banners", "announcements", "recruitments"].includes(tabParam)) {
       setTab(tabParam as Tab);
     }
     fetchData();
@@ -247,7 +248,7 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-6xl px-8 py-8 max-md:px-4 max-md:py-6">
         <div className="mb-8 flex gap-6 border-b border-zinc-800 max-md:-mx-4 max-md:gap-4 max-md:overflow-x-auto max-md:px-4">
-          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"], ["recruitments", "人才市场"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`pb-3 text-sm font-medium transition border-b-2  max-md:whitespace-nowrap max-md:min-h-11 max-md:px-1 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
           ))}
@@ -473,6 +474,10 @@ export default function AdminPage() {
 
         {tab === "announcements" && (
           <AdminAnnouncementManager />
+        )}
+
+        {tab === "recruitments" && (
+          <AdminRecruitmentManager />
         )}
 
         {editUser && (

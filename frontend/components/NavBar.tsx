@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { removeToken, getUser, isIdentityVerified, setUser as persistUser, getRefereeMode, setRefereeMode } from "@/lib/auth";
-import { authApi } from "@/lib/api";
+import { removeToken, getUser, isLoggedIn, isIdentityVerified, setUser as persistUser, getRefereeMode, setRefereeMode } from "@/lib/auth";
+import { authApi, notificationApi } from "@/lib/api";
 
 export default function NavBar() {
   const pathname = usePathname();
@@ -12,6 +12,7 @@ export default function NavBar() {
   const [user, setUser] = useState(getUser());
   const [refereeMode, setRefereeModeState] = useState(getRefereeMode());
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const handler = (e: Event) => setRefereeModeState((e as CustomEvent).detail === true);
@@ -29,9 +30,17 @@ export default function NavBar() {
     }).catch(() => {});
   }, []);
 
-  // 路由变化时关闭移动端抽屉，避免返回后残留
+  // 路由变化时关闭移动端抽屉，避免返回后残留；同时刷新未读消息数
+  // 注意：此处的"消息"指 user_notifications（定向投递），与 announcements（广播公告）是两套独立系统，
+  // 既有广播通知在 /announcements 与 dashboard 右侧栏，命名上刻意区分，避免用户混淆。
   useEffect(() => {
     setDrawerOpen(false);
+    if (isLoggedIn()) {
+      notificationApi
+        .unreadCount()
+        .then((res) => setUnreadCount(res.data.data?.count ?? 0))
+        .catch(() => {});
+    }
   }, [pathname]);
 
   if (!mounted || !user || pathname.startsWith("/admin") || ["/", "/login", "/register"].includes(pathname)) {
@@ -46,6 +55,7 @@ export default function NavBar() {
     ? [
         { href: "/hall", label: "用户大厅" },
         { href: "/teams", label: "战队管理" },
+        { href: "/recruit", label: "人才市场" },
         { href: "/competitions", label: "活动报名" },
         { href: "/tournaments", label: "赛事中心" },
         { href: "/verify", label: "认证中心" },
@@ -95,6 +105,19 @@ export default function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4 max-md:hidden">
+          {verified && (
+            <Link
+              href="/notifications"
+              className="flex items-center gap-1.5 text-sm text-zinc-400 transition hover:text-white"
+            >
+              消息
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-red-600 px-1.5 text-[10px] font-medium text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
           <Link
             href={`/profile/${user.id}`}
             className="text-sm text-zinc-400 hover:text-white transition"
@@ -164,6 +187,21 @@ export default function NavBar() {
                 </Link>
               ))}
             </nav>
+
+            {verified && (
+              <Link
+                href="/notifications"
+                onClick={() => setDrawerOpen(false)}
+                className="mt-4 flex min-h-11 items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm font-medium text-zinc-300 transition hover:border-red-500"
+              >
+                <span>消息</span>
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-medium text-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {user.referee && (
               <button

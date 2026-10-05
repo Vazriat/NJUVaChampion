@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
-import { publicUserApi, UserVO } from "@/lib/api";
+import RecruitmentPostCard from "@/components/RecruitmentPostCard";
+import { publicUserApi, recruitmentPostApi, teamApi, UserVO, RecruitmentPostVO } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
 
 export default function ProfilePage() {
@@ -13,9 +14,22 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserVO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // 该用户当前 OPEN 的人才市场帖子（队长至多一条招募帖，未入队者至多一条求职帖）
+  const [posts, setPosts] = useState<RecruitmentPostVO[]>([]);
+  // 我是某队队长时的队伍 id，用于在别人主页上直接发起邀请
+  const [myTeamId, setMyTeamId] = useState<number | null>(null);
 
   const currentUser = getUser();
   const isSelf = currentUser?.id === Number(id);
+  // 未入队 → 可发求职帖；是队长 → 可发招募帖；在队但不是队长 → 两者都不行
+  const canPublish = !user?.team || user.team.role === "CAPTAIN";
+
+  const loadPosts = useCallback(() => {
+    recruitmentPostApi
+      .list({ userId: Number(id) })
+      .then((res) => setPosts(res.data.data || []))
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     if (!isLoggedIn()) {
@@ -27,7 +41,20 @@ export default function ProfilePage() {
       .then((res) => setUser(res.data.data))
       .catch((err) => setError(err.response?.data?.message || "用户不存在"))
       .finally(() => setLoading(false));
-  }, [id, router]);
+
+    loadPosts();
+
+    // 只在看别人的主页时才需要"我带哪支队"（自己主页不需要邀请自己）
+    if (!isSelf) {
+      teamApi
+        .myCaptainedTeams()
+        .then((res) => {
+          const teams = res.data.data || [];
+          setMyTeamId(teams.length > 0 ? teams[0].id : null);
+        })
+        .catch(() => {});
+    }
+  }, [id, router, isSelf, loadPosts]);
 
   if (loading) {
     return (
@@ -125,6 +152,53 @@ export default function ProfilePage() {
               </div>
               <span className="text-zinc-600 group-hover:text-red-400">→</span>
             </Link>
+          </>
+        )}
+
+        {/* 人才市场：别人在这里能直接看到你在招人/找工作，并当场发起邀请或申请 */}
+        {(posts.length > 0 || isSelf) && (
+          <>
+            <h3 className="mb-4 mt-10 text-sm font-semibold text-zinc-500">
+              人才市场
+            </h3>
+            {posts.length > 0 ? (
+              <div className="space-y-3">
+                {posts.map((p) => (
+                  <RecruitmentPostCard
+                    key={p.id}
+                    post={p}
+                    myTeamId={myTeamId}
+                    onChanged={loadPosts}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-zinc-800 px-5 py-6 text-center">
+                <p className="text-sm text-zinc-500">
+                  {canPublish
+                    ? "你还没有发布招募或求职信息"
+                    : "你已在战队中且不是队长，无法替队伍发布招募"}
+                </p>
+                {canPublish && (
+                  <Link
+                    href="/recruit/new"
+                    className="mt-3 inline-block text-sm text-red-500 hover:underline"
+                  >
+                    去发布一条信息 →
+                  </Link>
+                )}
+              </div>
+            )}
+            {isSelf && (
+              <div className="mt-4 text-center">
+                <Link
+                  href="/recruit/mine"
+                  className="text-sm text-zinc-400 transition hover:text-red-400"
+                >
+                  我的申请与发布 →
+                </Link>
+              </div>
+            )}
           </>
         )}
 

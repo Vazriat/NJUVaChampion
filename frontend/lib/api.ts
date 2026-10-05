@@ -106,8 +106,12 @@ export const teamApi = {
   myCaptainedTeams: () => api.get("/teams/captain"),
   getMatches: (id: number) => api.get("/teams/" + id + "/matches"),
   detail: (id: number) => api.get(`/teams/${id}`),
+  // 入队已改为审批制：join 现在提交一条入队申请，返回申请记录
   join: (id: number) => api.post(`/teams/${id}/join`),
   leave: (id: number) => api.post(`/teams/${id}/leave`),
+  applications: (id: number) => api.get(`/teams/${id}/applications`),
+  dismissMember: (teamId: number, userId: number) =>
+    api.delete(`/teams/${teamId}/members/${userId}`),
 };
 
 export interface TeamVO {
@@ -137,6 +141,75 @@ export interface MemberVO {
   displayName: string;
   role: string;
   joinedAt: string;
+}
+
+// ====== 人才市场帖子 ======
+export const recruitmentPostApi = {
+  list: (params?: { type?: string; keyword?: string; userId?: number; teamId?: number }) =>
+    api.get("/recruitment-posts", { params }),
+  mine: () => api.get("/recruitment-posts/mine"),
+  detail: (id: number) => api.get(`/recruitment-posts/${id}`),
+  create: (data: { type: string; content: string }) => api.post("/recruitment-posts", data),
+  update: (id: number, content: string) => api.put(`/recruitment-posts/${id}`, { content }),
+  close: (id: number) => api.delete(`/recruitment-posts/${id}`),
+};
+
+export interface RecruitmentPostVO {
+  id: number;
+  type: "TEAM" | "PLAYER";
+  teamId: number | null;
+  teamName: string | null;
+  userId: number;
+  displayName: string;
+  username: string | null;
+  content: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string | null;
+  mine: boolean;
+  canApply: boolean;
+  applicationStatus: string | null;
+  applicationId: number | null;
+}
+
+// ====== 入队申请与邀请 ======
+export const teamApplicationApi = {
+  create: (data: {
+    type: string;
+    teamId: number;
+    targetUserId?: number;
+    postId?: number;
+    content?: string;
+  }) => api.post("/team-applications", data),
+  // 我收到的
+  inbox: () => api.get("/team-applications/inbox"),
+  // 我发起的
+  mine: () => api.get("/team-applications/mine"),
+  accept: (id: number) => api.post(`/team-applications/${id}/accept`),
+  reject: (id: number) => api.post(`/team-applications/${id}/reject`),
+  // 撤回：选手撤回自己的入队申请 / 队长撤回自己发出的邀请
+  cancel: (id: number) => api.delete(`/team-applications/${id}`),
+};
+
+export interface TeamApplicationVO {
+  id: number;
+  type: "APPLY" | "INVITE";
+  teamId: number;
+  teamName: string | null;
+  teamCaptainId: number | null;
+  postId: number | null;
+  initiatorUserId: number;
+  initiatorName: string;
+  initiatorUsername: string | null;
+  targetUserId: number;
+  targetName: string;
+  targetUsername: string | null;
+  content: string | null;
+  status: string;
+  handledAt: string | null;
+  createdAt: string;
+  canHandle: boolean;
+  canCancel: boolean;
 }
 
 // ====== 管理员接口 ======
@@ -408,6 +481,33 @@ export const adminRankReviewApi = {
   passCompetitionUser: (competitionId: number, userId: number) => api.post(`/admin/competitions/${competitionId}/rank-review/pass`, { userId }),
   unpassCompetitionUser: (competitionId: number, userId: number) => api.delete(`/admin/competitions/${competitionId}/rank-review/pass`, { params: { userId } }),
 }
+
+// ====== 定向通知（发给本人的消息） ======
+export const notificationApi = {
+  list: () => api.get("/notifications"),
+  unreadCount: () => api.get("/notifications/unread-count"),
+  markRead: (id: number) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post("/notifications/read-all"),
+};
+
+export interface UserNotificationVO {
+  id: number;
+  type: string;
+  title: string;
+  content: string | null;
+  refType: string | null;
+  refId: number | null;
+  readFlag: boolean;
+  createdAt: string;
+}
+
+// ====== 管理员人才市场管理 ======
+export const adminRecruitmentPostApi = {
+  list: (params?: { type?: string; status?: string; keyword?: string }) =>
+    api.get("/admin/recruitment-posts", { params }),
+  /** 下架：置 CLOSED 并通知作者 */
+  takeDown: (id: number) => api.post(`/admin/recruitment-posts/${id}/take-down`),
+};
 
 export interface Announcement {
   id: number; title: string; content?: string; priority: string; status: string;

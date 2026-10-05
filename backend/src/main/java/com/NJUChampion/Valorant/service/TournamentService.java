@@ -722,6 +722,11 @@ public class TournamentService {
             throw new IllegalArgumentException("只有队长可以报名参赛");
         }
 
+        // 队伍本身不设人数上限（可有替补），但参赛至少需要 5 人才能凑齐一局
+        if (teamMemberRepository.countByTeamId(teamId) < TeamService.ROSTER_SIZE) {
+            throw new IllegalArgumentException("战队人数不足 " + TeamService.ROSTER_SIZE + " 人，无法报名参赛");
+        }
+
         long count = tournamentTeamRepository.countByTournamentId(tournamentId);
         if (count >= tournament.getMaxTeams()) {
             throw new IllegalArgumentException("报名已满");
