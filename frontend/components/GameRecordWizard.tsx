@@ -274,30 +274,47 @@ export default function GameRecordWizard({
         return g;
       });
 
-      // Call OCR
+      // Call OCR（60 秒超时；失败时回落为空白表，裁判仍可手动录入）
       setLoading(true);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       try {
         const ocrRes = await fetch("/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ base64: base64Data }),
+          signal: controller.signal,
         });
-        if (!ocrRes.ok) throw new Error("OCR request failed: " + ocrRes.status);
-        const ocrData = await ocrRes.json();
 
-        if (ocrData.success && ocrData.players) {
-          let mapped: PlayerStatEntry[] = ocrData.players.map((p: any) => ({
+        // 服务端失败时返回 { success:false, error:"..." }，优先展示它给出的中文原因
+        let ocrData: any = null;
+        try {
+          ocrData = await ocrRes.json();
+        } catch {
+          ocrData = null;
+        }
+        if (!ocrRes.ok) {
+          throw new Error(ocrData?.error || "OCR 服务返回 " + ocrRes.status);
+        }
+
+        if (ocrData?.success && Array.isArray(ocrData.players)) {
+          // 归一化：agent 只接受非空字符串（OCR 可能给出 -1 或 null）；
+          // 数值字段的 -1 表示"未识别"，统一转成 null，避免污染生涯统计。
+          const toStatNumber = (v: any) =>
+            typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+
+          const mapped: PlayerStatEntry[] = ocrData.players.map((p: any) => ({
             userId: 0,
-            playerName: p.name || "",
+            playerName: typeof p.name === "string" ? p.name.trim() : "",
             userName: "",
             teamId: 0,
             stats: {
-              agent: p.agent || "",
-              acs: p.acs ?? null,
-              kills: p.kda?.kills ?? null,
-              deaths: p.kda?.deaths ?? null,
-              assists: p.kda?.assists ?? null,
-              firstBlood: p.firstKill ?? null,
+              agent: typeof p.agent === "string" ? p.agent.trim() : "",
+              acs: toStatNumber(p.acs),
+              kills: toStatNumber(p.kda?.kills),
+              deaths: toStatNumber(p.kda?.deaths),
+              assists: toStatNumber(p.kda?.assists),
+              firstBlood: toStatNumber(p.firstKill),
             },
           }));
 
@@ -308,10 +325,14 @@ export default function GameRecordWizard({
             return g;
           });
         } else {
-          setError("OCR returned no player data");
+          setError("OCR 未识别出任何玩家，请重试或手动录入");
         }
       } catch (err: any) {
-        setError("OCR识别失败: " + (err.message || "") + "。可以手动输入");
+        if (err?.name === "AbortError") {
+          setError("OCR 识别超时（60 秒），请重试或手动录入");
+        } else {
+          setError("OCR 识别失败：" + (err?.message || "未知错误") + "。可以手动录入");
+        }
         const emptyPlayers: PlayerStatEntry[] = [];
         for (let i = 0; i < 10; i++) {
           emptyPlayers.push({
@@ -326,6 +347,7 @@ export default function GameRecordWizard({
           return g;
         });
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };

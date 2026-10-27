@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { AGENTS } from "@/lib/agents";
 
 interface PlayerStat {
   playerName?: string;
@@ -32,10 +33,6 @@ interface GameDetailPanelProps {
   team1Id?: number;
   team2Id?: number;
 }
-
-const AGENTS = ["K/O","幽影","壹决","夜露","星礈","贤者","维斯","铁臂","钛狐",
-  "斯凯","尚勃勒","芮娜","奇乐","霓虹","暮蝶","迷核","零","猎枭",
-  "炼狱","雷兹","蝰蛇","禁灭","捷风","幻棱","黑梦","海神","钢索","盖可","不死鸟"];
 
 function isAgent(s: string) { return AGENTS.includes(s); }
 

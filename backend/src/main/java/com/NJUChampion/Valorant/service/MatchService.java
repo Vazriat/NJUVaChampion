@@ -97,8 +97,7 @@ public class MatchService {
         playerGameStatRepository.deleteByGameId(gameId);
         if (req.getPlayerStats() != null) {
             for (RecordGameRequest.PlayerStatEntry entry : req.getPlayerStats()) {
-                Map<String, Object> stats = entry.getStats();
-                if (stats == null) stats = new HashMap<>();
+                Map<String, Object> stats = normalizeStats(entry.getStats());
                 PlayerGameStat stat = PlayerGameStat.builder()
                         .gameId(gameId)
                         .userId(entry.getUserId())
@@ -225,8 +224,9 @@ public class MatchService {
                         Long userId = pm.get("userId") instanceof Number n ? n.longValue() : null;
                         Long teamId = pm.get("teamId") instanceof Number n ? n.longValue() : null;
                         @SuppressWarnings("unchecked")
-                        Map<String, Object> stats = pm.get("stats") instanceof Map<?, ?> sm
-                                ? (Map<String, Object>) sm : new HashMap<>();
+                        Map<String, Object> stats = normalizeStats(
+                                pm.get("stats") instanceof Map<?, ?> sm
+                                        ? (Map<String, Object>) sm : null);
                         playerGameStatRepository.save(PlayerGameStat.builder()
                                 .gameId(game.getId())
                                 .userId(userId)
@@ -362,6 +362,52 @@ public class MatchService {
         }
     }
 
+
+    /**
+     * 归一化 OCR / 手工录入的 stats，保证入库数据干净：
+     * - agent 只保留非空字符串。OCR 曾用 -1 表示"未识别"，若存成数字，
+     *   CareerService 读取时会 ClassCastException。
+     * - acs / kills / deaths / assists / firstBlood 的负数视为"未识别"，直接移除该键，
+     *   而不是存 -1——否则会被当成真实数据计入平均。
+     * - 字符串数字统一转成数值。
+     */
+    private static Map<String, Object> normalizeStats(Map<String, Object> stats) {
+        Map<String, Object> normalized = new HashMap<>();
+        if (stats == null) {
+            return normalized;
+        }
+        normalized.putAll(stats);
+
+        Object agent = normalized.get("agent");
+        if (agent instanceof String s && !s.isBlank()) {
+            normalized.put("agent", s.trim());
+        } else {
+            normalized.remove("agent");
+        }
+
+        for (String key : new String[]{"acs", "kills", "deaths", "assists", "firstBlood"}) {
+            Object value = normalized.get(key);
+            if (value instanceof Number n) {
+                if (n.doubleValue() < 0) {
+                    normalized.remove(key);
+                }
+            } else if (value instanceof String str) {
+                try {
+                    double v = Double.parseDouble(str.trim());
+                    if (v < 0) {
+                        normalized.remove(key);
+                    } else {
+                        normalized.put(key, v);
+                    }
+                } catch (NumberFormatException e) {
+                    normalized.remove(key);
+                }
+            } else {
+                normalized.remove(key);
+            }
+        }
+        return normalized;
+    }
 
     private TournamentMatch getMatch(Long matchId) {
         return matchRepository.findById(matchId)

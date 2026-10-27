@@ -298,26 +298,24 @@ for (const [k, v] of Object.entries(REF_COLUMNS)) {
 
 
 // ===== Valorant 特工名称列表 =====
-const AGENT_NAMES = [
-  'K/O','幽影','壹决','夜露','星礈','贤者','维斯','铁臂','钛狐',
-  '斯凯','尚勃勒','芮娜','奇乐','霓虹','暮蝶','迷核','零','猎枭',
-  '炼狱','雷兹','蝰蛇','禁灭','捷风','幻棱','黑梦','海神','钢索','盖可','不死鸟'
-];
+// 特工清单：唯一源是 shared/agents.json，本文件由 `node scripts/sync-agents.mjs` 生成。
+// 增删特工只改源文件，不要直接改 agents.js。
+const AGENT_NAMES = require('./agents');
 
 /**
  * 从 IGN+agent 组合文字中提取 agent 名称，返回 {agent, ign}
- * 如果找不到 agent，agent = -1
+ * 如果找不到 agent，agent = null
  */
 function extractAgent(rawName) {
-  if (!rawName) return { agent: -1, ign: rawName || '' };
+  if (!rawName) return { agent: null, ign: rawName || '' };
   const trimmed = rawName.trim();
 
   // 按空格分割
   const parts = trimmed.split(/\s+/);
 
-  // 没有空格 → 整段都是 IGN，agent = -1
+  // 没有空格 → 整段都是 IGN，agent = null
   if (parts.length < 2) {
-    return { agent: -1, ign: trimmed };
+    return { agent: null, ign: trimmed };
   }
 
   // 有空格 → 取最后一段作为可能的 agent 名
@@ -362,7 +360,7 @@ function extractAgent(rawName) {
   }
 
   // 3. 实在找不到
-  return { agent: -1, ign: trimmed };
+  return { agent: null, ign: trimmed };
 }
 module.exports = {
   detectScoreboardRegion,

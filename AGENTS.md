@@ -212,3 +212,98 @@ Get-Content compile-out.txt -Tail 40
 - Maven 增量编译下，第二次执行会输出 `Nothing to compile - all classes are up to date.`
   这是**正常**的（第一次已编译成功），不是失败。
 - 想确认新文件真的编译过，直接查 `target/classes/**` 里对应 `.class` 的时间戳，比看日志可靠。
+
+### 16. dev server 只有 `/` 能访问，其它路由全部 404（.next 缓存损坏）
+
+**症状**：`next dev` 起来后，`http://localhost:3000/` 返回 200，但 `/login`、`/dashboard`、
+`/teams`……**所有子路由全部 404**。而且 404 是**瞬间返回**的（~0.03s），
+说明路由匹配器直接判定"无此路由"，根本没有尝试编译——不是懒编译时序问题，
+重复请求也不会变好。
+
+**根因**：`frontend/.next` 里同时躺着两种东西：
+- 一份旧的**生产构建**（`BUILD_ID`、`routes-manifest.json`、`prerender-manifest.json`、
+  `server/app/*.html`），来自某次 `next build` 或 `docker compose build`
+- 本次 dev 会话的 `.next/dev/`
+
+两者混用会得到一个损坏的路由表。判定方法是比对条目数：
+
+```bash
+cd frontend
+# dev 认为存在的路由
+python -c "import json;print(len(json.load(open('.next/dev/server/app-paths-manifest.json',encoding='utf-8'))))"
+# 磁盘上真实存在的路由
+ls app/ | wc -l
+```
+
+实测出现过 11 条 vs 20 个路由的严重缺失，且**缺失是散落的**（少了 announcements、
+career、competitions、profile、referee、tournaments、verify），不是从头截断——
+这是"路由表损坏"而非"扫描中断"的特征。
+
+**先排除代码问题**：确认线上站同一路由是 200（`curl -sk -o /dev/null -w '%{http_code}'
+https://njuvlr.online/login`）。线上正常即证明代码没问题，是本地缓存。
+
+**修复**：停 dev server → 重命名 `.next`（**用重命名，不要 rm，见第 12 条**）→ 重启。
+
+```powershell
+# 1. 结束 dev server 整棵进程树（npm run dev -> next dev -> start-server）
+Get-NetTCPConnection -LocalPort 3000 -State Listen | Select-Object -Expand OwningProcess -Unique |
+  ForEach-Object { taskkill /PID $_ /T /F }
+# 2. 重命名缓存
+Rename-Item frontend\.next frontend\.next-stale-<日期>
+# 3. 重启
+cd frontend; npm run dev
+```
+
+重启后日志里应能看到 `Compiling /login ...` 和 `GET /login 200`。
+
+**预防**：不要在同一个工作副本里交替跑 `next dev` 和 `next build`（Docker 构建、
+本地打包）而不清缓存。切换之前先重命名 `.next`。
+
+### 17. 英雄（特工）清单只能改唯一源，不要直接改使用处
+
+特工清单在三处被使用：
+
+| 位置 | 用途 |
+|------|------|
+| `valorant-ocr/region-detector.js` | 从 IGN 文本里剥离特工名 |
+| `frontend/components/GameStatsTable.tsx` | 录入界面的特工下拉框 |
+| `frontend/components/GameDetailPanel.tsx` | 详情页判断某字符串是不是特工名 |
+
+**唯一数据源是 `shared/agents.json`**，另两份是生成出来的：
+
+- `valorant-ocr/agents.js`
+- `frontend/lib/agents.ts`
+
+增删特工**只改 `shared/agents.json`**，然后执行：
+
+```bash
+node scripts/sync-agents.mjs          # 重新生成两份副本
+node scripts/sync-agents.mjs --check  # 只校验；不一致时退出码 1
+```
+
+直接改生成文件会在下次同步时被覆盖，且三份会静默漂移。
+
+**为什么不用"两边引用同一个文件"**：`docker-compose.yml` 里 frontend 与 ocr 的
+build context 分别是 `./frontend` 和 `./valorant-ocr`，仓库根目录的 `shared/` 两个镜像
+都拿不到。要让两边共享同一物理文件，必须改 build context + 两个 Dockerfile 的 COPY 路径，
+风险高于"生成副本 + 一致性校验"。
+
+### 18. `stats_json` 里的 `-1` 是"未识别"，不是数据
+
+OCR 曾用 `-1` 表示某个字段没识别出来。这些值如果被当成真实数据求和/求平均，
+会**静默拉低生涯统计**（实测历史数据里 firstBlood 有 15/30 条是 -1），
+而且 `agent` 若存成数字 `-1`，`(String)` 强转会直接抛 `ClassCastException`。
+
+现在的约定：
+
+- **写**：前端把负数/空值归一化为 `null`；后端 `MatchService.normalizeStats()`
+  在落库前再兜底一次（负数直接删掉该键）
+- **读**：`CareerService.nonNegativeNumber()` 把缺失/非数字/负数一律视为无效，
+  **每一项指标各自统计有效场次与有效回合**，不共用一个分母
+- **新增字段**：不要再引入 `-1` 这类带语义的哨兵值，统一用"键缺失"表示未知
+
+> **例外，不要"修"**：`result-parser.js` 里 `player.agent = lines[1] || '零'` 的兜底是
+> **产品上确认保留的**。`零` 是真实特工（Cypher），不是脏数据。
+> 不同解析策略对"没识别出特工"的处理本就不同：
+> `row-wise`（默认）返回 `null`，`full-column` / `per-player-crop` 回落 `'零'`。
+
