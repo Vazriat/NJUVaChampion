@@ -7,6 +7,7 @@ import GameRecordWizard from "@/components/GameRecordWizard";
 import { resultSubmissionApi, authApi } from "@/lib/api";
 import { setUser as persistUser } from "@/lib/auth";
 import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
+import { useConfirm } from "@/components/DialogProvider";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "审核中", APPROVED: "已通过", REJECTED: "已驳回", CANCELLED: "已撤销",
@@ -19,6 +20,7 @@ const STATUS_CLASS: Record<string, string> = {
 };
 
 export default function RefereeCenterPage() {
+  const ask = useConfirm();
   const router = useRouter();
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,8 @@ export default function RefereeCenterPage() {
   };
 
   const handleCancel = async (id: number) => {
-    if (!confirm("确定撤销该申报？撤销后需要重新申报。")) return;
+    const ok = await ask({ title: "撤销申报", message: "确定撤销该申报？撤销后需要重新申报。", okText: "确认撤销", danger: true });
+    if (!ok) return;
     try {
       await resultSubmissionApi.cancel(id);
       setMsg("申报已撤销");

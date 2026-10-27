@@ -6,6 +6,7 @@ import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import { competitionApi, teamApi } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
+import { useConfirm } from "@/components/DialogProvider";
 
 const STATUS_MAP: Record<string, string> = {
   SETUP: "筹备中",
@@ -14,6 +15,7 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export default function CompetitionDetailPage() {
+  const ask = useConfirm();
   const { id } = useParams();
   const router = useRouter();
   const [comp, setComp] = useState<any>(null);
@@ -62,7 +64,8 @@ export default function CompetitionDetailPage() {
   };
 
   const handleUnregister = async (teamId: number) => {
-    if (!confirm("确定取消报名？")) return;
+    const ok = await ask({ title: "取消报名", message: "确定取消报名？", okText: "确认取消", danger: true });
+    if (!ok) return;
     try {
       await competitionApi.unregister(Number(id), teamId);
       setMsg("已取消报名");

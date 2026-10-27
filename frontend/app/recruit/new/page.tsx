@@ -6,10 +6,12 @@ import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import { recruitmentPostApi, teamApi } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
+import { useNotify } from "@/components/DialogProvider";
 
 type Mode = "TEAM" | "PLAYER" | "NONE" | null;
 
 export default function RecruitNewPage() {
+  const notify = useNotify();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(null);
   const [teamName, setTeamName] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export default function RecruitNewPage() {
 
   const submit = async () => {
     if (!content.trim()) {
-      alert("请填写内容");
+      notify("请填写内容", "error");
       return;
     }
     if (mode !== "TEAM" && mode !== "PLAYER") return;
@@ -51,7 +53,7 @@ export default function RecruitNewPage() {
       await recruitmentPostApi.create({ type: mode, content: content.trim() });
       router.push("/recruit");
     } catch (err: any) {
-      alert(err.response?.data?.message || "发布失败");
+      notify(err.response?.data?.message || "发布失败", "error");
     } finally {
       setSubmitting(false);
     }

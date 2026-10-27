@@ -2,8 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { adminBannerApi } from "@/lib/api";
+import { useConfirm } from "@/components/DialogProvider";
 
 export default function AdminBannerManager() {
+  const ask = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [edit, setEdit] = useState<any>({ title: "", type: "IMAGE", content: "", imageUrl: "", linkUrl: "", sortOrder: 0, active: true });
@@ -29,7 +31,8 @@ export default function AdminBannerManager() {
   };
 
   const del = async (id: number) => {
-    if (!confirm("确定删除？")) return;
+    const ok = await ask({ title: "删除轮播图", message: "确定删除该轮播图？", okText: "确认删除", danger: true });
+    if (!ok) return;
     try { await adminBannerApi.delete(id); setMsg("已删除"); setTimeout(() => setMsg(""), 2000); load(); }
     catch { setMsg("删除失败"); }
   };

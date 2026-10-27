@@ -11,6 +11,7 @@ import {
   TeamApplicationVO,
 } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 
 function statusText(status: string) {
   switch (status) {
@@ -76,16 +77,37 @@ export default function RecruitMinePage() {
     load();
   }, [router, load]);
 
+  const ask = useConfirm();
+  const notify = useNotify();
+
   const run = async (id: number, fn: () => Promise<any>, failMsg: string) => {
     setBusyId(id);
     try {
       await fn();
       load();
     } catch (err: any) {
-      alert(err.response?.data?.message || failMsg);
+      notify(err.response?.data?.message || failMsg, "error");
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleReject = async (id: number) => {
+    const ok = await ask({ title: "拒绝申请", message: "确认拒绝该申请？", okText: "确认拒绝", danger: true });
+    if (!ok) return;
+    run(id, () => teamApplicationApi.reject(id), "操作失败");
+  };
+
+  const handleCancel = async (id: number) => {
+    const ok = await ask({ title: "撤回申请", message: "撤回后可以申请其它战队。", okText: "确认撤回" });
+    if (!ok) return;
+    run(id, () => teamApplicationApi.cancel(id), "撤回失败");
+  };
+
+  const handleClosePost = async (id: number) => {
+    const ok = await ask({ title: "关闭招募信息", message: "关闭后不再出现在人才市场。", okText: "确认关闭" });
+    if (!ok) return;
+    run(id, () => recruitmentPostApi.close(id), "关闭失败");
   };
 
   const pendingApplyCount = inbox.filter(
@@ -179,10 +201,7 @@ export default function RecruitMinePage() {
                         <button
                           type="button"
                           disabled={busyId === app.id}
-                          onClick={() => {
-                            if (!confirm("确认拒绝？")) return;
-                            run(app.id, () => teamApplicationApi.reject(app.id), "操作失败");
-                          }}
+                          onClick={() => handleReject(app.id)}
                           className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50 max-md:min-h-11"
                         >
                           拒绝
@@ -248,10 +267,7 @@ export default function RecruitMinePage() {
                       <button
                         type="button"
                         disabled={busyId === app.id}
-                        onClick={() => {
-                          if (!confirm("确认撤回？撤回后可以申请其它战队。")) return;
-                          run(app.id, () => teamApplicationApi.cancel(app.id), "撤回失败");
-                        }}
+                        onClick={() => handleCancel(app.id)}
                         className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50 max-md:min-h-11"
                       >
                         撤回
@@ -312,10 +328,7 @@ export default function RecruitMinePage() {
                       <button
                         type="button"
                         disabled={busyId === post.id}
-                        onClick={() => {
-                          if (!confirm("确认关闭这条信息？关闭后不再出现在人才市场。")) return;
-                          run(post.id, () => recruitmentPostApi.close(post.id), "关闭失败");
-                        }}
+                        onClick={() => handleClosePost(post.id)}
                         className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50 max-md:min-h-11"
                       >
                         关闭

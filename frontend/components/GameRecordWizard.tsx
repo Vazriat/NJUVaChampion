@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import GameStatsTable, { PlayerStatEntry, StatColumnDef } from "./GameStatsTable";
 import { matchApi, teamApi } from "@/lib/api";
+import { useConfirm } from "./DialogProvider";
 
 // Column definitions for player stats table
 // Add/remove keys here to show/hide columns without backend changes
@@ -73,6 +74,21 @@ export default function GameRecordWizard({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [team1Members, setTeam1Members] = useState<{userId:number;username:string;displayName:string}[]>([]);
   const [team2Members, setTeam2Members] = useState<{userId:number;username:string;displayName:string}[]>([]);
+  const ask = useConfirm();
+
+  /** 清空已录入的小局数据，回到第一步。两处入口共用。 */
+  const handleClearGames = async () => {
+    const ok = await ask({
+      title: "清空重录",
+      message: "将删除现有小局数据与比分，确定继续？",
+      okText: "清空重录",
+      danger: true,
+    });
+    if (!ok) return;
+    setGames([]);
+    setInitDone(false);
+    setStep(1);
+  };
   const currentGameIdxRef = useRef(currentGameIdx);
   useEffect(() => { currentGameIdxRef.current = currentGameIdx; }, [currentGameIdx]);
 
@@ -525,13 +541,7 @@ export default function GameRecordWizard({
             {/* 顶部工具条 */}
             <div className="flex items-center justify-between">
               <p className="text-xs text-zinc-500">已录入 {games.filter(g => g.saved).length}/{games.length} 局</p>
-              <button onClick={() => {
-                if (confirm("清空重录将删除现有小局数据与比分，确定继续？")) {
-                  setGames([]);
-                  setInitDone(false);
-                  setStep(1);
-                }
-              }}
+              <button onClick={handleClearGames}
                 className="text-xs text-zinc-500 hover:text-zinc-300 transition">
                 清空重录（删除现有数据）
               </button>
@@ -717,9 +727,15 @@ export default function GameRecordWizard({
 
             {/* 跳过小局录入，直接录大比分 */}
             <div className="flex justify-center pt-1">
-              <button onClick={() => {
+              <button onClick={async () => {
                 if (games.some(g => !g.saved && (g.screenshotFile || g.screenshotBase64 || g.editedStats.length > 0))) {
-                  if (!confirm("有未保存的小局数据，跳过将不记录这些数据，比赛将以总比分完结。确定继续？")) return;
+                  const ok = await ask({
+                    title: "跳过小局录入",
+                    message: "有未保存的小局数据，跳过将不记录这些数据，比赛将以总比分完结。确定继续？",
+                    okText: "仍然跳过",
+                    danger: true,
+                  });
+                  if (!ok) return;
                 }
                 setStep(3);
               }}
@@ -775,13 +791,7 @@ export default function GameRecordWizard({
                   ← 返回小局修改
                 </button>
               )}
-              <button onClick={() => {
-                if (confirm("清空重录将删除现有小局数据与比分，确定继续？")) {
-                  setGames([]);
-                  setInitDone(false);
-                  setStep(1);
-                }
-              }}
+              <button onClick={handleClearGames}
                 className="text-xs text-zinc-500 hover:text-zinc-300 transition">
                 清空重录
               </button>

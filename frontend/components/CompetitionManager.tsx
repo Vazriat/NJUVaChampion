@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { adminApi, adminCompetitionApi, adminRankReviewApi, competitionApi } from "@/lib/api";
+import { useConfirm } from "@/components/DialogProvider";
 
 const FORMAT_OPTIONS = [
   { value: "SINGLE_ELIM", label: "单败淘汰" },
@@ -18,6 +19,7 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export default function CompetitionManager() {
+  const ask = useConfirm();
   const [comps, setComps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
@@ -87,7 +89,13 @@ export default function CompetitionManager() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("确定删除该活动？仅删除报名记录，已分组的子赛事保留。")) return;
+    const ok = await ask({
+      title: "删除活动",
+      message: "仅删除报名记录，已分组的子赛事保留。",
+      okText: "确认删除",
+      danger: true,
+    });
+    if (!ok) return;
     try { await adminCompetitionApi.delete(id); showMsg("已删除"); setSelected(null); load(); }
     catch (e: any) { showMsg(e.response?.data?.message || "删除失败"); }
   };
@@ -122,7 +130,8 @@ export default function CompetitionManager() {
 
   const handleRemoveTeam = async (teamId: number) => {
     if (!selected) return;
-    if (!confirm("确定移除该队伍？")) return;
+    const ok = await ask({ title: "移除队伍", message: "确定移除该队伍？", okText: "确认移除", danger: true });
+    if (!ok) return;
     try {
       await adminCompetitionApi.unregister(selected.id, teamId);
       showMsg("已移除");

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { teamApplicationApi, RecruitmentPostVO } from "@/lib/api";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 
 /**
  * 人才市场帖子卡片。自包含：内部处理"申请加入 / 邀请入队"的确认与请求，
@@ -17,6 +18,8 @@ export default function RecruitmentPostCard({
   onChanged: () => void;
 }) {
   const [acting, setActing] = useState(false);
+  const ask = useConfirm();
+  const notify = useNotify();
 
   const statusLabel = (status: string | null) => {
     switch (status) {
@@ -35,19 +38,18 @@ export default function RecruitmentPostCard({
 
   const handleApply = async () => {
     if (!post.teamId) return;
-    if (
-      !confirm(
-        `确认申请加入「${post.teamName}」？\n注意：同一时间只能有一支战队的入队申请待处理。`
-      )
-    ) {
-      return;
-    }
+    const ok = await ask({
+      title: "申请加入战队",
+      message: `确认申请加入「${post.teamName}」？\n注意：同一时间只能有一支战队的入队申请待处理。`,
+      okText: "确认申请",
+    });
+    if (!ok) return;
     setActing(true);
     try {
       await teamApplicationApi.create({ type: "APPLY", teamId: post.teamId, postId: post.id });
       onChanged();
     } catch (err: any) {
-      alert(err.response?.data?.message || "操作失败");
+      notify(err.response?.data?.message || "操作失败", "error");
     } finally {
       setActing(false);
     }
@@ -55,12 +57,15 @@ export default function RecruitmentPostCard({
 
   const handleInvite = async () => {
     if (myTeamId == null) {
-      alert("你需要先带领一支战队才能发起邀请");
+      notify("你需要先带领一支战队才能发起邀请", "error");
       return;
     }
-    if (!confirm(`确认邀请「${post.displayName}」加入你的战队？`)) {
-      return;
-    }
+    const ok = await ask({
+      title: "邀请入队",
+      message: `确认邀请「${post.displayName}」加入你的战队？`,
+      okText: "发送邀请",
+    });
+    if (!ok) return;
     setActing(true);
     try {
       await teamApplicationApi.create({
@@ -71,7 +76,7 @@ export default function RecruitmentPostCard({
       });
       onChanged();
     } catch (err: any) {
-      alert(err.response?.data?.message || "操作失败");
+      notify(err.response?.data?.message || "操作失败", "error");
     } finally {
       setActing(false);
     }

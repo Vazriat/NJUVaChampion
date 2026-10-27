@@ -8,6 +8,7 @@ import { adminApi, adminTournamentApi, adminRankReviewApi } from "@/lib/api";
 import GameRecordWizard from "@/components/GameRecordWizard";
 import { adminResultSubmissionApi } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
+import { useConfirm } from "@/components/DialogProvider";
 
 const STATUS_MAP: Record<string, string> = {
   SETUP: "筹备中", REGISTRATION: "报名中", PROGRESSION: "进行中", ENDED: "已结束",
@@ -19,6 +20,7 @@ const FORMAT_LABEL: Record<string, string> = {
 };
 
 export default function AdminTournamentDetailPage() {
+  const ask = useConfirm();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [tournament, setTournament] = useState<any>(null);
@@ -99,7 +101,8 @@ export default function AdminTournamentDetailPage() {
   };
 
   const handleRemoveTeam = async (teamId: number) => {
-    if (!confirm("确定从赛事中移除该队伍？")) return;
+    const ok = await ask({ title: "移除参赛队伍", message: "确定从赛事中移除该队伍？", okText: "确认移除", danger: true });
+    if (!ok) return;
     try {
       const token = localStorage.getItem("token");
       await fetch("/api/admin/tournaments/" + tournament.id + "/unregister", {

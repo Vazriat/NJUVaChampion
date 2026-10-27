@@ -37,6 +37,40 @@ npm start
 - 数据库：JPA 自动建表（ddl-auto: update）
 - .gitignore 已配置 target/, node_modules/, .next/, IDE 文件
 
+### 弹窗与提示：禁止使用浏览器原生 API（必须遵守）
+
+**禁止**在 `frontend/app/**` 与 `frontend/components/**` 里写 `window.confirm()` /
+`window.alert()` / `window.prompt()`。原生对话框由浏览器绘制，CSS 完全无法干预：
+标题是「域名 + 显示」（localhost:3000 显示 / njuvlr.online 显示）、按钮只能是「确定/取消」、
+样式与本项目深色红色主题彻底割裂，移动端还会走系统弹窗。
+
+统一入口是 `components/DialogProvider.tsx`（已挂在 `app/layout.tsx`）：
+
+```tsx
+import { useConfirm, useNotify } from "@/components/DialogProvider";
+
+const ask = useConfirm();
+const notify = useNotify();
+
+const ok = await ask({
+  title: "彻底删除用户",
+  message: "将同时删除其战队关系、认证和生涯数据，此操作不可恢复！",
+  okText: "确认删除",
+  danger: true,       // 不可恢复的操作必须置 true
+});
+if (!ok) return;      // 不要写 if (!await ask(...))，可读性差且易漏括号
+
+notify(err.response?.data?.message || "操作失败", "error");
+```
+
+要点：
+- `ask()` 返回 `Promise<boolean>`，**调用它的函数必须是 async**（inline `onClick={async () => {}}` 也可以）。
+- 局部变量一律命名 `ask`，**不要命名为 `confirm`**——一旦同名遮蔽全局 `confirm`，
+  漏改的旧调用点会变成「Promise 恒为真值」，`if (!confirm(...))` 的前置判断会静默失效。
+- `danger: true` 用于删除/移除/解散/清空/覆盖类操作，主按钮改用深红实心。
+- 提示用 `notify()`，不要再用页面里的 `setMsg` 临时横幅。
+- Provider 已内建同文案去重：双击按钮不会排队弹出第二个确认框。
+
 ## 注意事项与已知坑
 
 ### 中文乱码（编码问题）

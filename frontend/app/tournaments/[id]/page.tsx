@@ -11,6 +11,7 @@ import TournamentNotificationManager from "@/components/TournamentNotificationMa
 import { tournamentApi, teamApi, matchApi, resultSubmissionApi, authApi } from "@/lib/api";
 import GameRecordWizard from "@/components/GameRecordWizard";
 import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 
 const STATUS_MAP = {
   SETUP: "筹备中",
@@ -65,6 +66,8 @@ export default function TournamentDetailPage() {
   const [editSubmission, setEditSubmission] = useState<any>(null);
 
   const currentUser = getUser();
+  const ask = useConfirm();
+  const notify = useNotify();
 
   // 申报入口：跟踪本次申报，避免无提示重复申报
   const openSubmitWizard = (m: any) => setSubmitMatch(m);
@@ -84,11 +87,17 @@ export default function TournamentDetailPage() {
       return;
     }
     if (m.hasPendingSubmission) {
-      alert("该比赛已有裁判申报待审核，无法重复申报");
+      notify("该比赛已有裁判申报待审核，无法重复申报", "error");
       return;
     }
     if (mine && mine.status === "APPROVED") {
-      if (!confirm("该场已有通过审核的申报，重新申报审核通过后将覆盖现有结果。确定继续？")) return;
+      const ok = await ask({
+        title: "重新申报",
+        message: "该场已有通过审核的申报，重新申报审核通过后将覆盖现有结果。确定继续？",
+        okText: "继续申报",
+        danger: true,
+      });
+      if (!ok) return;
     }
     openSubmitWizard(m);
   };
@@ -172,7 +181,8 @@ export default function TournamentDetailPage() {
       (rt: any) => currentUser.id && rt.teamId
     );
     if (!myTeam) return;
-    if (!confirm("确定取消报名？")) return;
+    const ok = await ask({ title: "取消报名", message: "确定取消报名？", okText: "确认取消", danger: true });
+    if (!ok) return;
     try {
       await tournamentApi.unregister(tournament!.id, myTeam.teamId);
       setMsg("已取消报名");

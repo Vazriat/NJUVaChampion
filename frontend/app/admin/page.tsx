@@ -13,6 +13,7 @@ import CertificationManager from "@/components/AdminCertificationManager";
 import TeamRatingManager from "@/components/TeamRatingManager";
 import CompetitionManager from "@/components/CompetitionManager";
 import AdminRecruitmentManager from "@/components/AdminRecruitmentManager";
+import { useConfirm } from "@/components/DialogProvider";
 
 type Tab = "overview" | "users" | "teams" | "ratings" | "competitions" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements" | "recruitments";
 
@@ -60,6 +61,7 @@ export default function AdminPage() {
   const [searching, setSearching] = useState(false);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
+  const ask = useConfirm();
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace("/login"); return; }
@@ -105,25 +107,39 @@ export default function AdminPage() {
   };
 
   const handleDeleteUser = async (id: number) => {
-    if (!confirm("确定禁用该用户？")) return;
+    const ok = await ask({ title: "禁用用户", message: "确定禁用该用户？", okText: "确认禁用", danger: true });
+    if (!ok) return;
     try { await adminApi.deleteUser(id); showMsg("用户已禁用"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
   const handleDeleteTeam = async (id: number) => {
-    if (!confirm("确定解散该战队？")) return;
+    const ok = await ask({ title: "解散战队", message: "确定解散该战队？", okText: "确认解散", danger: true });
+    if (!ok) return;
     try { await adminApi.deleteTeam(id); showMsg("战队已解散"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
   const handlePurgeUser = async (id: number) => {
-    if (!confirm("确定彻底删除该用户？将同时删除其战队关系、认证和生涯数据，此操作不可恢复！")) return;
+    const ok = await ask({
+      title: "彻底删除用户",
+      message: "将同时删除其战队关系、认证和生涯数据，此操作不可恢复！",
+      okText: "确认删除",
+      danger: true,
+    });
+    if (!ok) return;
     try { await adminApi.purgeUser(id); showMsg("用户已彻底删除"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "删除失败"); }
   };
 
   const handlePurgeTeam = async (id: number) => {
-    if (!confirm("确定彻底删除该战队？仅当战队没有未删除的赛事记录时才可执行，此操作不可恢复！")) return;
+    const ok = await ask({
+      title: "彻底删除战队",
+      message: "仅当战队没有未删除的赛事记录时才可执行，此操作不可恢复！",
+      okText: "确认删除",
+      danger: true,
+    });
+    if (!ok) return;
     try { await adminApi.purgeTeam(id); showMsg("战队已彻底删除"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "删除失败"); }
   };
@@ -146,7 +162,8 @@ export default function AdminPage() {
   };
 
   const handleDeleteTournament = async (id: number) => {
-    if (!confirm("确定删除该赛事？此操作不可恢复！")) return;
+    const ok = await ask({ title: "删除赛事", message: "确定删除该赛事？此操作不可恢复！", okText: "确认删除", danger: true });
+    if (!ok) return;
     try { await adminTournamentApi.delete(id); showMsg("赛事已删除"); fetchTournaments(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import GameDetailPanel from "@/components/GameDetailPanel";
 import RecruitmentPostCard from "@/components/RecruitmentPostCard";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 import { teamApi, matchApi, teamApplicationApi, recruitmentPostApi, TeamVO, TeamApplicationVO, RecruitmentPostVO } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
 import Link from "next/link";
@@ -53,6 +54,9 @@ export default function TeamDetailPage() {
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [expandedMatchId, setExpandedMatchId] = useState<number | null>(null);
   const [matchDetailCache, setMatchDetailCache] = useState<Record<number, any>>({});
+
+  const ask = useConfirm();
+  const notify = useNotify();
 
   const currentUser = getUser();
   const isMember = team?.members?.some((m) => m.userId === currentUser?.id);
@@ -115,27 +119,36 @@ export default function TeamDetailPage() {
   }, [id, router]);
 
   const handleJoin = async () => {
-    if (!confirm(`确认申请加入「${team?.name}」？\n注意：同一时间只能有一支战队的入队申请待处理。`)) return;
+    const ok = await ask({
+      title: "申请加入战队",
+      message: `确认申请加入「${team?.name}」？\n注意：同一时间只能有一支战队的入队申请待处理。`,
+      okText: "确认申请",
+    });
+    if (!ok) return;
     setActionLoading(true);
     try {
       await teamApi.join(Number(id));
       fetchTeam();
       fetchMyApplication();
     }
-    catch (err: any) { alert(err.response?.data?.message || "操作失败"); }
+    catch (err: any) { notify(err.response?.data?.message || "操作失败", "error"); }
     finally { setActionLoading(false); }
   };
 
   const handleLeave = async () => {
-    if (!confirm("确认退出该战队？")) return;
+    const ok = await ask({ title: "退出战队", message: "确认退出该战队？", okText: "确认退出", danger: true });
+    if (!ok) return;
     setActionLoading(true);
     try { await teamApi.leave(Number(id)); router.push("/teams"); }
-    catch (err: any) { alert(err.response?.data?.message || "操作失败"); }
+    catch (err: any) { notify(err.response?.data?.message || "操作失败", "error"); }
     finally { setActionLoading(false); }
   };
 
   const handleApplication = async (appId: number, action: "accept" | "reject") => {
-    if (action === "reject" && !confirm("确认拒绝该申请？")) return;
+    if (action === "reject") {
+      const ok = await ask({ title: "拒绝申请", message: "确认拒绝该申请？", okText: "确认拒绝", danger: true });
+      if (!ok) return;
+    }
     setProcessingId(appId);
     try {
       if (action === "accept") {
@@ -145,18 +158,31 @@ export default function TeamDetailPage() {
       }
       fetchTeam();
     }
-    catch (err: any) { alert(err.response?.data?.message || "操作失败"); }
+    catch (err: any) { notify(err.response?.data?.message || "操作失败", "error"); }
     finally { setProcessingId(null); }
   };
 
   const handleDismiss = async (userId: number, name: string) => {
-    if (!confirm(`确认将「${name}」踢出战队？`)) return;
+    const ok = await ask({ title: "踢出战队", message: `确认将「${name}」踢出战队？`, okText: "确认踢出", danger: true });
+    if (!ok) return;
     setProcessingId(userId);
     try {
       await teamApi.dismissMember(Number(id), userId);
       fetchTeam();
     }
-    catch (err: any) { alert(err.response?.data?.message || "操作失败"); }
+    catch (err: any) { notify(err.response?.data?.message || "操作失败", "error"); }
+    finally { setProcessingId(null); }
+  };
+
+  const handleCancelInvite = async (appId: number) => {
+    const ok = await ask({ title: "撤回邀请", message: "确认撤回该邀请？", okText: "确认撤回" });
+    if (!ok) return;
+    setProcessingId(appId);
+    try {
+      await teamApplicationApi.cancel(appId);
+      fetchTeam();
+    }
+    catch (err: any) { notify(err.response?.data?.message || "撤回失败", "error"); }
     finally { setProcessingId(null); }
   };
 
@@ -316,17 +342,7 @@ export default function TeamDetailPage() {
                           <button
                             type="button"
                             disabled={processingId === app.id}
-                            onClick={() => {
-                              if (!confirm("确认撤回该邀请？")) return;
-                              setProcessingId(app.id);
-                              teamApplicationApi
-                                .cancel(app.id)
-                                .then(() => fetchTeam())
-                                .catch((err: any) =>
-                                  alert(err.response?.data?.message || "撤回失败")
-                                )
-                                .finally(() => setProcessingId(null));
-                            }}
+                            onClick={() => handleCancelInvite(app.id)}
                             className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50 max-md:min-h-11"
                           >
                             撤回

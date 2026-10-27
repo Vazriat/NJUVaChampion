@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { notificationApi, UserNotificationVO } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
+import { useNotify } from "@/components/DialogProvider";
 
 function typeLabel(type: string) {
   switch (type) {
@@ -51,6 +52,7 @@ function targetHref(n: UserNotificationVO) {
 }
 
 export default function NotificationsPage() {
+  const notify = useNotify();
   const router = useRouter();
   const [items, setItems] = useState<UserNotificationVO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,7 @@ export default function NotificationsPage() {
       await notificationApi.markAllRead();
       load();
     } catch {
-      alert("操作失败");
+      notify("操作失败", "error");
     }
   };
 

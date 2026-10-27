@@ -2,8 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { screenshotApi, tournamentApi } from "@/lib/api";
+import { useConfirm } from "@/components/DialogProvider";
 
 export default function ScreenshotManager() {
+  const ask = useConfirm();
   const [screenshots, setScreenshots] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,8 @@ export default function ScreenshotManager() {
   useEffect(() => { load("all"); }, []);
 
   const handleDelete = async (gameId: number) => {
-    if (!confirm("确定删除该截图？")) return;
+    const ok = await ask({ title: "删除截图", message: "确定删除该截图？", okText: "确认删除", danger: true });
+    if (!ok) return;
     try {
       await screenshotApi.delete(gameId);
       setMsg("截图已删除");
@@ -66,7 +69,13 @@ export default function ScreenshotManager() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm("确定删除选中的 " + selectedIds.size + " 张截图？")) return;
+    const ok = await ask({
+      title: "批量删除截图",
+      message: `确定删除选中的 ${selectedIds.size} 张截图？`,
+      okText: "确认删除",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await screenshotApi.batchDelete(Array.from(selectedIds));
       setMsg("已删除 " + selectedIds.size + " 张截图");

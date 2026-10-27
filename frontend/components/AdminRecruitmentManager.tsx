@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { adminRecruitmentPostApi } from "@/lib/api";
+import { useConfirm } from "@/components/DialogProvider";
 
 const TYPE_LABEL: Record<string, string> = { TEAM: "队伍招募", PLAYER: "选手求职" };
 const STATUS_LABEL: Record<string, string> = { OPEN: "招募中", CLOSED: "已关闭" };
@@ -11,6 +12,7 @@ const STATUS_CLASS: Record<string, string> = {
 };
 
 export default function AdminRecruitmentManager() {
+  const ask = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState("");
@@ -36,7 +38,13 @@ export default function AdminRecruitmentManager() {
   }, [type, status]);
 
   const takeDown = async (id: number) => {
-    if (!confirm("确认下架这条信息？作者会收到通知，且该信息将不再出现在人才市场。")) return;
+    const ok = await ask({
+      title: "下架招募信息",
+      message: "下架后作者会收到通知，且该信息将不再出现在人才市场。",
+      okText: "确认下架",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await adminRecruitmentPostApi.takeDown(id);
       setMsg("已下架");
