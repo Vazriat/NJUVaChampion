@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import GameStatsTable, { PlayerStatEntry, StatColumnDef } from "./GameStatsTable";
 import { matchApi, teamApi } from "@/lib/api";
+import { useConfirm } from "./DialogProvider";
 
 // Column definitions for player stats table
 // Add/remove keys here to show/hide columns without backend changes
@@ -73,6 +74,21 @@ export default function GameRecordWizard({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [team1Members, setTeam1Members] = useState<{userId:number;username:string;displayName:string}[]>([]);
   const [team2Members, setTeam2Members] = useState<{userId:number;username:string;displayName:string}[]>([]);
+  const ask = useConfirm();
+
+  /** 清空已录入的小局数据，回到第一步。两处入口共用。 */
+  const handleClearGames = async () => {
+    const ok = await ask({
+      title: "清空重录",
+      message: "将删除现有小局数据与比分，确定继续？",
+      okText: "清空重录",
+      danger: true,
+    });
+    if (!ok) return;
+    setGames([]);
+    setInitDone(false);
+    setStep(1);
+  };
   const currentGameIdxRef = useRef(currentGameIdx);
   useEffect(() => { currentGameIdxRef.current = currentGameIdx; }, [currentGameIdx]);
 
@@ -274,30 +290,47 @@ export default function GameRecordWizard({
         return g;
       });
 
-      // Call OCR
+      // Call OCR（60 秒超时；失败时回落为空白表，裁判仍可手动录入）
       setLoading(true);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       try {
         const ocrRes = await fetch("/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ base64: base64Data }),
+          signal: controller.signal,
         });
-        if (!ocrRes.ok) throw new Error("OCR request failed: " + ocrRes.status);
-        const ocrData = await ocrRes.json();
 
-        if (ocrData.success && ocrData.players) {
-          let mapped: PlayerStatEntry[] = ocrData.players.map((p: any) => ({
+        // 服务端失败时返回 { success:false, error:"..." }，优先展示它给出的中文原因
+        let ocrData: any = null;
+        try {
+          ocrData = await ocrRes.json();
+        } catch {
+          ocrData = null;
+        }
+        if (!ocrRes.ok) {
+          throw new Error(ocrData?.error || "OCR 服务返回 " + ocrRes.status);
+        }
+
+        if (ocrData?.success && Array.isArray(ocrData.players)) {
+          // 归一化：agent 只接受非空字符串（OCR 可能给出 -1 或 null）；
+          // 数值字段的 -1 表示"未识别"，统一转成 null，避免污染生涯统计。
+          const toStatNumber = (v: any) =>
+            typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+
+          const mapped: PlayerStatEntry[] = ocrData.players.map((p: any) => ({
             userId: 0,
-            playerName: p.name || "",
+            playerName: typeof p.name === "string" ? p.name.trim() : "",
             userName: "",
             teamId: 0,
             stats: {
-              agent: p.agent || "",
-              acs: p.acs ?? null,
-              kills: p.kda?.kills ?? null,
-              deaths: p.kda?.deaths ?? null,
-              assists: p.kda?.assists ?? null,
-              firstBlood: p.firstKill ?? null,
+              agent: typeof p.agent === "string" ? p.agent.trim() : "",
+              acs: toStatNumber(p.acs),
+              kills: toStatNumber(p.kda?.kills),
+              deaths: toStatNumber(p.kda?.deaths),
+              assists: toStatNumber(p.kda?.assists),
+              firstBlood: toStatNumber(p.firstKill),
             },
           }));
 
@@ -308,10 +341,14 @@ export default function GameRecordWizard({
             return g;
           });
         } else {
-          setError("OCR returned no player data");
+          setError("OCR 未识别出任何玩家，请重试或手动录入");
         }
       } catch (err: any) {
-        setError("OCR识别失败: " + (err.message || "") + "。可以手动输入");
+        if (err?.name === "AbortError") {
+          setError("OCR 识别超时（60 秒），请重试或手动录入");
+        } else {
+          setError("OCR 识别失败：" + (err?.message || "未知错误") + "。可以手动录入");
+        }
         const emptyPlayers: PlayerStatEntry[] = [];
         for (let i = 0; i < 10; i++) {
           emptyPlayers.push({
@@ -326,6 +363,7 @@ export default function GameRecordWizard({
           return g;
         });
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };
@@ -503,13 +541,7 @@ export default function GameRecordWizard({
             {/* 顶部工具条 */}
             <div className="flex items-center justify-between">
               <p className="text-xs text-zinc-500">已录入 {games.filter(g => g.saved).length}/{games.length} 局</p>
-              <button onClick={() => {
-                if (confirm("清空重录将删除现有小局数据与比分，确定继续？")) {
-                  setGames([]);
-                  setInitDone(false);
-                  setStep(1);
-                }
-              }}
+              <button onClick={handleClearGames}
                 className="text-xs text-zinc-500 hover:text-zinc-300 transition">
                 清空重录（删除现有数据）
               </button>
@@ -695,9 +727,15 @@ export default function GameRecordWizard({
 
             {/* 跳过小局录入，直接录大比分 */}
             <div className="flex justify-center pt-1">
-              <button onClick={() => {
+              <button onClick={async () => {
                 if (games.some(g => !g.saved && (g.screenshotFile || g.screenshotBase64 || g.editedStats.length > 0))) {
-                  if (!confirm("有未保存的小局数据，跳过将不记录这些数据，比赛将以总比分完结。确定继续？")) return;
+                  const ok = await ask({
+                    title: "跳过小局录入",
+                    message: "有未保存的小局数据，跳过将不记录这些数据，比赛将以总比分完结。确定继续？",
+                    okText: "仍然跳过",
+                    danger: true,
+                  });
+                  if (!ok) return;
                 }
                 setStep(3);
               }}
@@ -753,13 +791,7 @@ export default function GameRecordWizard({
                   ← 返回小局修改
                 </button>
               )}
-              <button onClick={() => {
-                if (confirm("清空重录将删除现有小局数据与比分，确定继续？")) {
-                  setGames([]);
-                  setInitDone(false);
-                  setStep(1);
-                }
-              }}
+              <button onClick={handleClearGames}
                 className="text-xs text-zinc-500 hover:text-zinc-300 transition">
                 清空重录
               </button>

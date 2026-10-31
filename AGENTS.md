@@ -37,6 +37,40 @@ npm start
 - 数据库：JPA 自动建表（ddl-auto: update）
 - .gitignore 已配置 target/, node_modules/, .next/, IDE 文件
 
+### 弹窗与提示：禁止使用浏览器原生 API（必须遵守）
+
+**禁止**在 `frontend/app/**` 与 `frontend/components/**` 里写 `window.confirm()` /
+`window.alert()` / `window.prompt()`。原生对话框由浏览器绘制，CSS 完全无法干预：
+标题是「域名 + 显示」（localhost:3000 显示 / njuvlr.online 显示）、按钮只能是「确定/取消」、
+样式与本项目深色红色主题彻底割裂，移动端还会走系统弹窗。
+
+统一入口是 `components/DialogProvider.tsx`（已挂在 `app/layout.tsx`）：
+
+```tsx
+import { useConfirm, useNotify } from "@/components/DialogProvider";
+
+const ask = useConfirm();
+const notify = useNotify();
+
+const ok = await ask({
+  title: "彻底删除用户",
+  message: "将同时删除其战队关系、认证和生涯数据，此操作不可恢复！",
+  okText: "确认删除",
+  danger: true,       // 不可恢复的操作必须置 true
+});
+if (!ok) return;      // 不要写 if (!await ask(...))，可读性差且易漏括号
+
+notify(err.response?.data?.message || "操作失败", "error");
+```
+
+要点：
+- `ask()` 返回 `Promise<boolean>`，**调用它的函数必须是 async**（inline `onClick={async () => {}}` 也可以）。
+- 局部变量一律命名 `ask`，**不要命名为 `confirm`**——一旦同名遮蔽全局 `confirm`，
+  漏改的旧调用点会变成「Promise 恒为真值」，`if (!confirm(...))` 的前置判断会静默失效。
+- `danger: true` 用于删除/移除/解散/清空/覆盖类操作，主按钮改用深红实心。
+- 提示用 `notify()`，不要再用页面里的 `setMsg` 临时横幅。
+- Provider 已内建同文案去重：双击按钮不会排队弹出第二个确认框。
+
 ## 注意事项与已知坑
 
 ### 中文乱码（编码问题）
@@ -193,3 +227,167 @@ curl -sk -o /dev/null -w '443 -> %{http_code}\n' https://<公网IP>/
 ```
 
 修复：腾讯云控制台 → 轻量应用服务器 → 该实例 → 防火墙 → 放行 TCP 443。详见 DEPLOY.md 6.1。
+
+### 15. mvn 输出被管道吞掉：编译成功却看起来像静默失败
+
+在 PowerShell 工具里执行 `mvn ... | Select-String -Pattern "ERROR|BUILD"` 或
+`$out = mvn ... | Out-String` 时，**拿到的输出可能是空的**——即使构建实际成功。
+表现为 `Status: completed` 但 stdout 为 `(no output)`，很容易误判成 mvn 没跑或构建挂了。
+
+判定：不要靠管道判断，先落盘再读。
+
+```powershell
+Set-Location backend
+mvn -DskipTests compile *> compile-out.txt
+Get-Content compile-out.txt -Tail 40
+```
+
+补充两点：
+- Maven 增量编译下，第二次执行会输出 `Nothing to compile - all classes are up to date.`
+  这是**正常**的（第一次已编译成功），不是失败。
+- 想确认新文件真的编译过，直接查 `target/classes/**` 里对应 `.class` 的时间戳，比看日志可靠。
+
+### 16. dev server 只有 `/` 能访问，其它路由全部 404（.next 缓存损坏）
+
+**症状**：`next dev` 起来后，`http://localhost:3000/` 返回 200，但 `/login`、`/dashboard`、
+`/teams`……**所有子路由全部 404**。而且 404 是**瞬间返回**的（~0.03s），
+说明路由匹配器直接判定"无此路由"，根本没有尝试编译——不是懒编译时序问题，
+重复请求也不会变好。
+
+**根因**：`frontend/.next` 里同时躺着两种东西：
+- 一份旧的**生产构建**（`BUILD_ID`、`routes-manifest.json`、`prerender-manifest.json`、
+  `server/app/*.html`），来自某次 `next build` 或 `docker compose build`
+- 本次 dev 会话的 `.next/dev/`
+
+两者混用会得到一个损坏的路由表。判定方法是比对条目数：
+
+```bash
+cd frontend
+# dev 认为存在的路由
+python -c "import json;print(len(json.load(open('.next/dev/server/app-paths-manifest.json',encoding='utf-8'))))"
+# 磁盘上真实存在的路由
+ls app/ | wc -l
+```
+
+实测出现过 11 条 vs 20 个路由的严重缺失，且**缺失是散落的**（少了 announcements、
+career、competitions、profile、referee、tournaments、verify），不是从头截断——
+这是"路由表损坏"而非"扫描中断"的特征。
+
+**先排除代码问题**：确认线上站同一路由是 200（`curl -sk -o /dev/null -w '%{http_code}'
+https://njuvlr.online/login`）。线上正常即证明代码没问题，是本地缓存。
+
+**修复**：停 dev server → 重命名 `.next`（**用重命名，不要 rm，见第 12 条**）→ 重启。
+
+```powershell
+# 1. 结束 dev server 整棵进程树（npm run dev -> next dev -> start-server）
+Get-NetTCPConnection -LocalPort 3000 -State Listen | Select-Object -Expand OwningProcess -Unique |
+  ForEach-Object { taskkill /PID $_ /T /F }
+# 2. 重命名缓存
+Rename-Item frontend\.next frontend\.next-stale-<日期>
+# 3. 重启
+cd frontend; npm run dev
+```
+
+重启后日志里应能看到 `Compiling /login ...` 和 `GET /login 200`。
+
+**预防**：不要在同一个工作副本里交替跑 `next dev` 和 `next build`（Docker 构建、
+本地打包）而不清缓存。切换之前先重命名 `.next`。
+
+### 17. 英雄（特工）清单只能改唯一源，不要直接改使用处
+
+特工清单在三处被使用：
+
+| 位置 | 用途 |
+|------|------|
+| `valorant-ocr/region-detector.js` | 从 IGN 文本里剥离特工名 |
+| `frontend/components/GameStatsTable.tsx` | 录入界面的特工下拉框 |
+| `frontend/components/GameDetailPanel.tsx` | 详情页判断某字符串是不是特工名 |
+
+**唯一数据源是 `shared/agents.json`**，另两份是生成出来的：
+
+- `valorant-ocr/agents.js`
+- `frontend/lib/agents.ts`
+
+增删特工**只改 `shared/agents.json`**，然后执行：
+
+```bash
+node scripts/sync-agents.mjs          # 重新生成两份副本
+node scripts/sync-agents.mjs --check  # 只校验；不一致时退出码 1
+```
+
+直接改生成文件会在下次同步时被覆盖，且三份会静默漂移。
+
+**为什么不用"两边引用同一个文件"**：`docker-compose.yml` 里 frontend 与 ocr 的
+build context 分别是 `./frontend` 和 `./valorant-ocr`，仓库根目录的 `shared/` 两个镜像
+都拿不到。要让两边共享同一物理文件，必须改 build context + 两个 Dockerfile 的 COPY 路径，
+风险高于"生成副本 + 一致性校验"。
+
+### 18. `stats_json` 里的 `-1` 是"未识别"，不是数据
+
+OCR 曾用 `-1` 表示某个字段没识别出来。这些值如果被当成真实数据求和/求平均，
+会**静默拉低生涯统计**（实测历史数据里 firstBlood 有 15/30 条是 -1），
+而且 `agent` 若存成数字 `-1`，`(String)` 强转会直接抛 `ClassCastException`。
+
+现在的约定：
+
+- **写**：前端把负数/空值归一化为 `null`；后端 `MatchService.normalizeStats()`
+  在落库前再兜底一次（负数直接删掉该键）
+- **读**：`CareerService.nonNegativeNumber()` 把缺失/非数字/负数一律视为无效，
+  **每一项指标各自统计有效场次与有效回合**，不共用一个分母
+- **新增字段**：不要再引入 `-1` 这类带语义的哨兵值，统一用"键缺失"表示未知
+
+> **例外，不要"修"**：`result-parser.js` 里 `player.agent = lines[1] || '零'` 的兜底是
+> **产品上确认保留的**。`零` 是真实特工（Cypher），不是脏数据。
+> 不同解析策略对"没识别出特工"的处理本就不同：
+> `row-wise`（默认）返回 `null`，`full-column` / `per-player-crop` 回落 `'零'`。
+
+
+### 19. B 站直播短号 ≠ 真实 room_id（用短号拼播放器直接黑屏）
+
+`live.bilibili.com/6` 里的 `6` 是**短号**，真实房间是 `7734200`。
+实测：用 `cid=6` 拼播放器，页面里连 `<video>` 元素都不会创建、零媒体请求，纯黑屏；
+换成 `7734200` 立刻正常播放。
+
+**规则**：绑定时必须调 `api.live.bilibili.com/room/v1/Room/get_info?room_id=X`
+拿 `data.room_id` 存为真实房间号，**存短号等于功能不可用**。
+
+调用该接口的两个前提：
+
+- **不能带 `Origin` 头**，带上直接 403（后端 `RestTemplate`/`HttpClient` 默认不带，别手动加）
+- 必须带正常 `User-Agent`
+
+### 20. 直播播放器只能用 roomId 模板拼 src，禁止用用户填的链接
+
+站内播放 B 站用的是活动页播放器：
+
+```
+https://www.bilibili.com/blackboard/live/live-activity-player.html?cid={roomId}&quality=0
+```
+
+`live.bilibili.com/{room}` 有 `X-Frame-Options: SAMEORIGIN`，嵌不了；
+`/blanc/{room}` 虽然能加载但**没有播放器**（`videoCount: 0`），别被响应头骗了。
+
+**安全红线**：iframe 的 `src` 必须由 `platform + roomId` 拼接（见 `components/LivePlayer.tsx`），
+**绝不能** `src={channel.rawUrl}`——那等于允许用户在你站内渲染任意页面（钓鱼）。
+`rawUrl` 只允许进 `<a href>`，且入库前已校验为 https。
+
+### 21. B 站图片防盗链：外站 Referer 一律 403
+
+实测 `i1.hdslb.com` 的封面图：
+
+| 请求 | 结果 |
+|------|------|
+| 不带 Referer | 200 |
+| 带本站 Referer（`https://njuvlr.online/`） | **403** |
+| 带 `https://www.bilibili.com/` | 200 |
+
+浏览器加载图片时会自动带上当前页面的 Referer，所以直接把 B 站封面塞进 `<img src>` 会**破图**——
+而且接口返回的是 200，只有图片请求失败，很容易误判成路径写错。
+
+**规则**：所有展示 B 站封面/截帧的 `<img>` 必须加 `referrerPolicy="no-referrer"`。
+
+```tsx
+<img src={cover} referrerPolicy="no-referrer" alt="封面" />
+```
+
+不需要做图片代理或转存，加这一个属性就够。直播列表的 `keyframe` 封面同理。

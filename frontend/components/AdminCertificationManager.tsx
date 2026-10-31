@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { adminCertificationApi } from "@/lib/api";
 import { CERT_TYPES, certTypeLabel } from "@/lib/certification";
 import { RANKS } from "@/lib/ranks";
+import { useConfirm } from "@/components/DialogProvider";
 
 /** 状态筛选项。code 为空代表「全部」，此时包含 SUPERSEDED / DELETED 等历史状态。 */
 const STATUS_TABS: { code: string; label: string }[] = [
@@ -46,6 +47,7 @@ const TYPE_COLOR: Record<string, string> = {
 };
 
 export default function CertificationManager() {
+  const ask = useConfirm();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -296,7 +298,8 @@ export default function CertificationManager() {
               {selected.status === "APPROVED" && (
                 <div className="mt-4">
                   <button onClick={async () => {
-                    if (!confirm("确定取消该用户的认证？")) return;
+                    const ok = await ask({ title: "取消认证", message: "确定取消该用户的认证？", okText: "确认取消", danger: true });
+                    if (!ok) return;
                     try { await adminCertificationApi.revoke(selected.id); setMsg("已取消认证"); setTimeout(() => setMsg(""), 2000); setSelected(null); load(); }
                     catch { setMsg("操作失败"); }
                   }}

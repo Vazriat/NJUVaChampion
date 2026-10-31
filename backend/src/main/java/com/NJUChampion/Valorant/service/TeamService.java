@@ -21,6 +21,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TeamService {
 
+    /**
+     * VALORANT 为 5v5，这是赛事报名的人数下限。
+     * 注意：队伍本身**不设人数上限**，队员可以多于 5 人（含替补）。
+     */
+    public static final int ROSTER_SIZE = 5;
+
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final UserRepository userRepository;
@@ -31,6 +37,8 @@ public class TeamService {
     private final SwissStandingRepository swissStandingRepository;
     private final CompetitionTeamRepository competitionTeamRepository;
     private final LeagueStandingRepository leagueStandingRepository;
+    private final TeamApplicationService applicationService;
+    private final NotificationService notificationService;
 
     @Transactional
     public TeamVO create(CreateTeamRequest req, Long captainId) {
@@ -80,29 +88,30 @@ public class TeamService {
     }
 
     @Transactional
-    public void join(Long teamId, Long userId) {
+    public void dismissMember(Long teamId, Long targetUserId, Long currentUserId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("战队不存在"));
 
-        if (team.getStatus() == 0) {
-            throw new IllegalArgumentException("战队已解散");
+        if (team.getCaptainId() == null || !team.getCaptainId().equals(currentUserId)) {
+            throw new IllegalArgumentException("只有队长可以踢出队员");
+        }
+        if (team.getCaptainId().equals(targetUserId)) {
+            throw new IllegalArgumentException("队长不能踢出自己");
+        }
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, targetUserId)) {
+            throw new IllegalArgumentException("该用户不是战队成员");
         }
 
-        List<TeamMember> myTeams = teamMemberRepository.findByUserId(userId);
-        if (!myTeams.isEmpty()) {
-            throw new IllegalArgumentException("你已加入其他战队");
-        }
+        teamMemberRepository.deleteByTeamIdAndUserId(teamId, targetUserId);
 
-        if (teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
-            throw new IllegalArgumentException("你已是该战队成员");
-        }
+        // 连带：作废该用户在人才市场的全部待处理申请与邀请，避免"已被踢出却仍被别的队同意"的错位
+        applicationService.cancelAllPendingForUser(targetUserId);
 
-        TeamMember member = TeamMember.builder()
-                .teamId(teamId)
-                .userId(userId)
-                .role("MEMBER")
-                .build();
-        teamMemberRepository.save(member);
+        notificationService.notifyOther(currentUserId, targetUserId,
+                UserNotification.TYPE_TEAM_DISMISSED,
+                "你已被移出战队",
+                "你已被移出「" + team.getName() + "」",
+                UserNotification.REF_TEAM, teamId);
     }
 
     @Transactional

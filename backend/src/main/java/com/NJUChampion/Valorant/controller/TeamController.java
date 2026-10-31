@@ -2,8 +2,11 @@ package com.NJUChampion.Valorant.controller;
 
 import com.NJUChampion.Valorant.common.Result;
 import com.NJUChampion.Valorant.dto.CreateTeamRequest;
+import com.NJUChampion.Valorant.dto.TeamApplicationVO;
 import com.NJUChampion.Valorant.dto.TeamVO;
+import com.NJUChampion.Valorant.entity.TeamApplication;
 import com.NJUChampion.Valorant.entity.User;
+import com.NJUChampion.Valorant.service.TeamApplicationService;
 import com.NJUChampion.Valorant.service.TeamService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import java.util.Map;
 public class TeamController {
 
     private final TeamService teamService;
+    private final TeamApplicationService applicationService;
 
     @PostMapping
     public Result<TeamVO> create(@Valid @RequestBody CreateTeamRequest req,
@@ -48,15 +52,35 @@ public class TeamController {
         return Result.success(teamService.getById(id));
     }
 
+    /**
+     * 提交入队申请。
+     * 入队已改为队长审批制，本接口不再直接写入成员，改为创建一条 APPLY 记录并返回。
+     */
     @PostMapping("/{id}/join")
-    public Result<Void> join(@PathVariable Long id, @AuthenticationPrincipal User user) {
-        teamService.join(id, user.getId());
-        return Result.success();
+    public Result<TeamApplicationVO> join(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        return Result.success(applicationService.create(
+                user.getId(), TeamApplication.TYPE_APPLY, id, null, null, null));
     }
 
     @PostMapping("/{id}/leave")
     public Result<Void> leave(@PathVariable Long id, @AuthenticationPrincipal User user) {
         teamService.leave(id, user.getId());
+        return Result.success();
+    }
+
+    /** 该队的申请与邀请（含已处理），仅队长可查看 */
+    @GetMapping("/{id}/applications")
+    public Result<List<TeamApplicationVO>> applications(@PathVariable Long id,
+                                                        @AuthenticationPrincipal User user) {
+        return Result.success(applicationService.listTeamApplications(id, user.getId()));
+    }
+
+    /** 踢出队员，仅队长 */
+    @DeleteMapping("/{id}/members/{userId}")
+    public Result<Void> dismissMember(@PathVariable Long id,
+                                      @PathVariable Long userId,
+                                      @AuthenticationPrincipal User user) {
+        teamService.dismissMember(id, userId, user.getId());
         return Result.success();
     }
 

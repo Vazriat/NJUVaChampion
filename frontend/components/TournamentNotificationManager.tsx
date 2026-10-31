@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { tournamentAnnouncementApi, adminTournamentAnnouncementApi } from "@/lib/api";
+import { useConfirm } from "@/components/DialogProvider";
 
 interface TournamentNotificationManagerProps {
   tournamentId: number;
@@ -12,6 +13,7 @@ export default function TournamentNotificationManager({
   tournamentId,
   canManage = false,
 }: TournamentNotificationManagerProps) {
+  const ask = useConfirm();
   const [notices, setNotices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
@@ -72,7 +74,8 @@ export default function TournamentNotificationManager({
   };
 
   const del = async (id: number) => {
-    if (!confirm("确定删除？")) return;
+    const ok = await ask({ title: "删除赛事公告", message: "确定删除该公告？", okText: "确认删除", danger: true });
+    if (!ok) return;
     try {
       await adminTournamentAnnouncementApi.delete(tournamentId, id);
       setMsg("已删除");

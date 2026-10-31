@@ -12,8 +12,11 @@ import AdminAnnouncementManager from "@/components/AdminAnnouncementManager";
 import CertificationManager from "@/components/AdminCertificationManager";
 import TeamRatingManager from "@/components/TeamRatingManager";
 import CompetitionManager from "@/components/CompetitionManager";
+import AdminRecruitmentManager from "@/components/AdminRecruitmentManager";
+import AdminLiveManager from "@/components/AdminLiveManager";
+import { useConfirm } from "@/components/DialogProvider";
 
-type Tab = "overview" | "users" | "teams" | "ratings" | "competitions" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements";
+type Tab = "overview" | "users" | "teams" | "ratings" | "competitions" | "tournaments" | "screenshots" | "certifications" | "banners" | "announcements" | "recruitments" | "live";
 
 interface AdminUser {
   id: number; username: string; gameId: string | null; displayGameId: string | null;
@@ -59,13 +62,14 @@ export default function AdminPage() {
   const [searching, setSearching] = useState(false);
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(""), 3000); };
+  const ask = useConfirm();
 
   useEffect(() => {
     if (!isLoggedIn()) { router.replace("/login"); return; }
     const u = getUser();
     if (u?.role !== "ADMIN") { router.replace("/dashboard"); return; }
     const tabParam = new URLSearchParams(window.location.search).get("tab");
-    if (tabParam && ["overview", "users", "teams", "ratings", "competitions", "tournaments", "screenshots", "certifications", "banners", "announcements"].includes(tabParam)) {
+    if (tabParam && ["overview", "users", "teams", "ratings", "competitions", "tournaments", "screenshots", "certifications", "banners", "announcements", "recruitments", "live"].includes(tabParam)) {
       setTab(tabParam as Tab);
     }
     fetchData();
@@ -104,25 +108,39 @@ export default function AdminPage() {
   };
 
   const handleDeleteUser = async (id: number) => {
-    if (!confirm("确定禁用该用户？")) return;
+    const ok = await ask({ title: "禁用用户", message: "确定禁用该用户？", okText: "确认禁用", danger: true });
+    if (!ok) return;
     try { await adminApi.deleteUser(id); showMsg("用户已禁用"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
   const handleDeleteTeam = async (id: number) => {
-    if (!confirm("确定解散该战队？")) return;
+    const ok = await ask({ title: "解散战队", message: "确定解散该战队？", okText: "确认解散", danger: true });
+    if (!ok) return;
     try { await adminApi.deleteTeam(id); showMsg("战队已解散"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
   const handlePurgeUser = async (id: number) => {
-    if (!confirm("确定彻底删除该用户？将同时删除其战队关系、认证和生涯数据，此操作不可恢复！")) return;
+    const ok = await ask({
+      title: "彻底删除用户",
+      message: "将同时删除其战队关系、认证和生涯数据，此操作不可恢复！",
+      okText: "确认删除",
+      danger: true,
+    });
+    if (!ok) return;
     try { await adminApi.purgeUser(id); showMsg("用户已彻底删除"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "删除失败"); }
   };
 
   const handlePurgeTeam = async (id: number) => {
-    if (!confirm("确定彻底删除该战队？仅当战队没有未删除的赛事记录时才可执行，此操作不可恢复！")) return;
+    const ok = await ask({
+      title: "彻底删除战队",
+      message: "仅当战队没有未删除的赛事记录时才可执行，此操作不可恢复！",
+      okText: "确认删除",
+      danger: true,
+    });
+    if (!ok) return;
     try { await adminApi.purgeTeam(id); showMsg("战队已彻底删除"); fetchData(); }
     catch (err: any) { showMsg(err.response?.data?.message || "删除失败"); }
   };
@@ -145,7 +163,8 @@ export default function AdminPage() {
   };
 
   const handleDeleteTournament = async (id: number) => {
-    if (!confirm("确定删除该赛事？此操作不可恢复！")) return;
+    const ok = await ask({ title: "删除赛事", message: "确定删除该赛事？此操作不可恢复！", okText: "确认删除", danger: true });
+    if (!ok) return;
     try { await adminTournamentApi.delete(id); showMsg("赛事已删除"); fetchTournaments(); }
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
@@ -247,7 +266,7 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-6xl px-8 py-8 max-md:px-4 max-md:py-6">
         <div className="mb-8 flex gap-6 border-b border-zinc-800 max-md:-mx-4 max-md:gap-4 max-md:overflow-x-auto max-md:px-4">
-          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"]] as [Tab, string][]).map(([key, label]) => (
+          {([["overview", "概览"], ["users", "用户管理"], ["teams", "战队管理"], ["ratings", "战队评分"], ["competitions", "活动管理"], ["tournaments", "赛事管理"], ["screenshots", "截图管理"], ["certifications", "认证审核"], ["banners", "宣传栏管理"], ["announcements", "通知管理"], ["recruitments", "人才市场"], ["live", "直播管理"]] as [Tab, string][]).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`pb-3 text-sm font-medium transition border-b-2  max-md:whitespace-nowrap max-md:min-h-11 max-md:px-1 ${tab === key ? "border-red-500 text-red-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{label}</button>
           ))}
@@ -473,6 +492,14 @@ export default function AdminPage() {
 
         {tab === "announcements" && (
           <AdminAnnouncementManager />
+        )}
+
+        {tab === "recruitments" && (
+          <AdminRecruitmentManager />
+        )}
+
+        {tab === "live" && (
+          <AdminLiveManager />
         )}
 
         {editUser && (

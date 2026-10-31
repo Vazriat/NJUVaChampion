@@ -7,6 +7,7 @@ import { certificationApi, authApi } from "@/lib/api";
 import { isLoggedIn, setUser } from "@/lib/auth";
 import { RANKS } from "@/lib/ranks";
 import { CERT_TYPES } from "@/lib/certification";
+import { useConfirm } from "@/components/DialogProvider";
 
 const CHECK = "✔";
 const HOURGLASS = "⏳";
@@ -17,6 +18,7 @@ const identitySubTypes = CERT_TYPES
   .map((t) => ({ type: t.code, label: t.label }));
 
 export default function VerifyPage() {
+  const ask = useConfirm();
   const router = useRouter();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,8 @@ export default function VerifyPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("确定删除？")) return;
+    const ok = await ask({ title: "删除认证信息", message: "确定删除该认证申请？", okText: "确认删除", danger: true });
+    if (!ok) return;
     try {
       const token = localStorage.getItem("token");
       await fetch("/api/certification/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + token } });

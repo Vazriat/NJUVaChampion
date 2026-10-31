@@ -104,7 +104,8 @@ class ValorantOcr {
   // Pass 2: 按列分语言重新OCR（IGN用ch，数字列用en+阈值黑白化）
   async _parseRowWise(buffer, fullRegion, mappedColumns) {
     if (!fullRegion || !mappedColumns) {
-      throw new Error('row-wise strategy requires region detection and column mapping');
+      // 给出可操作的中文提示：前端会把它展示给裁判
+      throw new Error('无法识别计分板区域，请上传完整的计分板截图（需包含双方全部玩家行）');
     }
 
     const image = await jimp.read(buffer);
@@ -291,7 +292,7 @@ class ValorantOcr {
         merged[cn] = this._pickBetterText(cn, (p1[cn] || '').trim(), (p2[cn] || '').trim());
       }
 
-      players.push(this._buildPlayerFromRow(merged, ri));
+      players.push(this._buildPlayerFromRow(merged));
     }
 
     console.log('[ocr-module] 两遍行式OCR完成: ' + players.length + ' 位玩家');
@@ -349,6 +350,9 @@ class ValorantOcr {
   async _parseFullColumn(buffer) {
     const crops = await this.processor.process(buffer);
     const columnResults = {};
+    if (!this.config.players || !this.config.players.columns) {
+      throw new Error('OCR 配置缺少 players.columns，无法按列解析');
+    }
     const enabledCols = Object.entries(this.config.players.columns).filter(([, col]) => col.enabled);
     for (const [colName, _col] of enabledCols) {
       const bufs = crops[colName] || [];

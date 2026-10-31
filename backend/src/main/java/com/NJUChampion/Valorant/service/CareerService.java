@@ -36,28 +36,51 @@ public class CareerService {
         List<PlayerGameStat> allStats = playerGameStatRepository.findByUserId(userId);
 
         int totalGames = allStats.size();
+
+        // 每项指标各自累计"有效场次 / 有效回合"。
+        // 数值缺失或为负（历史数据用 -1 表示"未识别"）视为无效，不计入该项的分子与分母。
+        long acsCount = 0, killsCount = 0, deathsCount = 0, assistsCount = 0;
         double totalAcs = 0, totalKills = 0, totalDeaths = 0, totalAssists = 0, totalFirstBloods = 0;
+
+        // K/D 只有击杀与死亡同时有效的场次才计入
+        double kdKills = 0, kdDeaths = 0;
+        long kdCount = 0;
+
+        // 每回合指标：分子与分母必须来自同一批"该指标有效且回合数已知"的场次
         double scoredKills = 0, scoredDeaths = 0, scoredAssists = 0, scoredFirstBloods = 0;
+        long killsRounds = 0, deathsRounds = 0, assistsRounds = 0, firstBloodRounds = 0;
+
         long totalRounds = 0;
         int wins = 0;
         Map<String, Integer> agentCount = new HashMap<>();
         Set<Long> tournamentIds = new HashSet<>();
 
         for (PlayerGameStat stat : allStats) {
-            Map<String, Object> s = stat.getStats();
-            double kills = ((Number) s.getOrDefault("kills", 0)).doubleValue();
-            double deaths = ((Number) s.getOrDefault("deaths", 0)).doubleValue();
-            double assists = ((Number) s.getOrDefault("assists", 0)).doubleValue();
-            double firstBloods = ((Number) s.getOrDefault("firstBlood", 0)).doubleValue();
-            totalAcs += ((Number) s.getOrDefault("acs", 0)).doubleValue();
-            totalKills += kills;
-            totalDeaths += deaths;
-            totalAssists += assists;
-            totalFirstBloods += firstBloods;
+            Map<String, Object> s = stat.getStats() == null ? Map.of() : stat.getStats();
 
-            String agent = (String) s.get("agent");
-            if (agent != null && !agent.isBlank()) {
-                agentCount.merge(agent, 1, Integer::sum);
+            // 缺失 / 非数字 / 负数 一律视为"未识别"，返回 null
+            Double acs = nonNegativeNumber(s.get("acs"));
+            Double kills = nonNegativeNumber(s.get("kills"));
+            Double deaths = nonNegativeNumber(s.get("deaths"));
+            Double assists = nonNegativeNumber(s.get("assists"));
+            Double firstBloods = nonNegativeNumber(s.get("firstBlood"));
+
+            if (acs != null) { totalAcs += acs; acsCount++; }
+            if (kills != null) { totalKills += kills; killsCount++; }
+            if (deaths != null) { totalDeaths += deaths; deathsCount++; }
+            if (assists != null) { totalAssists += assists; assistsCount++; }
+            if (firstBloods != null) { totalFirstBloods += firstBloods; }
+            if (kills != null && deaths != null) {
+                kdKills += kills;
+                kdDeaths += deaths;
+                kdCount++;
+            }
+
+            // agent 必须是字符串。历史数据里可能存成数字（如 -1），
+            // 直接强转会抛 ClassCastException，这里显式判断并忽略。
+            Object rawAgent = s.get("agent");
+            if (rawAgent instanceof String agentName && !agentName.isBlank()) {
+                agentCount.merge(agentName.trim(), 1, Integer::sum);
             }
 
             // Check win: compare team score vs opponent team score in the game
@@ -67,10 +90,10 @@ public class CareerService {
                 int rounds = game.getTeam1Score() + game.getTeam2Score();
                 if (rounds > 0) {
                     totalRounds += rounds;
-                    scoredKills += kills;
-                    scoredDeaths += deaths;
-                    scoredAssists += assists;
-                    scoredFirstBloods += firstBloods;
+                    if (kills != null) { scoredKills += kills; killsRounds += rounds; }
+                    if (deaths != null) { scoredDeaths += deaths; deathsRounds += rounds; }
+                    if (assists != null) { scoredAssists += assists; assistsRounds += rounds; }
+                    if (firstBloods != null) { scoredFirstBloods += firstBloods; firstBloodRounds += rounds; }
                 }
 
                 TournamentMatch match = matchRepository.findById(game.getMatchId()).orElse(null);
@@ -89,12 +112,12 @@ public class CareerService {
             }
         }
 
-        double avgAcs = totalGames > 0 ? totalAcs / totalGames : 0;
-        double kdRatio = totalDeaths > 0 ? totalKills / totalDeaths : totalKills;
-        double killsPerRound = totalRounds > 0 ? scoredKills / totalRounds : 0;
-        double deathsPerRound = totalRounds > 0 ? scoredDeaths / totalRounds : 0;
-        double assistsPerRound = totalRounds > 0 ? scoredAssists / totalRounds : 0;
-        double firstBloodRate = totalRounds > 0 ? scoredFirstBloods / totalRounds : 0;
+        double avgAcs = acsCount > 0 ? totalAcs / acsCount : 0;
+        double kdRatio = kdDeaths > 0 ? kdKills / kdDeaths : (kdCount > 0 ? kdKills : 0);
+        double killsPerRound = killsRounds > 0 ? scoredKills / killsRounds : 0;
+        double deathsPerRound = deathsRounds > 0 ? scoredDeaths / deathsRounds : 0;
+        double assistsPerRound = assistsRounds > 0 ? scoredAssists / assistsRounds : 0;
+        double firstBloodRate = firstBloodRounds > 0 ? scoredFirstBloods / firstBloodRounds : 0;
         double survivalRate = 1 - deathsPerRound;
         if (survivalRate < 0) survivalRate = 0;
         if (survivalRate > 1) survivalRate = 1;
@@ -131,9 +154,9 @@ public class CareerService {
         result.put("totalGames", totalGames);
         result.put("avgAcs", Math.round(avgAcs * 10) / 10.0);
         result.put("avgKd", Math.round(kdRatio * 100) / 100.0);
-        result.put("avgKills", totalGames > 0 ? Math.round(totalKills / totalGames * 10) / 10.0 : 0);
-        result.put("avgDeaths", totalGames > 0 ? Math.round(totalDeaths / totalGames * 10) / 10.0 : 0);
-        result.put("avgAssists", totalGames > 0 ? Math.round(totalAssists / totalGames * 10) / 10.0 : 0);
+        result.put("avgKills", killsCount > 0 ? Math.round(totalKills / killsCount * 10) / 10.0 : 0);
+        result.put("avgDeaths", deathsCount > 0 ? Math.round(totalDeaths / deathsCount * 10) / 10.0 : 0);
+        result.put("avgAssists", assistsCount > 0 ? Math.round(totalAssists / assistsCount * 10) / 10.0 : 0);
         result.put("killsPerRound", Math.round(killsPerRound * 100) / 100.0);
         result.put("deathsPerRound", Math.round(deathsPerRound * 100) / 100.0);
         result.put("assistsPerRound", Math.round(assistsPerRound * 100) / 100.0);
@@ -151,6 +174,29 @@ public class CareerService {
         result.put("tournaments", tournaments);
 
         return result;
+    }
+
+    /**
+     * 从 stats JSON 中取非负数值。
+     *
+     * 缺失、非数字、负数（历史数据与 OCR 曾用 -1 表示"未识别"）一律返回 null，
+     * 调用方据此把该场次排除出对应指标的统计，避免 -1 拉低平均值。
+     * 同时兼容字符串数字，避免 (Number) 强转导致 ClassCastException。
+     */
+    private static Double nonNegativeNumber(Object value) {
+        if (value instanceof Number n) {
+            double v = n.doubleValue();
+            return v >= 0 ? v : null;
+        }
+        if (value instanceof String str && !str.isBlank()) {
+            try {
+                double v = Double.parseDouble(str.trim());
+                return v >= 0 ? v : null;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

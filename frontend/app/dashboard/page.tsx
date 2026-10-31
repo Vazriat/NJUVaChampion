@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { authApi, teamApi, TeamVO } from "@/lib/api";
+import { authApi, teamApi, notificationApi, TeamVO } from "@/lib/api";
 import { User, getUser, setUser, removeToken, isLoggedIn } from "@/lib/auth";
 import BannerCard from "@/components/BannerCard";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUserState] = useState<User | null>(null);
   const [myTeam, setMyTeam] = useState<TeamVO | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +40,11 @@ export default function DashboardPage() {
         setUser(res.data.data);
       }),
       teamApi.myTeam().then((res) => setMyTeam(res.data.data)).catch(() => {}),
+      // 自带 catch：取未读数失败不能拖垮整个 Promise.all
+      notificationApi
+        .unreadCount()
+        .then((res) => setUnreadCount(res.data.data?.count ?? 0))
+        .catch(() => {}),
     ]).catch(() => {
       removeToken();
       router.replace("/login");
@@ -111,6 +117,13 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm text-zinc-500">创建战队、查看队员、加入或退出</p>
           </Link>
 
+          <Link href="/recruit"
+            className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🤝</div>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">人才市场</h3>
+            <p className="mt-1 text-sm text-zinc-500">发布招募或求职信息，找队友组队</p>
+          </Link>
+
           <Link href={`/profile/${user.id}?from=dashboard`}
             className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">👤</div>
@@ -130,6 +143,20 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm text-zinc-500">浏览赛事、报名参赛、查看对阵</p>
           </Link>
 
+          <Link href="/live" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📺</div>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">赛事直播</h3>
+            <p className="mt-1 text-sm text-zinc-500">观看正在直播的比赛，查看主播与回放</p>
+          </Link>
+
+          {user.referee === true && (
+            <Link href="/referee" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-500/20 text-xl text-orange-400">🎙️</div>
+              <h3 className="text-lg font-semibold group-hover:text-orange-400">裁判工作台</h3>
+              <p className="mt-1 text-sm text-zinc-500">开播、结束直播、提交赛果与回放</p>
+            </Link>
+          )}
+
           <Link href={"/career/" + user.id} className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📊</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">个人生涯</h3>
@@ -140,6 +167,19 @@ export default function DashboardPage() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🪪</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">选手认证</h3>
             <p className="mt-1 text-sm text-zinc-500">认证学生身份，获取认证标识</p>
+          </Link>
+
+          <Link href="/notifications" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🔔</div>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">
+              我的消息
+              {unreadCount > 0 && (
+                <span className="ml-2 rounded-full bg-red-600 px-2 py-0.5 align-middle text-xs font-medium text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">入队申请、审核结果等消息</p>
           </Link>
         </div>
 

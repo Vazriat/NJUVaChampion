@@ -124,6 +124,8 @@ class ResultParser {
         switch (colName) {
           case 'ign':
             player.name = this.cleanName(lines[0] || '');
+            // 识别不到特工时回落到「零」。注意：零是真实特工（Cypher），
+            // 这是产品上确认保留的默认值，不是脏数据。
             player.agent = lines[1] || '零';
             break;
           case 'agent':

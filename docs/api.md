@@ -67,8 +67,95 @@
 | GET | /api/teams/my | 我的战队 |
 | GET | /api/teams/captain | 我担任队长的战队列表 |
 | GET | /api/teams/{id} | 战队详情（含队员列表） |
-| POST | /api/teams/{id}/join | 加入战队 |
-| POST | /api/teams/{id}/leave | 退出战队 |
+| POST | /api/teams/{id}/join | **提交入队申请**（已改为审批制，不再直接入队；返回申请记录） |
+| POST | /api/teams/{id}/leave | 退出战队（队长不可退出） |
+| GET | /api/teams/{id}/applications | 该队申请与邀请（含已处理），**仅队长可查看** |
+| DELETE | /api/teams/{id}/members/{userId} | 踢出队员，**仅队长**；不能踢自己；连带作废该用户的待处理申请 |
+
+> 入队为队长审批制：队伍**不设人数上限**。队员同时只能有 1 条待处理的入队申请。
+
+### 人才市场帖子 /api/recruitment-posts（需 Token）
+
+一种帖子两种类型：`TEAM` 队伍招人、`PLAYER` 选手求职。内容只有一个自由文本字段。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/recruitment-posts | 列表，参数 `type`（TEAM/PLAYER，可空）、`keyword`（可空，全文模糊匹配）、`userId`、`teamId` |
+| GET | /api/recruitment-posts/mine | 我发布的帖子 |
+| GET | /api/recruitment-posts/{id} | 详情 |
+| POST | /api/recruitment-posts | 发帖 `{ type, content }` |
+| PUT | /api/recruitment-posts/{id} | 修改内容，**仅作者** |
+| DELETE | /api/recruitment-posts/{id} | 关闭帖子（置 CLOSED），**仅作者** |
+
+发帖约束：
+- `TEAM`：调用者必须是该队队长（`teams.captain_id`），且队伍未解散；同一队伍同时只能有 1 条 OPEN 招募帖
+- `PLAYER`：调用者不得已加入任何战队；同一用户同时只能有 1 条 OPEN 求职帖
+
+返回字段中 `canApply` 表示当前用户能否发起，`applicationStatus` / `applicationId` 表示与该帖相关的待处理记录。
+
+列表查询参数：
+
+| 参数 | 用途 | 说明 |
+|------|------|------|
+| `type` | 人才市场双 Tab | `TEAM` / `PLAYER`，不传则两类都返回 |
+| `keyword` | 搜索框 | 对 `content` 做忽略大小写的模糊匹配 |
+| `userId` | **个人主页** | 只返回该用户当前 OPEN 的帖子。由于队长至多一条招募帖、未入队者至多一条求职帖，结果通常是 0 或 1 条 |
+| `teamId` | **队伍页** | 只返回该队伍当前 OPEN 的招募帖 |
+
+`userId` / `teamId` 可与 `type` 组合，过滤在返回集上叠加。所有查询只返回 `OPEN` 状态的帖子——已关闭的帖子不会出现在个人主页或队伍页上。
+
+### 入队申请与邀请 /api/team-applications（需 Token）
+
+统一承载三条入口：市场里队员申请（`APPLY`）、市场里队长邀请（`INVITE`）、战队页直接申请（`APPLY`，`postId` 为 null）。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/team-applications | 发起 `{ type, teamId, targetUserId?, postId?, content? }`（`INVITE` 必须给 `targetUserId`） |
+| GET | /api/team-applications/inbox | 我收到的（作为队长收到的申请 + 我收到的邀请） |
+| GET | /api/team-applications/mine | 我发起的（我提交的申请 + 我发出的邀请） |
+| POST | /api/team-applications/{id}/accept | 同意 → 写入战队成员 |
+| POST | /api/team-applications/{id}/reject | 拒绝 |
+| DELETE | /api/team-applications/{id} | 撤回，**仅发起方**（选手撤回申请 / 队长撤回邀请） |
+
+处理权限：
+- `APPLY`：实时判定 `调用者 == 当前队长`（`teams.captain_id`）。记录里的 `targetUserId` 只是创建时的队长快照，队长转让后申请不会卡在旧队长名下
+- `INVITE`：判定 `调用者 == targetUserId`
+
+同意后的连带处理（同一事务内）：
+1. 作废该用户**其它所有** PENDING 记录（避免一人两队）
+2. 关闭该用户的 OPEN 求职帖
+3. 不关闭招募帖（队伍无人数上限）
+
+### 定向消息 /api/notifications（需 Token）
+
+发给当前登录用户本人的消息。与 `announcements`（广播公告）的区别：此处按 `userId` 定向投递。
+
+> **命名说明**：系统里有两套互不相干的"通知"，UI 上刻意用了不同的词以免混淆：
+> - **通知** = `announcements` / `tournament_announcements`，管理员发布、所有人可见。页面 `/announcements`，dashboard 右侧栏"最新通知"。
+> - **消息** = 本模块 `user_notifications`，系统按 userId 定向投递。页面 `/notifications`，NavBar 的"消息"与 dashboard 的"我的消息"卡片。
+>
+> 两者数据、接口、表完全独立，已交叉验证互不干扰。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/notifications | 我的通知，未读优先按时间倒序，最多返回 50 条 |
+| GET | /api/notifications/unread-count | 未读数 `{ count }` |
+| POST | /api/notifications/{id}/read | 标记单条已读 |
+| POST | /api/notifications/read-all | 全部标记已读，返回 `{ updated }` |
+
+通知触发点：
+
+| type | 触发时机 | 接收方 |
+|------|----------|--------|
+| APPLICATION_RECEIVED | 选手提交入队申请 | 该队队长 |
+| INVITE_RECEIVED | 队长发出邀请 | 被邀请的选手 |
+| APPLICATION_ACCEPTED | 申请/邀请被同意 | 选手（APPLY）/ 当前队长（INVITE） |
+| APPLICATION_REJECTED | 申请/邀请被拒绝 | 发起方 |
+| APPLICATION_CANCELLED | 申请/邀请被撤回 | 对方 |
+| TEAM_DISMISSED | 被队长踢出战队 | 被踢的队员 |
+| POST_TAKEN_DOWN | 帖子被管理员下架 | 帖子作者 |
+
+`refType` 取值 `TEAM_APPLICATION` / `RECRUITMENT_POST` / `TEAM`，前端据此决定跳转目标（后端不感知前端路由）。通知与业务操作共用同一事务，业务回滚时通知一并回滚。
 
 ### 赛事 /api/tournaments（需 Token）
 
@@ -149,6 +236,17 @@
 | PUT | /api/admin/teams/{id} | 修改战队 |
 | DELETE | /api/admin/teams/{id} | 解散战队（status=0，移除全部队员） |
 | DELETE | /api/admin/teams/{id}/purge | 彻底删除战队（仅当无未删除赛事的报名/对阵/积分记录时允许） |
+
+### 人才市场管理 /api/admin/recruitment-posts
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/admin/recruitment-posts | 全部帖子（含已关闭），参数 `type`（TEAM/PLAYER）、`status`（OPEN/CLOSED）、`keyword` |
+| POST | /api/admin/recruitment-posts/{id}/take-down | 下架帖子（置 CLOSED 并**通知作者**） |
+
+> 下架不做物理删除，因此用 `POST /take-down` 而非 `DELETE`，语义更准确。
+> 下架后作者可以重新发布一条新帖（旧帖已是 CLOSED，不占用"一队/一人一帖"的名额）。
+> 暂不提供"恢复上架"：恢复可能与"一队一帖"约束冲突（作者期间可能已发新帖）。
 
 ### 赛事管理 /api/admin/tournaments
 
@@ -241,6 +339,105 @@
 
 **规则**：总比分与管理员录入共用同一 BO 校验（胜者须达 BO/2+1 胜）；同一比赛仅允许一条 PENDING 申报（前端会对自己的待审核申报提供「修改 / 撤销并重新申报」引导，对他人的待审核申报提示不可重复申报）；审核通过时若比赛尚未初始化小局则自动创建占位；已录小局不会被清空，按申报内容覆盖对应局号；申报截图保存于 /uploads/submissions/{id}/。
 
+
+---
+
+## 直播与回放
+
+设计说明见 `docs/live-module.md`。访问门槛与 `/api/tournaments/**` 一致（需 Token，未通过身份认证会被 `CertificationGateFilter` 拦截）。
+
+### 公开只读
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/live/streams?page=1&size=20` | 正在直播列表，按开播时间倒序 |
+| GET | `/api/live/streams?matchId=66` | 某场比赛的直播历史 |
+| GET | `/api/live/channels?page=1&size=20` | 主播列表（已绑定频道且未隐藏的裁判） |
+
+直播条目返回：
+
+```json
+{
+  "id": 2, "matchId": 66, "tournamentId": 8, "refereeId": 7,
+  "platform": "BILIBILI", "roomId": "7734200", "rawUrl": "https://live.bilibili.com/7734200",
+  "status": "LIVE", "startedAt": "2026-10-31T18:05:00", "endedAt": null,
+  "team1Name": "WDG", "team2Name": "4", "tournamentName": "瑞士轮测试"
+}
+```
+
+> `rawUrl` 只用于跳转。站内播放器必须用 `platform + roomId` 模板拼接，禁止把 `rawUrl` 塞进 iframe。
+
+### 裁判端（需已通过 REFEREE 认证）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/referee/live/channel` | 我的直播间，未绑定返回 `data: null` |
+| PUT | `/api/referee/live/channel` | 绑定/更新，body `{ "url": "https://live.bilibili.com/6" }` |
+| DELETE | `/api/referee/live/channel` | 解绑（有直播进行中时拒绝） |
+| GET | `/api/referee/live/matches` | 可开播的比赛：进行中赛事里尚未开打且无直播的场次 |
+| GET | `/api/referee/live/preview?matchId=66` | 开播确认框数据 |
+| POST | `/api/referee/live/streams` | 开播，body `{ "matchId": 66 }` |
+| PATCH | `/api/referee/live/streams/{id}/end` | 结束直播（幂等） |
+
+绑定环节会把 B 站短号转换为真实 `room_id`（`live.bilibili.com/6` → `7734200`）。用短号拼播放器会黑屏，所以这一步不能省。
+
+`preview` 返回：
+
+```json
+{
+  "matchName": "WDG vs 4", "tournamentName": "瑞士轮测试",
+  "channel": { "platform": "BILIBILI", "roomId": "7734200", "rawUrl": "https://live.bilibili.com/7734200" },
+  "canStart": true, "blockReason": null, "activeStreamId": null,
+  "warnings": ["该场比赛已完结，确认是重赛并重新开播？"],
+  "roomTitle": "【预告】1号1点全球总决赛瑞士轮第五轮", "roomLive": true
+}
+```
+
+`canStart=false` 时 `blockReason` 给出原因（未绑定频道 / 赛事不在进行中 / 该场正在直播 / 你还有另一场在播）。
+
+### 管理端（需 ADMIN 角色）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/admin/live/channels?status=&page=1&size=20` | 频道列表（不传 status 查全部） |
+| PATCH | `/api/admin/live/channels/{id}/status` | body `{ "status": "HIDDEN" }`，隐藏/恢复 |
+| PATCH | `/api/admin/live/streams/{id}/end` | 强制结束直播 |
+
+---
+
+## 赛事视频（回放 / 精彩集锦）
+
+只存外链，不存文件。视频本体托管在 B 站等平台；B 站链接会在提交时自动抓取标题、封面、时长。
+
+**上传权限**：该场比赛的参赛队成员、认证裁判、管理员。前端只做入口展示，最终由后端判定。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/videos?matchId=66` | 某场比赛的视频 |
+| GET | `/api/videos/recent?limit=40` | 全站最新视频，带 `tournamentName` / `matchName`，供直播页按赛事分组 |
+| GET | `/api/videos/tournament/8?category=REPLAY&page=1&size=24` | 赛事视频聚合，`category` 可选 `REPLAY`/`HIGHLIGHT`/`OTHER` |
+| GET | `/api/videos/selectable-matches?tournamentId=8` | 上传时可选的比赛（仅该赛事已完结场次） |
+| POST | `/api/videos` | 提交视频，body `{ "matchId": 66, "url": "https://www.bilibili.com/video/BV...", "title": "可选", "category": "HIGHLIGHT" }` |
+| DELETE | `/api/videos/{id}` | 删除（上传者本人或管理员） |
+| PATCH | `/api/admin/videos/{id}/status` | body `{ "status": "HIDDEN" }`，下架/恢复 |
+
+返回字段：
+
+```json
+{
+  "id": 2, "matchId": 66, "tournamentId": 8,
+  "url": "https://www.bilibili.com/video/BV1GJ411x7h7",
+  "bvid": "BV1GJ411x7h7", "platform": "BILIBILI",
+  "title": "WDG vs 4 全场回放", "category": "REPLAY",
+  "coverUrl": "https://i1.hdslb.com/bfs/archive/xxx.jpg",
+  "durationSec": 213, "uploadedBy": 6, "uploaderRole": "REFEREE",
+  "status": "ACTIVE", "matchName": "WDG vs 4"
+}
+```
+
+**规则**：同一场比赛同一链接不允许重复提交；链接必须是 https；非 B 站链接不抓元数据，前端只做跳转。
+
+> B 站封面图有防盗链：外站 `Referer` 直接 403。前端 `<img>` 必须加 `referrerPolicy="no-referrer"`。
 
 ---
 

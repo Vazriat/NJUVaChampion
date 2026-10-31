@@ -124,8 +124,13 @@ log "代码已更新: $(git log --oneline -1)"
 
 # -------------------------------------------------------- 7. 构建门禁 + 切换
 log "=== 7/8 串行构建（构建失败不会切换容器）==="
+# BUILDX_NO_DEFAULT_ATTESTATIONS=1 是必须的，别删：
+#   BuildKit 默认给镜像注入 provenance attestation，其中的元数据（时间戳等）
+#   每次构建都不同，导致 manifest list 摘要每次都变——即使所有层都是缓存命中、
+#   平台镜像逐字节相同。后果是第 8 步的镜像对齐核对会**每次都误报漂移**，
+#   报警器一叫就没人信了。关掉之后摘要可复现：连续两次构建 ID 完全一致。
 BUILD_START="$(date +%s)"
-if ! COMPOSE_PARALLEL_LIMIT=1 docker compose build; then
+if ! BUILDX_NO_DEFAULT_ATTESTATIONS=1 COMPOSE_PARALLEL_LIMIT=1 docker compose build; then
   warn "构建失败！"
   log "代码回退到 $OLD_SHORT，容器保持旧版本继续对外服务。"
   git reset --hard "$OLD_SHA"
@@ -150,16 +155,37 @@ else
 fi
 
 log "  镜像与 :latest 是否对齐："
+DRIFTED=()
 for svc in "${BUILT_SERVICES[@]}"; do
   running="$(docker inspect "njuvachampion-$svc" --format '{{.Image}}' 2>/dev/null || echo missing)"
   latest="$(docker inspect "njuvachampion-$svc:latest" --format '{{.Id}}' 2>/dev/null || echo missing)"
   if [ "$running" = "$latest" ]; then
     log "    $svc 一致"
   else
-    warn "    $svc 漂移！容器=$running latest=$latest"
-    warn "    对齐命令：docker compose up -d --force-recreate --no-deps $svc"
+    warn "    $svc 漂移（容器=${running:0:19} latest=${latest:0:19}）"
+    DRIFTED+=("$svc")
   fi
 done
+
+# 检测到漂移就地自愈，保证部署后「跑着的」必定等于「刚构建的」。
+# 正常情况不该走到这里（attestation 已关，摘要可复现）；出现即说明 up -d
+# 没有因为镜像变化而重建容器——只报警不自愈会让线上一直跑着不一致的镜像。
+if [ "${#DRIFTED[@]}" -gt 0 ]; then
+  log "  对漂移的服务执行强制重建：${DRIFTED[*]}"
+  docker compose up -d --force-recreate --no-deps "${DRIFTED[@]}"
+  sleep 15
+  log "  复核："
+  for svc in "${DRIFTED[@]}"; do
+    running="$(docker inspect "njuvachampion-$svc" --format '{{.Image}}' 2>/dev/null || echo missing)"
+    latest="$(docker inspect "njuvachampion-$svc:latest" --format '{{.Id}}' 2>/dev/null || echo missing)"
+    if [ "$running" = "$latest" ]; then
+      log "    $svc 一致"
+    else
+      warn "    $svc 仍然漂移！容器=${running:0:19} latest=${latest:0:19}"
+      warn "    请人工介入：docker compose up -d --force-recreate --no-deps $svc"
+    fi
+  done
+fi
 
 # --------------------------------------------- 清理超量的旧回滚标签（省磁盘）
 log "清理超出 $KEEP_ROLLBACKS 个的旧回滚标签（保留最近 $KEEP_ROLLBACKS 个）..."

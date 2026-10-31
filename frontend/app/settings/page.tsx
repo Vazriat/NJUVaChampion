@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { authApi, userApi } from "@/lib/api";
 import { User, getUser, setUser, removeToken, isLoggedIn } from "@/lib/auth";
 import NavBar from "@/components/NavBar";
+import LiveChannelCard from "@/components/LiveChannelCard";
+import { useConfirm } from "@/components/DialogProvider";
 
 export default function SettingsPage() {
+  const ask = useConfirm();
   const router = useRouter();
   const [user, setUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,7 +120,8 @@ export default function SettingsPage() {
           <label className="mb-1 text-xs text-zinc-500">当前游戏 ID</label>
           <p className="text-lg font-medium">{user?.displayGameId || "未设置"}</p>
           <button onClick={async () => {
-            if (!confirm("清空游戏ID后将使用用户名显示，确定继续？")) return;
+            const ok = await ask({ title: "清空游戏 ID", message: "清空后将使用用户名显示，确定继续？", okText: "确认清空", danger: true });
+            if (!ok) return;
             setSubmitting("clearGameId");
             try { await userApi.updateGameId(""); await refreshUser(); showMsg("游戏ID已清空", "success"); }
             catch (err: any) { showMsg(err.response?.data?.message || "操作失败", "error"); }
@@ -156,6 +160,8 @@ export default function SettingsPage() {
               className={"flex-1 rounded-lg border py-2 text-sm font-medium transition " + ((user?.displayPreference || displayPref) === "USERNAME" ? "border-red-500 bg-red-600/20 text-red-400" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600")}>用户名</button>
           </div>
         </section>
+
+        {user?.referee === true && <LiveChannelCard />}
 
         <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
           <label className="mb-1 text-xs text-zinc-500">当前邮箱</label>

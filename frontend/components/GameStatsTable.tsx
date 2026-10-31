@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { AGENTS } from "@/lib/agents";
 
 export interface PlayerStatEntry {
   userId: number;
@@ -17,12 +18,6 @@ export interface StatColumnDef {
   type: "text" | "number" | "select";
   options?: string[];
 }
-
-const AGENT_LIST = [
-  "K/O", "幽影", "壹决", "夜露", "星礈", "贤者", "维斯", "铁臂", "钛狐",
-  "斯凯", "尚勃勒", "芮娜", "奇乐", "霓虹", "暮蝶", "迷核", "零", "猎枭",
-  "炼狱", "雷兹", "蝰蛇", "禁灭", "捷风", "幻棱", "黑梦", "海神", "钢索", "盖可", "不死鸟",
-];
 
 export interface TeamMemberInfo {
   userId: number;
@@ -149,7 +144,7 @@ export default function GameStatsTable({
           className={"rounded border px-2 py-1 text-white outline-none focus:border-red-500 " + (isAgentCol ? "w-20 bg-zinc-800 border-zinc-700 text-sm font-semibold" : "w-full bg-zinc-800 border-zinc-700 text-xs")}
         >
           <option value="">-</option>
-          {AGENT_LIST.map(a => (
+          {AGENTS.map(a => (
             <option key={a} value={a}>{a}</option>
           ))}
         </select>

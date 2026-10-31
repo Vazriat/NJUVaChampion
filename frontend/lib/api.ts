@@ -106,8 +106,12 @@ export const teamApi = {
   myCaptainedTeams: () => api.get("/teams/captain"),
   getMatches: (id: number) => api.get("/teams/" + id + "/matches"),
   detail: (id: number) => api.get(`/teams/${id}`),
+  // 入队已改为审批制：join 现在提交一条入队申请，返回申请记录
   join: (id: number) => api.post(`/teams/${id}/join`),
   leave: (id: number) => api.post(`/teams/${id}/leave`),
+  applications: (id: number) => api.get(`/teams/${id}/applications`),
+  dismissMember: (teamId: number, userId: number) =>
+    api.delete(`/teams/${teamId}/members/${userId}`),
 };
 
 export interface TeamVO {
@@ -137,6 +141,75 @@ export interface MemberVO {
   displayName: string;
   role: string;
   joinedAt: string;
+}
+
+// ====== 人才市场帖子 ======
+export const recruitmentPostApi = {
+  list: (params?: { type?: string; keyword?: string; userId?: number; teamId?: number }) =>
+    api.get("/recruitment-posts", { params }),
+  mine: () => api.get("/recruitment-posts/mine"),
+  detail: (id: number) => api.get(`/recruitment-posts/${id}`),
+  create: (data: { type: string; content: string }) => api.post("/recruitment-posts", data),
+  update: (id: number, content: string) => api.put(`/recruitment-posts/${id}`, { content }),
+  close: (id: number) => api.delete(`/recruitment-posts/${id}`),
+};
+
+export interface RecruitmentPostVO {
+  id: number;
+  type: "TEAM" | "PLAYER";
+  teamId: number | null;
+  teamName: string | null;
+  userId: number;
+  displayName: string;
+  username: string | null;
+  content: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string | null;
+  mine: boolean;
+  canApply: boolean;
+  applicationStatus: string | null;
+  applicationId: number | null;
+}
+
+// ====== 入队申请与邀请 ======
+export const teamApplicationApi = {
+  create: (data: {
+    type: string;
+    teamId: number;
+    targetUserId?: number;
+    postId?: number;
+    content?: string;
+  }) => api.post("/team-applications", data),
+  // 我收到的
+  inbox: () => api.get("/team-applications/inbox"),
+  // 我发起的
+  mine: () => api.get("/team-applications/mine"),
+  accept: (id: number) => api.post(`/team-applications/${id}/accept`),
+  reject: (id: number) => api.post(`/team-applications/${id}/reject`),
+  // 撤回：选手撤回自己的入队申请 / 队长撤回自己发出的邀请
+  cancel: (id: number) => api.delete(`/team-applications/${id}`),
+};
+
+export interface TeamApplicationVO {
+  id: number;
+  type: "APPLY" | "INVITE";
+  teamId: number;
+  teamName: string | null;
+  teamCaptainId: number | null;
+  postId: number | null;
+  initiatorUserId: number;
+  initiatorName: string;
+  initiatorUsername: string | null;
+  targetUserId: number;
+  targetName: string;
+  targetUsername: string | null;
+  content: string | null;
+  status: string;
+  handledAt: string | null;
+  createdAt: string;
+  canHandle: boolean;
+  canCancel: boolean;
 }
 
 // ====== 管理员接口 ======
@@ -409,9 +482,156 @@ export const adminRankReviewApi = {
   unpassCompetitionUser: (competitionId: number, userId: number) => api.delete(`/admin/competitions/${competitionId}/rank-review/pass`, { params: { userId } }),
 }
 
+// ====== 定向通知（发给本人的消息） ======
+export const notificationApi = {
+  list: () => api.get("/notifications"),
+  unreadCount: () => api.get("/notifications/unread-count"),
+  markRead: (id: number) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post("/notifications/read-all"),
+};
+
+export interface UserNotificationVO {
+  id: number;
+  type: string;
+  title: string;
+  content: string | null;
+  refType: string | null;
+  refId: number | null;
+  readFlag: boolean;
+  createdAt: string;
+}
+
+// ====== 管理员人才市场管理 ======
+export const adminRecruitmentPostApi = {
+  list: (params?: { type?: string; status?: string; keyword?: string }) =>
+    api.get("/admin/recruitment-posts", { params }),
+  /** 下架：置 CLOSED 并通知作者 */
+  takeDown: (id: number) => api.post(`/admin/recruitment-posts/${id}/take-down`),
+};
+
 export interface Announcement {
   id: number; title: string; content?: string; priority: string; status: string;
   publishedAt?: string; createdAt: string;
+}
+
+// ====== 直播与回放 ======
+export const liveApi = {
+  /** 正在直播列表（分页） */
+  listLive: (page = 1, size = 20) =>
+    api.get("/live/streams", { params: { page, size } }),
+  /** 某场比赛的直播历史 */
+  matchStreams: (matchId: number) =>
+    api.get("/live/streams", { params: { matchId } }),
+  /** 主播列表 */
+  channels: (page = 1, size = 20) =>
+    api.get("/live/channels", { params: { page, size } }),
+
+  // ---- 裁判端 ----
+  myChannel: () => api.get("/referee/live/channel"),
+  bindChannel: (url: string) => api.put("/referee/live/channel", { url }),
+  unbindChannel: () => api.delete("/referee/live/channel"),
+  /** 开播确认框数据：房间标题、能否开播、软提示 */
+  preview: (matchId: number) =>
+    api.get("/referee/live/preview", { params: { matchId } }),
+  /** 可开播的比赛列表 */
+  startable: () => api.get("/referee/live/matches"),
+  /** 我正在直播的场次 */
+  mine: () => api.get("/referee/live/mine"),
+  start: (matchId: number) => api.post("/referee/live/streams", { matchId }),
+  end: (id: number) => api.patch(`/referee/live/streams/${id}/end`),
+
+  // ---- 管理端 ----
+  adminChannels: (params?: { status?: string; page?: number; size?: number }) =>
+    api.get("/admin/live/channels", { params }),
+  setChannelStatus: (id: number, status: "ACTIVE" | "HIDDEN") =>
+    api.patch(`/admin/live/channels/${id}/status`, { status }),
+  adminEnd: (id: number) => api.patch(`/admin/live/streams/${id}/end`),
+  adminDeleteReplay: (id: number) => api.delete(`/admin/live/replays/${id}`),
+};
+
+export interface LiveStreamVO {
+  id: number;
+  matchId: number;
+  tournamentId: number;
+  refereeId: number;
+  platform: string;
+  roomId: string | null;
+  rawUrl?: string | null;
+  status: "LIVE" | "ENDED";
+  startedAt: string;
+  endedAt: string | null;
+  team1Name?: string;
+  team2Name?: string;
+  team1Id?: number | null;
+  team2Id?: number | null;
+  round?: number;
+  stage?: string;
+  matchStatus?: string;
+  tournamentName?: string;
+}
+
+export interface LiveChannelVO {
+  channelId: number;
+  userId: number;
+  username: string | null;
+  gameId: string | null;
+  platform: string;
+  roomId: string | null;
+  rawUrl: string;
+  status?: string;
+  live: boolean;
+  liveMatchId: number | null;
+  liveStreamId: number | null;
+}
+
+// ====== 赛事视频（回放 / 精彩集锦） ======
+export const videoApi = {
+  /** 某场比赛的视频 */
+  byMatch: (matchId: number) => api.get("/videos", { params: { matchId } }),
+  /** 全站最新视频（直播页分区），带赛事名与场次名 */
+  recent: (limit = 40) => api.get("/videos/recent", { params: { limit } }),
+  /** 某赛事的视频聚合 */
+  byTournament: (tournamentId: number, params?: { category?: string; page?: number; size?: number }) =>
+    api.get(`/videos/tournament/${tournamentId}`, { params }),
+  /** 上传时可选的比赛（该赛事已完结场次） */
+  selectableMatches: (tournamentId: number) =>
+    api.get("/videos/selectable-matches", { params: { tournamentId } }),
+  create: (data: { matchId: number; url: string; title?: string; category?: string }) =>
+    api.post("/videos", data),
+  remove: (id: number) => api.delete(`/videos/${id}`),
+  adminSetStatus: (id: number, status: "ACTIVE" | "HIDDEN") =>
+    api.patch(`/admin/videos/${id}/status`, { status }),
+};
+
+export interface VideoVO {
+  id: number;
+  matchId: number;
+  tournamentId: number;
+  url: string;
+  bvid: string | null;
+  platform: string;
+  title: string | null;
+  category: "REPLAY" | "HIGHLIGHT" | "OTHER";
+  coverUrl: string | null;
+  durationSec: number | null;
+  uploadedBy: number;
+  uploaderRole: string | null;
+  status: string;
+  createdAt: string;
+  matchName?: string;
+  tournamentName?: string;
+}
+
+export interface LivePreviewVO {
+  matchName: string;
+  tournamentName: string | null;
+  channel: { platform: string; roomId: string | null; rawUrl: string } | null;
+  canStart: boolean;
+  blockReason: string | null;
+  activeStreamId: number | null;
+  warnings: string[];
+  roomTitle: string | null;
+  roomLive: boolean | null;
 }
 
 export default api;

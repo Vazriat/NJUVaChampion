@@ -31,8 +31,9 @@ async function startServer() {
       const source = { url, filePath, buffer, base64 };
 
       const ocr = new ValorantOcr({ config });
+      // parseScreenshot 内部已有 finally { shutdown() }，此处不再重复调用，
+      // 避免对同一引擎 terminate 两次。
       const result = await ocr.parseScreenshot(source);
-      await ocr.shutdown();
 
       res.json(result);
     } catch (err) {
