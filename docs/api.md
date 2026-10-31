@@ -342,6 +342,73 @@
 
 ---
 
+## 直播与回放
+
+设计说明见 `docs/live-module.md`。访问门槛与 `/api/tournaments/**` 一致（需 Token，未通过身份认证会被 `CertificationGateFilter` 拦截）。
+
+### 公开只读
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/live/streams?page=1&size=20` | 正在直播列表，按开播时间倒序 |
+| GET | `/api/live/streams?matchId=66` | 某场比赛的直播历史 |
+| GET | `/api/live/replays?matchId=66` | 某场比赛的回放（倒序，最新在前） |
+| GET | `/api/live/channels?page=1&size=20` | 主播列表（已绑定频道且未隐藏的裁判） |
+
+直播条目返回：
+
+```json
+{
+  "id": 2, "matchId": 66, "tournamentId": 8, "refereeId": 7,
+  "platform": "BILIBILI", "roomId": "7734200", "rawUrl": "https://live.bilibili.com/7734200",
+  "status": "LIVE", "startedAt": "2026-10-31T18:05:00", "endedAt": null,
+  "team1Name": "WDG", "team2Name": "4", "tournamentName": "瑞士轮测试"
+}
+```
+
+> `rawUrl` 只用于跳转。站内播放器必须用 `platform + roomId` 模板拼接，禁止把 `rawUrl` 塞进 iframe。
+
+### 裁判端（需已通过 REFEREE 认证）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/referee/live/channel` | 我的直播间，未绑定返回 `data: null` |
+| PUT | `/api/referee/live/channel` | 绑定/更新，body `{ "url": "https://live.bilibili.com/6" }` |
+| DELETE | `/api/referee/live/channel` | 解绑（有直播进行中时拒绝） |
+| GET | `/api/referee/live/matches` | 可开播的比赛：进行中赛事里尚未开打且无直播的场次 |
+| GET | `/api/referee/live/preview?matchId=66` | 开播确认框数据 |
+| POST | `/api/referee/live/streams` | 开播，body `{ "matchId": 66 }` |
+| PATCH | `/api/referee/live/streams/{id}/end` | 结束直播（幂等） |
+| POST | `/api/referee/live/replays` | 新增回放，body `{ "matchId": 66, "url": "https://...", "title": "可选" }` |
+| DELETE | `/api/referee/live/replays/{id}` | 删除自己上传的回放 |
+
+绑定环节会把 B 站短号转换为真实 `room_id`（`live.bilibili.com/6` → `7734200`）。用短号拼播放器会黑屏，所以这一步不能省。
+
+`preview` 返回：
+
+```json
+{
+  "matchName": "WDG vs 4", "tournamentName": "瑞士轮测试",
+  "channel": { "platform": "BILIBILI", "roomId": "7734200", "rawUrl": "https://live.bilibili.com/7734200" },
+  "canStart": true, "blockReason": null, "activeStreamId": null,
+  "warnings": ["该场比赛已完结，确认是重赛并重新开播？"],
+  "roomTitle": "【预告】1号1点全球总决赛瑞士轮第五轮", "roomLive": true
+}
+```
+
+`canStart=false` 时 `blockReason` 给出原因（未绑定频道 / 赛事不在进行中 / 该场正在直播 / 你还有另一场在播）。
+
+### 管理端（需 ADMIN 角色）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/admin/live/channels?status=&page=1&size=20` | 频道列表（不传 status 查全部） |
+| PATCH | `/api/admin/live/channels/{id}/status` | body `{ "status": "HIDDEN" }`，隐藏/恢复 |
+| PATCH | `/api/admin/live/streams/{id}/end` | 强制结束直播 |
+| DELETE | `/api/admin/live/replays/{id}` | 删除任意回放 |
+
+---
+
 ## 数据模型
 
 ### 赛事状态流转

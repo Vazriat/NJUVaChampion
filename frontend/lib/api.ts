@@ -514,4 +514,99 @@ export interface Announcement {
   publishedAt?: string; createdAt: string;
 }
 
+// ====== 直播与回放 ======
+export const liveApi = {
+  /** 正在直播列表（分页） */
+  listLive: (page = 1, size = 20) =>
+    api.get("/live/streams", { params: { page, size } }),
+  /** 某场比赛的直播历史 */
+  matchStreams: (matchId: number) =>
+    api.get("/live/streams", { params: { matchId } }),
+  /** 某场比赛的回放（倒序，最新在前） */
+  replays: (matchId: number) =>
+    api.get("/live/replays", { params: { matchId } }),
+  /** 主播列表 */
+  channels: (page = 1, size = 20) =>
+    api.get("/live/channels", { params: { page, size } }),
+
+  // ---- 裁判端 ----
+  myChannel: () => api.get("/referee/live/channel"),
+  bindChannel: (url: string) => api.put("/referee/live/channel", { url }),
+  unbindChannel: () => api.delete("/referee/live/channel"),
+  /** 开播确认框数据：房间标题、能否开播、软提示 */
+  preview: (matchId: number) =>
+    api.get("/referee/live/preview", { params: { matchId } }),
+  /** 可开播的比赛列表 */
+  startable: () => api.get("/referee/live/matches"),
+  start: (matchId: number) => api.post("/referee/live/streams", { matchId }),
+  end: (id: number) => api.patch(`/referee/live/streams/${id}/end`),
+  addReplay: (data: { matchId: number; url: string; title?: string }) =>
+    api.post("/referee/live/replays", data),
+  deleteReplay: (id: number) => api.delete(`/referee/live/replays/${id}`),
+
+  // ---- 管理端 ----
+  adminChannels: (params?: { status?: string; page?: number; size?: number }) =>
+    api.get("/admin/live/channels", { params }),
+  setChannelStatus: (id: number, status: "ACTIVE" | "HIDDEN") =>
+    api.patch(`/admin/live/channels/${id}/status`, { status }),
+  adminEnd: (id: number) => api.patch(`/admin/live/streams/${id}/end`),
+  adminDeleteReplay: (id: number) => api.delete(`/admin/live/replays/${id}`),
+};
+
+export interface LiveStreamVO {
+  id: number;
+  matchId: number;
+  tournamentId: number;
+  refereeId: number;
+  platform: string;
+  roomId: string | null;
+  rawUrl?: string | null;
+  status: "LIVE" | "ENDED";
+  startedAt: string;
+  endedAt: string | null;
+  team1Name?: string;
+  team2Name?: string;
+  team1Id?: number | null;
+  team2Id?: number | null;
+  round?: number;
+  stage?: string;
+  matchStatus?: string;
+  tournamentName?: string;
+}
+
+export interface LiveChannelVO {
+  channelId: number;
+  userId: number;
+  username: string | null;
+  gameId: string | null;
+  platform: string;
+  roomId: string | null;
+  rawUrl: string;
+  status?: string;
+  live: boolean;
+  liveMatchId: number | null;
+  liveStreamId: number | null;
+}
+
+export interface MatchReplayVO {
+  id: number;
+  matchId: number;
+  url: string;
+  title: string | null;
+  uploadedBy: number;
+  createdAt: string;
+}
+
+export interface LivePreviewVO {
+  matchName: string;
+  tournamentName: string | null;
+  channel: { platform: string; roomId: string | null; rawUrl: string } | null;
+  canStart: boolean;
+  blockReason: string | null;
+  activeStreamId: number | null;
+  warnings: string[];
+  roomTitle: string | null;
+  roomLive: boolean | null;
+}
+
 export default api;

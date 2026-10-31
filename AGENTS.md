@@ -341,3 +341,32 @@ OCR 曾用 `-1` 表示某个字段没识别出来。这些值如果被当成真�
 > 不同解析策略对"没识别出特工"的处理本就不同：
 > `row-wise`（默认）返回 `null`，`full-column` / `per-player-crop` 回落 `'零'`。
 
+
+### 19. B 站直播短号 ≠ 真实 room_id（用短号拼播放器直接黑屏）
+
+`live.bilibili.com/6` 里的 `6` 是**短号**，真实房间是 `7734200`。
+实测：用 `cid=6` 拼播放器，页面里连 `<video>` 元素都不会创建、零媒体请求，纯黑屏；
+换成 `7734200` 立刻正常播放。
+
+**规则**：绑定时必须调 `api.live.bilibili.com/room/v1/Room/get_info?room_id=X`
+拿 `data.room_id` 存为真实房间号，**存短号等于功能不可用**。
+
+调用该接口的两个前提：
+
+- **不能带 `Origin` 头**，带上直接 403（后端 `RestTemplate`/`HttpClient` 默认不带，别手动加）
+- 必须带正常 `User-Agent`
+
+### 20. 直播播放器只能用 roomId 模板拼 src，禁止用用户填的链接
+
+站内播放 B 站用的是活动页播放器：
+
+```
+https://www.bilibili.com/blackboard/live/live-activity-player.html?cid={roomId}&quality=0
+```
+
+`live.bilibili.com/{room}` 有 `X-Frame-Options: SAMEORIGIN`，嵌不了；
+`/blanc/{room}` 虽然能加载但**没有播放器**（`videoCount: 0`），别被响应头骗了。
+
+**安全红线**：iframe 的 `src` 必须由 `platform + roomId` 拼接（见 `components/LivePlayer.tsx`），
+**绝不能** `src={channel.rawUrl}`——那等于允许用户在你站内渲染任意页面（钓鱼）。
+`rawUrl` 只允许进 `<a href>`，且入库前已校验为 https。

@@ -27,6 +27,7 @@ public class MatchService {
     private final UserRepository userRepository;
     private final MatchResultSubmissionRepository submissionRepository;
     private final TournamentService tournamentService;
+    private final LiveService liveService;
 
     @Value("${app.upload.dir:uploads/screenshots}")
     private String uploadDir;
@@ -141,6 +142,9 @@ public class MatchService {
         match.setTeam2Score(req.getTeam2Wins());
         match.setStatus("COMPLETED");
         matchRepository.save(match);
+
+        // 比赛完结，兜底关闭该场直播。直播起止由裁判手动控制，这里只防「打完忘关」。
+        liveService.endByMatch(matchId);
 
         // Trigger progression / Swiss round / league regular season completion
         if ("REGULAR".equals(match.getStage())) {

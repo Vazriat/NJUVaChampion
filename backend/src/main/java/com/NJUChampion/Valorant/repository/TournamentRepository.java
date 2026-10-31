@@ -9,4 +9,5 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
     List<Tournament> findAllByOrderByCreatedAtDesc();
     List<Tournament> findByNameContainingIgnoreCaseOrderByCreatedAtDesc(String keyword);
     List<Tournament> findByCompetitionId(Long competitionId);
+    List<Tournament> findByStatusOrderByCreatedAtDesc(String status);
 }

@@ -143,6 +143,20 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm text-zinc-500">浏览赛事、报名参赛、查看对阵</p>
           </Link>
 
+          <Link href="/live" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📺</div>
+            <h3 className="text-lg font-semibold group-hover:text-red-400">赛事直播</h3>
+            <p className="mt-1 text-sm text-zinc-500">观看正在直播的比赛，查看主播与回放</p>
+          </Link>
+
+          {user.referee === true && (
+            <Link href="/referee" className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-orange-500/20 text-xl text-orange-400">🎙️</div>
+              <h3 className="text-lg font-semibold group-hover:text-orange-400">裁判工作台</h3>
+              <p className="mt-1 text-sm text-zinc-500">开播、结束直播、提交赛果与回放</p>
+            </Link>
+          )}
+
           <Link href={"/career/" + user.id} className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">📊</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">个人生涯</h3>

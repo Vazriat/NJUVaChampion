@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import GameRecordWizard from "@/components/GameRecordWizard";
-import { resultSubmissionApi, authApi } from "@/lib/api";
+import StartLiveButton from "@/components/StartLiveButton";
+import { resultSubmissionApi, authApi, liveApi } from "@/lib/api";
 import { setUser as persistUser } from "@/lib/auth";
 import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
 import { useConfirm } from "@/components/DialogProvider";
@@ -23,6 +25,22 @@ export default function RefereeCenterPage() {
   const ask = useConfirm();
   const router = useRouter();
   const [list, setList] = useState<any[]>([]);
+  const [startable, setStartable] = useState<any[]>([]);
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const COLLAPSED_COUNT = 5;
+
+  // 按赛事分组：裁判到场关心的是「哪个赛事还有活要干」，不是一长串小场
+  const grouped = useMemo(() => {
+    const map = new Map<number, { tournamentId: number; tournamentName: string; items: any[] }>();
+    for (const m of startable) {
+      const key = m.tournamentId;
+      if (!map.has(key)) {
+        map.set(key, { tournamentId: key, tournamentName: m.tournamentName, items: [] });
+      }
+      map.get(key)!.items.push(m);
+    }
+    return [...map.values()];
+  }, [startable]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [editTarget, setEditTarget] = useState<any>(null);
@@ -46,6 +64,13 @@ export default function RefereeCenterPage() {
       .then(r => setList(r.data.data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
+    loadStartable();
+  };
+
+  const loadStartable = () => {
+    liveApi.startable()
+      .then(r => setStartable(r.data.data || []))
+      .catch(() => {});
   };
 
   const handleCancel = async (id: number) => {
@@ -74,14 +99,85 @@ export default function RefereeCenterPage() {
       <NavBar />
       <main className="mx-auto max-w-4xl px-8 py-10 max-md:px-4 max-md:py-8">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">申报中心</h2>
-          <span className="text-sm text-zinc-500">赛果申报由管理员审核后生效</span>
+          <div>
+            <h2 className="text-2xl font-bold">裁判工作台</h2>
+            <p className="mt-1 text-sm text-zinc-500">开播 → 打比赛 → 结束直播 → 提交赛果（赛果由管理员审核后生效）</p>
+          </div>
+          <Link href="/settings" className="shrink-0 text-sm text-zinc-400 hover:text-red-400">
+            我的直播间 →
+          </Link>
         </div>
         {msg && <div className="mb-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>}
 
+        {/* ===== 可开播的比赛（按赛事分组） ===== */}
+        <section className="mb-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">可开播的比赛</h3>
+            <span className="text-xs text-zinc-500">进行中赛事里尚未开打的场次</span>
+          </div>
+          {grouped.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-zinc-800 py-8 text-center text-sm text-zinc-500">
+              当前没有可开播的比赛
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {grouped.map((g) => {
+                const isOpen = !!expanded[g.tournamentId];
+                const shown = isOpen ? g.items : g.items.slice(0, COLLAPSED_COUNT);
+                return (
+                  <div key={g.tournamentId} className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+                    <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-3 max-md:px-4">
+                      <div className="min-w-0">
+                        <h4 className="truncate text-sm font-semibold">{g.tournamentName || "未命名赛事"}</h4>
+                        <p className="mt-0.5 text-xs text-zinc-500">{g.items.length} 场待开播</p>
+                      </div>
+                      <Link
+                        href={`/tournaments/${g.tournamentId}`}
+                        className="shrink-0 text-xs text-zinc-400 transition hover:text-red-400"
+                      >
+                        查看赛程 →
+                      </Link>
+                    </div>
+                    <div className="divide-y divide-zinc-800">
+                      {shown.map((m: any) => (
+                        <div key={m.matchId}
+                          className="flex items-center justify-between gap-3 px-5 py-3 max-md:flex-col max-md:items-stretch max-md:px-4">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{m.team1Name} vs {m.team2Name}</p>
+                            <p className="mt-0.5 truncate text-xs text-zinc-500">
+                              {m.round != null ? `第 ${m.round + 1} 轮` : "赛程待定"}
+                            </p>
+                          </div>
+                          <StartLiveButton
+                            matchId={m.matchId}
+                            onStarted={loadStartable}
+                            className="shrink-0 rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50 max-md:min-h-11"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {g.items.length > COLLAPSED_COUNT && (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((prev) => ({ ...prev, [g.tournamentId]: !isOpen }))}
+                        className="w-full border-t border-zinc-800 py-2 text-xs text-zinc-500 transition hover:text-red-400 max-md:min-h-11"
+                      >
+                        {isOpen ? "收起" : `展开全部 ${g.items.length} 场`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">我的申报记录</h3>
+        </div>
         {list.length === 0 ? (
-          <p className="py-12 text-center text-sm text-zinc-500">
-            暂无申报记录。进入赛事详情页，点击比赛卡片查看详情后即可「申报赛果」。
+          <p className="rounded-xl border border-dashed border-zinc-800 py-10 text-center text-sm text-zinc-500">
+            暂无申报记录。在上方「可开播的比赛」旁，或在赛事详情页点开某场比赛，即可提交赛果。
           </p>
         ) : (
           <div className="space-y-3">

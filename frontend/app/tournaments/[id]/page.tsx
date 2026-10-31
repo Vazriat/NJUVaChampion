@@ -8,8 +8,11 @@ import BracketTree from "@/components/BracketTree";
 import SwissSchedule from "@/components/SwissSchedule";
 import GameDetailPanel from "@/components/GameDetailPanel";
 import TournamentNotificationManager from "@/components/TournamentNotificationManager";
-import { tournamentApi, teamApi, matchApi, resultSubmissionApi, authApi } from "@/lib/api";
+import { tournamentApi, teamApi, matchApi, resultSubmissionApi, authApi, liveApi, LiveStreamVO } from "@/lib/api";
 import GameRecordWizard from "@/components/GameRecordWizard";
+import LivePlayer from "@/components/LivePlayer";
+import ReplayLinks from "@/components/ReplayLinks";
+import StartLiveButton from "@/components/StartLiveButton";
 import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
 import { useConfirm, useNotify } from "@/components/DialogProvider";
 
@@ -64,6 +67,8 @@ export default function TournamentDetailPage() {
   const [mySubmissions, setMySubmissions] = useState<any[]>([]);
   const [submitChoice, setSubmitChoice] = useState<any>(null);
   const [editSubmission, setEditSubmission] = useState<any>(null);
+  const [matchStreams, setMatchStreams] = useState<LiveStreamVO[]>([]);
+  const activeStream = matchStreams.find((s) => s.status === "LIVE") || null;
 
   const currentUser = getUser();
   const ask = useConfirm();
@@ -175,8 +180,40 @@ export default function TournamentDetailPage() {
     setTimeout(() => setMsg(""), 3000);
   };
 
-  const handleUnregister = async () => {
-    if (!tournament || !currentUser) return;
+  const refreshStreams = async (matchId: number) => {
+    try {
+      const res = await liveApi.matchStreams(matchId);
+      setMatchStreams(res.data.data || []);
+    } catch { /* 忽略 */ }
+  };
+
+  // 点开比赛弹窗时拉一次该场的直播记录
+  useEffect(() => {
+    const id = detailMatch?.id;
+    if (!id) { setMatchStreams([]); return; }
+    liveApi.matchStreams(id)
+      .then((res) => setMatchStreams(res.data.data || []))
+      .catch(() => setMatchStreams([]));
+  }, [detailMatch?.id]);
+
+  const handleEndLive = async (streamId: number) => {
+    const ok = await ask({
+      title: "结束直播",
+      message: "结束后观众将无法继续观看，确定继续？",
+      okText: "确认结束",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await liveApi.end(streamId);
+      notify("直播已结束", "success");
+      if (detailMatch) await refreshStreams(detailMatch.id);
+    } catch (err: any) {
+      notify(err.response?.data?.message || "操作失败", "error");
+    }
+  };
+
+  const handleUnregister = async () => {    if (!tournament || !currentUser) return;
     const myTeam = (tournament.registeredTeams ?? []).find(
       (rt: any) => currentUser.id && rt.teamId
     );
@@ -458,11 +495,38 @@ export default function TournamentDetailPage() {
             ) : detailMatch.hasPendingSubmission ? (
               <span className="mb-3 inline-block rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400">已申报 · 待审核</span>
             ) : null}
-            {isReferee && refereeMode && (detailMatch.status === "PENDING" || detailMatch.status === "COMPLETED") && (
-              <button onClick={() => { handleRefereeSubmit(detailMatch); setDetailMatch(null); }}
-                className="mb-4 w-full rounded-lg bg-orange-600 py-2 text-sm font-semibold hover:bg-orange-700">
-                申报赛果（裁判）
-              </button>
+            {isReferee && (
+              <div className="mb-4 flex gap-2 max-md:flex-col">
+                {refereeMode && (detailMatch.status === "PENDING" || detailMatch.status === "COMPLETED") && (
+                  <button onClick={() => { handleRefereeSubmit(detailMatch); setDetailMatch(null); }}
+                    className="flex-1 rounded-lg bg-orange-600 py-2 text-sm font-semibold hover:bg-orange-700 max-md:min-h-11">
+                    申报赛果（裁判）
+                  </button>
+                )}
+                {activeStream ? (
+                  <button onClick={() => handleEndLive(activeStream.id)}
+                    className="flex-1 rounded-lg border border-red-700 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-600/20 max-md:min-h-11">
+                    直播中 · 结束直播
+                  </button>
+                ) : (
+                  <StartLiveButton
+                    matchId={detailMatch.id}
+                    onStarted={() => refreshStreams(detailMatch.id)}
+                    className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-semibold transition hover:bg-red-700 disabled:opacity-50 max-md:min-h-11"
+                  />
+                )}
+              </div>
+            )}
+
+            {activeStream && (
+              <div className="mb-4">
+                <LivePlayer
+                  platform={activeStream.platform}
+                  roomId={activeStream.roomId}
+                  rawUrl={activeStream.rawUrl || (activeStream.roomId ? `https://live.bilibili.com/${activeStream.roomId}` : "#")}
+                  title={`${detailMatch.team1Name || ""} vs ${detailMatch.team2Name || ""}`}
+                />
+              </div>
             )}
             {detailLoading ? (
               <p className="py-4 text-center text-xs text-zinc-500">加载中...</p>
@@ -477,6 +541,10 @@ export default function TournamentDetailPage() {
             ) : (
               <p className="py-4 text-center text-xs text-zinc-500">暂无小局数据</p>
             )}
+
+            <div className="mt-4 border-t border-zinc-800 pt-4">
+              <ReplayLinks matchId={detailMatch.id} canManage={isReferee} />
+            </div>
           </div>
         </div>
       )}

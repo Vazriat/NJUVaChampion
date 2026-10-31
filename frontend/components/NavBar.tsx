@@ -58,9 +58,10 @@ export default function NavBar() {
         { href: "/recruit", label: "人才市场" },
         { href: "/competitions", label: "活动报名" },
         { href: "/tournaments", label: "赛事中心" },
+        { href: "/live", label: "直播" },
         { href: "/verify", label: "认证中心" },
         { href: "/career/" + user.id, label: "个人生涯" },
-        ...(user.referee && refereeMode ? [{ href: "/referee", label: "申报中心" }] : []),
+        ...(user.referee && refereeMode ? [{ href: "/referee", label: "裁判工作台" }] : []),
       ]
     : [{ href: "/verify", label: "认证中心" }];
 
