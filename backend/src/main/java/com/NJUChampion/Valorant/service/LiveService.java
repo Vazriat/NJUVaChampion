@@ -30,7 +30,6 @@ public class LiveService {
 
     private final RefereeChannelRepository channelRepository;
     private final LiveStreamRepository streamRepository;
-    private final MatchReplayRepository replayRepository;
     private final TournamentMatchRepository matchRepository;
     private final TournamentRepository tournamentRepository;
     private final TeamRepository teamRepository;
@@ -227,43 +226,6 @@ public class LiveService {
         log.info("自动结束超时直播 {} 条", stale.size());
     }
 
-    // ==================== 回放 ====================
-
-    public List<Map<String, Object>> replays(Long matchId) {
-        return replayRepository.findByMatchIdOrderByCreatedAtDesc(matchId).stream()
-                .map(this::replayVO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional
-    public Map<String, Object> addReplay(Long userId, boolean admin, Long matchId, String url, String title) {
-        if (!admin) {
-            requireReferee(userId);
-        }
-        if (matchRepository.findById(matchId).isEmpty()) {
-            throw new IllegalArgumentException("比赛不存在");
-        }
-        String cleanUrl = normalizeHttpsUrl(url);
-        MatchReplay replay = MatchReplay.builder()
-                .matchId(matchId)
-                .url(cleanUrl)
-                .title(title != null && !title.isBlank() ? title.trim() : null)
-                .uploadedBy(userId)
-                .createdAt(LocalDateTime.now())
-                .build();
-        return replayVO(replayRepository.save(replay));
-    }
-
-    @Transactional
-    public void deleteReplay(Long userId, boolean admin, Long replayId) {
-        MatchReplay replay = replayRepository.findById(replayId)
-                .orElseThrow(() -> new IllegalArgumentException("回放不存在"));
-        if (!admin && !replay.getUploadedBy().equals(userId)) {
-            throw new IllegalArgumentException("无权删除该回放");
-        }
-        replayRepository.delete(replay);
-    }
-
     // ==================== 查询 ====================
 
     /** 正在直播列表 */
@@ -352,6 +314,19 @@ public class LiveService {
                     return vo;
                 })
                 .collect(Collectors.toList());
+    }
+
+    /** 我当前正在直播的场次（用于裁判工作台随时结束） */
+    public List<Map<String, Object>> myActiveStreams(Long refereeId) {
+        Optional<LiveStream> active = streamRepository.findFirstByRefereeIdAndStatus(refereeId, LIVE);
+        if (active.isEmpty()) {
+            return List.of();
+        }
+        LiveStream s = active.get();
+        TournamentMatch match = matchRepository.findById(s.getMatchId()).orElse(null);
+        Tournament tournament = tournamentRepository.findById(s.getTournamentId()).orElse(null);
+        Map<Long, String> teamNames = match != null ? loadTeamNames(List.of(match)) : Map.of();
+        return List.of(streamVO(s, match, tournament, teamNames));
     }
 
     /** 某场的直播历史 */
@@ -516,45 +491,4 @@ public class LiveService {
         return m;
     }
 
-    private Map<String, Object> replayVO(MatchReplay r) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", r.getId());
-        m.put("matchId", r.getMatchId());
-        m.put("url", r.getUrl());
-        m.put("title", r.getTitle());
-        m.put("uploadedBy", r.getUploadedBy());
-        m.put("createdAt", r.getCreatedAt());
-        return m;
-    }
-
-    /** 回放只做外链，只校验协议为 https */
-    private String normalizeHttpsUrl(String url) {
-        String s = url == null ? "" : url.trim();
-        if (s.isEmpty()) {
-            throw new IllegalArgumentException("请填写回放链接");
-        }
-        if (s.length() > 500) {
-            throw new IllegalArgumentException("链接过长");
-        }
-        if (s.startsWith("//")) {
-            s = "https:" + s;
-        }
-        String lower = s.toLowerCase();
-        if (lower.startsWith("http://")) {
-            s = "https://" + s.substring(7);
-            lower = s.toLowerCase();
-        }
-        if (!lower.startsWith("https://")) {
-            throw new IllegalArgumentException("回放链接必须是 https 地址");
-        }
-        try {
-            URI uri = URI.create(s);
-            if (uri.getHost() == null || uri.getHost().isBlank()) {
-                throw new IllegalArgumentException("链接格式不正确");
-            }
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("链接格式不正确");
-        }
-        return s;
-    }
 }

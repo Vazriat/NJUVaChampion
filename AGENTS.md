@@ -370,3 +370,24 @@ https://www.bilibili.com/blackboard/live/live-activity-player.html?cid={roomId}&
 **安全红线**：iframe 的 `src` 必须由 `platform + roomId` 拼接（见 `components/LivePlayer.tsx`），
 **绝不能** `src={channel.rawUrl}`——那等于允许用户在你站内渲染任意页面（钓鱼）。
 `rawUrl` 只允许进 `<a href>`，且入库前已校验为 https。
+
+### 21. B 站图片防盗链：外站 Referer 一律 403
+
+实测 `i1.hdslb.com` 的封面图：
+
+| 请求 | 结果 |
+|------|------|
+| 不带 Referer | 200 |
+| 带本站 Referer（`https://njuvlr.online/`） | **403** |
+| 带 `https://www.bilibili.com/` | 200 |
+
+浏览器加载图片时会自动带上当前页面的 Referer，所以直接把 B 站封面塞进 `<img src>` 会**破图**——
+而且接口返回的是 200，只有图片请求失败，很容易误判成路径写错。
+
+**规则**：所有展示 B 站封面/截帧的 `<img>` 必须加 `referrerPolicy="no-referrer"`。
+
+```tsx
+<img src={cover} referrerPolicy="no-referrer" alt="封面" />
+```
+
+不需要做图片代理或转存，加这一个属性就够。直播列表的 `keyframe` 封面同理。

@@ -2,7 +2,6 @@ package com.NJUChampion.Valorant.controller;
 
 import com.NJUChampion.Valorant.common.Result;
 import com.NJUChampion.Valorant.dto.BindLiveChannelRequest;
-import com.NJUChampion.Valorant.dto.CreateMatchReplayRequest;
 import com.NJUChampion.Valorant.dto.StartLiveRequest;
 import com.NJUChampion.Valorant.entity.User;
 import com.NJUChampion.Valorant.service.LiveService;
@@ -49,6 +48,12 @@ public class RefereeLiveController {
         return Result.success(liveService.startableMatches());
     }
 
+    /** 我当前正在直播的场次 */
+    @GetMapping("/api/referee/live/mine")
+    public Result<Object> myActiveStreams(@AuthenticationPrincipal User user) {
+        return Result.success(liveService.myActiveStreams(user.getId()));
+    }
+
     /** 开播确认框数据：房间标题、是否在播、能否开播、软提示 */
     @GetMapping("/api/referee/live/preview")
     public Result<Map<String, Object>> preview(@AuthenticationPrincipal User user,
@@ -65,21 +70,6 @@ public class RefereeLiveController {
     @PatchMapping("/api/referee/live/streams/{id}/end")
     public Result<Void> end(@AuthenticationPrincipal User user, @PathVariable Long id) {
         liveService.end(user.getId(), id, false);
-        return Result.success();
-    }
-
-    // ===== 回放 =====
-
-    @PostMapping("/api/referee/live/replays")
-    public Result<Map<String, Object>> addReplay(@AuthenticationPrincipal User user,
-                                                 @Valid @RequestBody CreateMatchReplayRequest req) {
-        return Result.success(liveService.addReplay(
-                user.getId(), false, req.getMatchId(), req.getUrl(), req.getTitle()));
-    }
-
-    @DeleteMapping("/api/referee/live/replays/{id}")
-    public Result<Void> deleteReplay(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        liveService.deleteReplay(user.getId(), false, id);
         return Result.success();
     }
 }

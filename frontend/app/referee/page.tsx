@@ -9,7 +9,7 @@ import StartLiveButton from "@/components/StartLiveButton";
 import { resultSubmissionApi, authApi, liveApi } from "@/lib/api";
 import { setUser as persistUser } from "@/lib/auth";
 import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
-import { useConfirm } from "@/components/DialogProvider";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "审核中", APPROVED: "已通过", REJECTED: "已驳回", CANCELLED: "已撤销",
@@ -21,11 +21,22 @@ const STATUS_CLASS: Record<string, string> = {
   CANCELLED: "bg-zinc-700/30 text-zinc-400",
 };
 
+function elapsedText(startedAt: string) {
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000));
+  if (mins < 1) return "刚刚开播";
+  if (mins < 60) return `已开播 ${mins} 分钟`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `已开播 ${h} 小时 ${m} 分` : `已开播 ${h} 小时`;
+}
+
 export default function RefereeCenterPage() {
   const ask = useConfirm();
+  const notify = useNotify();
   const router = useRouter();
   const [list, setList] = useState<any[]>([]);
   const [startable, setStartable] = useState<any[]>([]);
+  const [myLive, setMyLive] = useState<any | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const COLLAPSED_COUNT = 5;
 
@@ -65,6 +76,31 @@ export default function RefereeCenterPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
     loadStartable();
+    loadMyLive();
+  };
+
+  const loadMyLive = () => {
+    liveApi.mine()
+      .then(r => setMyLive((r.data.data || [])[0] || null))
+      .catch(() => {});
+  };
+
+  const handleEndLive = async (id: number) => {
+    const ok = await ask({
+      title: "结束直播",
+      message: "结束后观众将无法继续观看，确定继续？",
+      okText: "确认结束",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await liveApi.end(id);
+      notify("直播已结束", "success");
+      loadMyLive();
+      loadStartable();
+    } catch (err: any) {
+      notify(err.response?.data?.message || "操作失败", "error");
+    }
   };
 
   const loadStartable = () => {
@@ -109,6 +145,42 @@ export default function RefereeCenterPage() {
         </div>
         {msg && <div className="mb-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>}
 
+        {/* ===== 正在直播 ===== */}
+        {myLive && (
+          <section className="mb-6 rounded-xl border border-red-800/60 bg-red-950/20 p-5 max-md:p-4">
+            <div className="flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-semibold text-red-300">
+                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  正在直播
+                </p>
+                <p className="mt-1 truncate font-semibold">
+                  {myLive.team1Name} vs {myLive.team2Name}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-zinc-400">
+                  {myLive.tournamentName || ""}
+                  {myLive.startedAt ? ` · ${elapsedText(myLive.startedAt)}` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Link
+                  href={`/tournaments/${myLive.tournamentId}`}
+                  className="flex items-center rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-zinc-600 max-md:min-h-11"
+                >
+                  赛程
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleEndLive(myLive.id)}
+                  className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 max-md:min-h-11"
+                >
+                  结束直播
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ===== 可开播的比赛（按赛事分组） ===== */}
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
@@ -150,7 +222,7 @@ export default function RefereeCenterPage() {
                           </div>
                           <StartLiveButton
                             matchId={m.matchId}
-                            onStarted={loadStartable}
+                            onStarted={() => { loadStartable(); loadMyLive(); }}
                             className="shrink-0 rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50 max-md:min-h-11"
                           />
                         </div>

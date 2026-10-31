@@ -522,9 +522,6 @@ export const liveApi = {
   /** 某场比赛的直播历史 */
   matchStreams: (matchId: number) =>
     api.get("/live/streams", { params: { matchId } }),
-  /** 某场比赛的回放（倒序，最新在前） */
-  replays: (matchId: number) =>
-    api.get("/live/replays", { params: { matchId } }),
   /** 主播列表 */
   channels: (page = 1, size = 20) =>
     api.get("/live/channels", { params: { page, size } }),
@@ -538,11 +535,10 @@ export const liveApi = {
     api.get("/referee/live/preview", { params: { matchId } }),
   /** 可开播的比赛列表 */
   startable: () => api.get("/referee/live/matches"),
+  /** 我正在直播的场次 */
+  mine: () => api.get("/referee/live/mine"),
   start: (matchId: number) => api.post("/referee/live/streams", { matchId }),
   end: (id: number) => api.patch(`/referee/live/streams/${id}/end`),
-  addReplay: (data: { matchId: number; url: string; title?: string }) =>
-    api.post("/referee/live/replays", data),
-  deleteReplay: (id: number) => api.delete(`/referee/live/replays/${id}`),
 
   // ---- 管理端 ----
   adminChannels: (params?: { status?: string; page?: number; size?: number }) =>
@@ -588,13 +584,42 @@ export interface LiveChannelVO {
   liveStreamId: number | null;
 }
 
-export interface MatchReplayVO {
+// ====== 赛事视频（回放 / 精彩集锦） ======
+export const videoApi = {
+  /** 某场比赛的视频 */
+  byMatch: (matchId: number) => api.get("/videos", { params: { matchId } }),
+  /** 全站最新视频（直播页分区），带赛事名与场次名 */
+  recent: (limit = 40) => api.get("/videos/recent", { params: { limit } }),
+  /** 某赛事的视频聚合 */
+  byTournament: (tournamentId: number, params?: { category?: string; page?: number; size?: number }) =>
+    api.get(`/videos/tournament/${tournamentId}`, { params }),
+  /** 上传时可选的比赛（该赛事已完结场次） */
+  selectableMatches: (tournamentId: number) =>
+    api.get("/videos/selectable-matches", { params: { tournamentId } }),
+  create: (data: { matchId: number; url: string; title?: string; category?: string }) =>
+    api.post("/videos", data),
+  remove: (id: number) => api.delete(`/videos/${id}`),
+  adminSetStatus: (id: number, status: "ACTIVE" | "HIDDEN") =>
+    api.patch(`/admin/videos/${id}/status`, { status }),
+};
+
+export interface VideoVO {
   id: number;
   matchId: number;
+  tournamentId: number;
   url: string;
+  bvid: string | null;
+  platform: string;
   title: string | null;
+  category: "REPLAY" | "HIGHLIGHT" | "OTHER";
+  coverUrl: string | null;
+  durationSec: number | null;
   uploadedBy: number;
+  uploaderRole: string | null;
+  status: string;
   createdAt: string;
+  matchName?: string;
+  tournamentName?: string;
 }
 
 export interface LivePreviewVO {

@@ -7,12 +7,14 @@
  * 几十个主播每分钟轮询一次会被限流，而本站记录本来就是裁判主动登记的，更准。
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import LivePlayer, { platformLabel } from "@/components/LivePlayer";
-import { liveApi, LiveStreamVO, LiveChannelVO } from "@/lib/api";
+import VideoCard from "@/components/VideoCard";
+import VideoPlayerModal from "@/components/VideoPlayerModal";
+import { liveApi, videoApi, LiveStreamVO, LiveChannelVO, VideoVO } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 
 function elapsedText(startedAt: string) {
@@ -28,6 +30,8 @@ export default function LivePage() {
   const router = useRouter();
   const [streams, setStreams] = useState<LiveStreamVO[]>([]);
   const [channels, setChannels] = useState<LiveChannelVO[]>([]);
+  const [videos, setVideos] = useState<VideoVO[]>([]);
+  const [playing, setPlaying] = useState<VideoVO | null>(null);
   const [channelTotal, setChannelTotal] = useState(0);
   const [channelPage, setChannelPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -43,9 +47,11 @@ export default function LivePage() {
     Promise.all([
       liveApi.listLive(1, 20).catch(() => null),
       liveApi.channels(1, PAGE_SIZE).catch(() => null),
-    ]).then(([s, c]) => {
+      videoApi.recent(40).catch(() => null),
+    ]).then(([s, c, v]) => {
       setStreams(s?.data?.data?.list || []);
       setChannels(c?.data?.data?.list || []);
+      setVideos(v?.data?.data || []);
       setChannelTotal(c?.data?.data?.total || 0);
       setLoading(false);
     });
@@ -61,6 +67,18 @@ export default function LivePage() {
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(channelTotal / PAGE_SIZE));
+
+  // 按赛事聚合成"视频合集"：最多 4 个赛事，每个赛事取最新 3 条
+  const videoGroups = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; items: VideoVO[] }>();
+    for (const v of videos) {
+      const g = map.get(v.tournamentId)
+        || { id: v.tournamentId, name: v.tournamentName || "未命名赛事", items: [] };
+      g.items.push(v);
+      map.set(v.tournamentId, g);
+    }
+    return [...map.values()].slice(0, 4);
+  }, [videos]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white max-md:min-h-dvh">
@@ -122,6 +140,39 @@ export default function LivePage() {
             </div>
           )}
         </section>
+
+        {/* ===== 赛事视频（按赛事分合集） ===== */}
+        {videoGroups.length > 0 && (
+          <section className="mb-12">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+              赛事视频
+              <span className="text-sm font-normal text-zinc-500">{videos.length}</span>
+            </h2>
+            <div className="space-y-7">
+              {videoGroups.map((g) => (
+                <div key={g.id}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold">{g.name}</h3>
+                      <span className="shrink-0 text-xs text-zinc-500">{g.items.length} 个</span>
+                    </div>
+                    <Link
+                      href={`/tournaments/${g.id}/videos`}
+                      className="shrink-0 text-xs text-zinc-400 transition hover:text-red-400"
+                    >
+                      查看全部 →
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                    {g.items.slice(0, 3).map((v) => (
+                      <VideoCard key={v.id} video={v} onPlay={setPlaying} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ===== 主播列表 ===== */}
         <section>
@@ -189,6 +240,8 @@ export default function LivePage() {
           )}
         </section>
       </main>
+
+      <VideoPlayerModal video={playing} onClose={() => setPlaying(null)} />
     </div>
   );
 }

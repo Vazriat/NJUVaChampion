@@ -352,7 +352,6 @@
 |------|------|------|
 | GET | `/api/live/streams?page=1&size=20` | 正在直播列表，按开播时间倒序 |
 | GET | `/api/live/streams?matchId=66` | 某场比赛的直播历史 |
-| GET | `/api/live/replays?matchId=66` | 某场比赛的回放（倒序，最新在前） |
 | GET | `/api/live/channels?page=1&size=20` | 主播列表（已绑定频道且未隐藏的裁判） |
 
 直播条目返回：
@@ -379,8 +378,6 @@
 | GET | `/api/referee/live/preview?matchId=66` | 开播确认框数据 |
 | POST | `/api/referee/live/streams` | 开播，body `{ "matchId": 66 }` |
 | PATCH | `/api/referee/live/streams/{id}/end` | 结束直播（幂等） |
-| POST | `/api/referee/live/replays` | 新增回放，body `{ "matchId": 66, "url": "https://...", "title": "可选" }` |
-| DELETE | `/api/referee/live/replays/{id}` | 删除自己上传的回放 |
 
 绑定环节会把 B 站短号转换为真实 `room_id`（`live.bilibili.com/6` → `7734200`）。用短号拼播放器会黑屏，所以这一步不能省。
 
@@ -405,7 +402,42 @@
 | GET | `/api/admin/live/channels?status=&page=1&size=20` | 频道列表（不传 status 查全部） |
 | PATCH | `/api/admin/live/channels/{id}/status` | body `{ "status": "HIDDEN" }`，隐藏/恢复 |
 | PATCH | `/api/admin/live/streams/{id}/end` | 强制结束直播 |
-| DELETE | `/api/admin/live/replays/{id}` | 删除任意回放 |
+
+---
+
+## 赛事视频（回放 / 精彩集锦）
+
+只存外链，不存文件。视频本体托管在 B 站等平台；B 站链接会在提交时自动抓取标题、封面、时长。
+
+**上传权限**：该场比赛的参赛队成员、认证裁判、管理员。前端只做入口展示，最终由后端判定。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/videos?matchId=66` | 某场比赛的视频 |
+| GET | `/api/videos/recent?limit=40` | 全站最新视频，带 `tournamentName` / `matchName`，供直播页按赛事分组 |
+| GET | `/api/videos/tournament/8?category=REPLAY&page=1&size=24` | 赛事视频聚合，`category` 可选 `REPLAY`/`HIGHLIGHT`/`OTHER` |
+| GET | `/api/videos/selectable-matches?tournamentId=8` | 上传时可选的比赛（仅该赛事已完结场次） |
+| POST | `/api/videos` | 提交视频，body `{ "matchId": 66, "url": "https://www.bilibili.com/video/BV...", "title": "可选", "category": "HIGHLIGHT" }` |
+| DELETE | `/api/videos/{id}` | 删除（上传者本人或管理员） |
+| PATCH | `/api/admin/videos/{id}/status` | body `{ "status": "HIDDEN" }`，下架/恢复 |
+
+返回字段：
+
+```json
+{
+  "id": 2, "matchId": 66, "tournamentId": 8,
+  "url": "https://www.bilibili.com/video/BV1GJ411x7h7",
+  "bvid": "BV1GJ411x7h7", "platform": "BILIBILI",
+  "title": "WDG vs 4 全场回放", "category": "REPLAY",
+  "coverUrl": "https://i1.hdslb.com/bfs/archive/xxx.jpg",
+  "durationSec": 213, "uploadedBy": 6, "uploaderRole": "REFEREE",
+  "status": "ACTIVE", "matchName": "WDG vs 4"
+}
+```
+
+**规则**：同一场比赛同一链接不允许重复提交；链接必须是 https；非 B 站链接不抓元数据，前端只做跳转。
+
+> B 站封面图有防盗链：外站 `Referer` 直接 403。前端 `<img>` 必须加 `referrerPolicy="no-referrer"`。
 
 ---
 

@@ -11,7 +11,7 @@ import TournamentNotificationManager from "@/components/TournamentNotificationMa
 import { tournamentApi, teamApi, matchApi, resultSubmissionApi, authApi, liveApi, LiveStreamVO } from "@/lib/api";
 import GameRecordWizard from "@/components/GameRecordWizard";
 import LivePlayer from "@/components/LivePlayer";
-import ReplayLinks from "@/components/ReplayLinks";
+import MatchVideos from "@/components/MatchVideos";
 import StartLiveButton from "@/components/StartLiveButton";
 import { getUser, isLoggedIn, getRefereeMode } from "@/lib/auth";
 import { useConfirm, useNotify } from "@/components/DialogProvider";
@@ -213,7 +213,8 @@ export default function TournamentDetailPage() {
     }
   };
 
-  const handleUnregister = async () => {    if (!tournament || !currentUser) return;
+  const handleUnregister = async () => {
+    if (!tournament || !currentUser) return;
     const myTeam = (tournament.registeredTeams ?? []).find(
       (rt: any) => currentUser.id && rt.teamId
     );
@@ -279,6 +280,12 @@ export default function TournamentDetailPage() {
                 <span>{FORMAT_LABEL[tournament.format as keyof typeof FORMAT_LABEL] || tournament.format}</span>
                 <span>{new Date(tournament.createdAt).toLocaleDateString("zh-CN")}</span>
               </div>
+              <Link
+                href={`/tournaments/${tournament.id}/videos`}
+                className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:border-red-500 hover:text-red-400"
+              >
+                视频 / 回放 →
+              </Link>
             </div>
           </div>
         </div>
@@ -543,7 +550,7 @@ export default function TournamentDetailPage() {
             )}
 
             <div className="mt-4 border-t border-zinc-800 pt-4">
-              <ReplayLinks matchId={detailMatch.id} canManage={isReferee} />
+              <MatchVideos matchId={detailMatch.id} canManage={!!currentUser} />
             </div>
           </div>
         </div>

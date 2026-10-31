@@ -36,7 +36,7 @@
 - 赛程排期（`scheduledAt`）
 - 比赛"进行中"状态（`TournamentMatch` 保持只有 PENDING / COMPLETED）
 - 裁判赛前指派
-- 回放站内播放（只做外链）
+- 回放只做外链（B 站视频后来改成站内播放，见 `docs/api.md` 赛事视频章节）
 - 主播实时在线状态轮询（会打爆 B 站接口）
 - 开播时临时更换房间号（换号去设置页改）
 
@@ -77,15 +77,24 @@ CREATE TABLE live_stream (
   KEY idx_live_status (status, started_at)
 );
 
--- 回放链接，一场可多条，与直播无关
-CREATE TABLE match_replay (
-  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
-  match_id    BIGINT       NOT NULL,
-  url         VARCHAR(500) NOT NULL,
-  title       VARCHAR(100) NULL,
-  uploaded_by BIGINT       NOT NULL,
-  created_at  DATETIME     NOT NULL,
-  KEY idx_replay_match (match_id, created_at)
+-- 回放已升级为「赛事视频」模块，见 docs/api.md 与下方说明
+CREATE TABLE match_videos (
+  id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+  match_id      BIGINT       NOT NULL,
+  tournament_id BIGINT       NOT NULL,   -- 冗余：赛事视频聚合页要用
+  url           VARCHAR(500) NOT NULL,
+  bvid          VARCHAR(100) NULL,       -- B 站稿件号，站内播放依赖它
+  platform      VARCHAR(20)  NOT NULL,   -- BILIBILI | OTHER
+  title         VARCHAR(100) NULL,
+  category      VARCHAR(20)  NOT NULL,   -- REPLAY | HIGHLIGHT | OTHER
+  cover_url     VARCHAR(500) NULL,       -- 提交时自动抓取
+  duration_sec  INT          NULL,
+  uploaded_by   BIGINT       NOT NULL,
+  uploader_role VARCHAR(20)  NULL,       -- REFEREE | PLAYER | ADMIN
+  status        VARCHAR(20)  NOT NULL,   -- ACTIVE | HIDDEN
+  created_at    DATETIME     NOT NULL,
+  KEY idx_video_match (match_id, created_at),
+  KEY idx_video_tournament (tournament_id, created_at)
 );
 ```
 
@@ -95,7 +104,9 @@ CREATE TABLE match_replay (
 
 **`platform` / `room_id` 冗余到 `live_stream`**：裁判以后改了频道，历史直播记录不能跟着变。这是快照，不是外键同步。
 
-**回放不挂 `live_stream`**：没开直播的场次也要能填回放，且重赛时不能覆盖上一段回放。所以独立成表，一场可多条，页面取最新一条。
+**回放不挂 `live_stream`**：没开直播的场次也要能填回放，且重赛时不能覆盖上一段回放。所以独立成表，一场可多条。
+
+**回放已升级为「赛事视频」**：支持选手上传、自动抓封面/时长、按分类筛选、赛事级聚合页，B 站视频可在站内播放。接口见 `docs/api.md` 的「赛事视频」章节。
 
 ## 4. 后端
 

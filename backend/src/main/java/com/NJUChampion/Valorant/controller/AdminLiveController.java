@@ -39,10 +39,4 @@ public class AdminLiveController {
         liveService.end(user.getId(), id, true);
         return Result.success();
     }
-
-    @DeleteMapping("/api/admin/live/replays/{id}")
-    public Result<Void> deleteReplay(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        liveService.deleteReplay(user.getId(), true, id);
-        return Result.success();
-    }
 }

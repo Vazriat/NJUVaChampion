@@ -34,11 +34,6 @@ public class LiveController {
         return Result.success(liveService.liveList(page, size));
     }
 
-    @GetMapping("/api/live/replays")
-    public Result<List<Map<String, Object>>> replays(@RequestParam Long matchId) {
-        return Result.success(liveService.replays(matchId));
-    }
-
     /** 主播列表：已绑定直播间且未被隐藏的裁判 */
     @GetMapping("/api/live/channels")
     public Result<Map<String, Object>> channels(@RequestParam(defaultValue = "1") int page,
