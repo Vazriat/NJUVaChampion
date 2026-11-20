@@ -13,6 +13,69 @@ const CHECK = "✔";
 const HOURGLASS = "⏳";
 const CROSS = "✘";
 
+/**
+ * 认证材料上传的图片压缩。
+ *
+ * 为什么必须压：手机直出的 PNG 截图常有 3–10MB，转 base64 再 +33%，
+ * 经 nginx（默认 client_max_body_size 1m）会直接被 413 拦掉；
+ * 就算放行，端到端也要几十秒，前端请求会超时。
+ *
+ * 策略：
+ *  - 原图 ≤ 1.2MB 直接传，避免无谓重编码
+ *  - 否则长边缩到 1600px，先试 PNG；仍超 3MB（≈2.2MB 原图）再转 JPEG 0.85
+ *  - 压缩结果反而更大（少见）就退回原图
+ */
+const MAX_EDGE = 1600;
+const DIRECT_LIMIT = 1.2 * 1024 * 1024;
+const MAX_BASE64_LEN = 3 * 1024 * 1024;
+
+const readAsDataURL = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result as string);
+    fr.onerror = () => reject(new Error("图片读取失败"));
+    fr.readAsDataURL(file);
+  });
+
+const loadImage = (file: File): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("图片解析失败")); };
+    img.src = url;
+  });
+
+const fileToDataUrl = async (file: File): Promise<string> => {
+  const raw = await readAsDataURL(file);
+  // 非位图（gif/svg）与体积本就不大的图，原样上传
+  if (file.size <= DIRECT_LIMIT) return raw;
+  if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/svg+xml") {
+    return raw;
+  }
+  try {
+    const img = await loadImage(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return raw;
+    // 铺白底：PNG 透明背景直接转 JPEG 会变黑
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    let out = canvas.toDataURL("image/png");
+    if (out.length > MAX_BASE64_LEN) out = canvas.toDataURL("image/jpeg", 0.85);
+    return out.length < raw.length ? out : raw;
+  } catch {
+    return raw;
+  }
+};
+
 const identitySubTypes = CERT_TYPES
   .filter((t) => t.group === "identity")
   .map((t) => ({ type: t.code, label: t.label }));
@@ -23,12 +86,14 @@ export default function VerifyPage() {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const [msgError, setMsgError] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [rankPublic, setRankPublic] = useState(false);
   const [updatingRank, setUpdatingRank] = useState(false);
   const [required, setRequired] = useState(false);
   const requiredRef = useRef(false);
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     const isRequired = new URLSearchParams(window.location.search).get("required") === "1";
@@ -64,16 +129,15 @@ export default function VerifyPage() {
 
   const getRec = (type: string) => records.find((r: any) => r.type === type);
 
-  const toBase64 = (file: File): Promise<string> => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result as string); fr.readAsDataURL(file); });
-
   const handleApply = async () => {
     const type = form._type || "";
-    if (!type) return;
+    if (!type || applying) return;
+    setApplying(true);
     const body: any = { type, description: form[type + "_desc"] || "" };
     if (type === "STUDENT") {
       body.studentName = form[type + "_name"] || ""; body.studentId = form[type + "_id"] || "";
       const f = form[type + "_xuexin"] as File | undefined;
-      if (f) body.xuexinBase64 = await toBase64(f);
+      if (f) body.xuexinBase64 = await fileToDataUrl(f);
     }
     if (type === "STUDENT" || type === "ALUMNI") {
       body.enrollmentYear = form[type + "_year"] ? Number(form[type + "_year"]) : null;
@@ -81,19 +145,35 @@ export default function VerifyPage() {
     if (type === "RANK") {
       body.rank = form[type + "_rank"] || "";
       const files = (form[type + "_evidence"] as File[]) || [];
-      if (files.length > 0) body.evidenceBase64s = await Promise.all(files.map(f => toBase64(f)));
+      if (files.length > 0) body.evidenceBase64s = await Promise.all(files.map(f => fileToDataUrl(f)));
     }
     if (type === "ALUMNI") {
       const files = (form[type + "_evidence"] as File[]) || [];
-      body.evidenceBase64s = await Promise.all(files.map(f => toBase64(f)));
+      body.evidenceBase64s = await Promise.all(files.map(f => fileToDataUrl(f)));
     }
     try {
       await certificationApi.apply(body);
       setMsg("申请已提交");
+      setMsgError(false);
       setExpanded(null);
       setUpdatingRank(false);
       load();
-    } catch (err: any) { setMsg(err.response?.data?.message || "失败"); }
+    } catch (err: any) {
+      // 网关层拦截（413/502）不会返回 Result 结构，给一句能看懂的话
+      const status = err.response?.status;
+      if (status === 413) {
+        setMsg("图片太大，上传被服务器拒绝，请压缩后重试");
+        setMsgError(true);
+      } else if (!err.response) {
+        setMsg("上传超时或网络中断，请检查网络后重试");
+        setMsgError(true);
+      } else {
+        setMsg(err.response?.data?.message || "失败");
+        setMsgError(true);
+      }
+    } finally {
+      setApplying(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -102,8 +182,8 @@ export default function VerifyPage() {
     try {
       const token = localStorage.getItem("token");
       await fetch("/api/certification/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + token } });
-      setMsg("已删除"); load();
-    } catch { setMsg("删除失败"); }
+      setMsg("已删除"); setMsgError(false); load();
+    } catch { setMsg("删除失败"); setMsgError(true); }
   };
 
   const statusBadge = (rec: any) => {
@@ -126,7 +206,11 @@ export default function VerifyPage() {
             请先完成在校生或校友身份认证，认证通过后方可使用平台其他功能。审核通过后将自动解锁。
           </div>
         )}
-        {msg && <div className="mb-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-400">{msg}</div>}
+        {msg && (
+          <div className={"mb-4 rounded-lg px-4 py-3 text-sm " + (msgError ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400")}>
+            {msg}
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* 身份认证 */}
@@ -185,7 +269,7 @@ export default function VerifyPage() {
                             className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white max-md:text-sm max-md:file:py-2" />
                           <textarea value={form[st.type + "_desc"] || ""} onChange={e => setForm({...form, [st.type + "_desc"]: e.target.value, _type: st.type})}
                             placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
-                          <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
+                          <button onClick={handleApply} disabled={applying} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 max-md:py-3 max-md:text-sm">{applying ? "提交中..." : "提交申请"}</button>
                         </div>
                       )}
                       {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && st.type === "ALUMNI" && (
@@ -197,7 +281,7 @@ export default function VerifyPage() {
                             className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white max-md:text-sm max-md:file:py-2" />
                           <textarea value={form[st.type + "_desc"] || ""} onChange={e => setForm({...form, [st.type + "_desc"]: e.target.value, _type: st.type})}
                             placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
-                          <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
+                          <button onClick={handleApply} disabled={applying} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 max-md:py-3 max-md:text-sm">{applying ? "提交中..." : "提交申请"}</button>
                         </div>
                       )}
                     </div>
@@ -273,7 +357,7 @@ export default function VerifyPage() {
                         className="w-full text-xs text-zinc-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white max-md:text-sm max-md:file:py-2" />
                       <textarea value={form["RANK_desc"] || ""} onChange={e => setForm({...form, "RANK_desc": e.target.value})}
                         placeholder="说明" rows={2} className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
-                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
+                      <button onClick={handleApply} disabled={applying} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 max-md:py-3 max-md:text-sm">{applying ? "提交中..." : "提交申请"}</button>
                     </div>
                   )}
                 </div>
@@ -312,7 +396,7 @@ export default function VerifyPage() {
                       <textarea value={form["REFEREE_desc"] || ""} onChange={e => setForm({...form, "REFEREE_desc": e.target.value, _type: "REFEREE"})}
                         placeholder="说明（如裁判经验、资质等）" rows={3}
                         className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
-                      <button onClick={handleApply} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 max-md:py-3 max-md:text-sm">提交申请</button>
+                      <button onClick={handleApply} disabled={applying} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 max-md:py-3 max-md:text-sm">{applying ? "提交中..." : "提交申请"}</button>
                     </div>
                   )}
                 </div>

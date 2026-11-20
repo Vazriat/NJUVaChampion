@@ -102,10 +102,17 @@ export const teamApi = {
   create: (data: { name: string; logo?: string; description?: string }) =>
     api.post("/teams", data),
   list: () => api.get("/teams"),
+  /** 当前活跃战队，没有战队时为 null */
   myTeam: () => api.get("/teams/my"),
+  /** 我加入的全部战队（可多支），含 active 标记 */
+  myTeams: () => api.get("/teams/mine"),
+  /** 切换当前活跃战队 */
+  activate: (id: number) => api.post(`/teams/${id}/activate`),
   myCaptainedTeams: () => api.get("/teams/captain"),
   getMatches: (id: number) => api.get("/teams/" + id + "/matches"),
   detail: (id: number) => api.get(`/teams/${id}`),
+  /** 队长修改战队资料 */
+  update: (id: number, data: { description?: string }) => api.put(`/teams/${id}`, data),
   // 入队已改为审批制：join 现在提交一条入队申请，返回申请记录
   join: (id: number) => api.post(`/teams/${id}/join`),
   leave: (id: number) => api.post(`/teams/${id}/leave`),
@@ -132,6 +139,8 @@ export interface TeamVO {
   displayName?: string;
   createdAt: string;
   members: MemberVO[];
+  /** 仅 /teams/mine 返回：是否为当前活跃战队 */
+  active?: boolean;
 }
 
 export interface MemberVO {
@@ -418,7 +427,8 @@ export const screenshotApi = {
 
 // ====== 认证接口 ======
 export const certificationApi = {
-  apply: (data: any) => api.post("/certification/apply", data),
+  /** 认证材料以 base64 随 JSON 上传，默认 10s 超时不够，单独放宽 */
+  apply: (data: any) => api.post("/certification/apply", data, { timeout: 120000 }),
   my: () => api.get("/certification/my"),
 }
 

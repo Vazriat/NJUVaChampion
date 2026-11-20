@@ -61,6 +61,13 @@ public class User {
     @Builder.Default
     private Boolean contactPublic = false;
 
+    /**
+     * 当前活跃战队。一人可加入多支战队，这个字段标记「以哪支队伍为默认身份」。
+     * 为空时按最早加入的战队兜底（见 TeamService#resolveActiveTeamId）。
+     */
+    @Column(name = "active_team_id")
+    private Long activeTeamId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

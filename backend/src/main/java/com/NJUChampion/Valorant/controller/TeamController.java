@@ -4,6 +4,7 @@ import com.NJUChampion.Valorant.common.Result;
 import com.NJUChampion.Valorant.dto.CreateTeamRequest;
 import com.NJUChampion.Valorant.dto.TeamApplicationVO;
 import com.NJUChampion.Valorant.dto.TeamVO;
+import com.NJUChampion.Valorant.dto.UpdateTeamRequest;
 import com.NJUChampion.Valorant.entity.TeamApplication;
 import com.NJUChampion.Valorant.entity.User;
 import com.NJUChampion.Valorant.service.TeamApplicationService;
@@ -40,6 +41,26 @@ public class TeamController {
     public Result<TeamVO> myTeam(@AuthenticationPrincipal User user) {
         TeamVO team = teamService.getMyTeam(user.getId());
         return Result.success(team);
+    }
+
+    /** 我加入的全部战队（一人可加入多支），含 active 标记 */
+    @GetMapping("/mine")
+    public Result<List<TeamVO>> myTeams(@AuthenticationPrincipal User user) {
+        return Result.success(teamService.listMyTeams(user.getId()));
+    }
+
+    /** 切换当前活跃战队 */
+    @PostMapping("/{id}/activate")
+    public Result<TeamVO> activate(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        return Result.success(teamService.activateTeam(id, user.getId()));
+    }
+
+    /** 队长修改战队简介 */
+    @PutMapping("/{id}")
+    public Result<TeamVO> updateProfile(@PathVariable Long id,
+                                        @Valid @RequestBody UpdateTeamRequest req,
+                                        @AuthenticationPrincipal User user) {
+        return Result.success(teamService.updateProfile(id, user.getId(), req.getDescription()));
     }
 
     @GetMapping("/captain")

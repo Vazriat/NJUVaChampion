@@ -5,6 +5,7 @@ import com.NJUChampion.Valorant.dto.RecruitmentPostVO;
 import com.NJUChampion.Valorant.entity.RecruitmentPost;
 import com.NJUChampion.Valorant.entity.Team;
 import com.NJUChampion.Valorant.entity.TeamApplication;
+import com.NJUChampion.Valorant.entity.TeamMember;
 import com.NJUChampion.Valorant.entity.User;
 import com.NJUChampion.Valorant.entity.UserNotification;
 import com.NJUChampion.Valorant.repository.RecruitmentPostRepository;
@@ -130,9 +131,7 @@ public class RecruitmentPostService {
             }
             post.setTeamId(team.getId());
         } else {
-            if (!teamMemberRepository.findByUserId(currentUserId).isEmpty()) {
-                throw new IllegalArgumentException("你已加入战队，无法发布求职帖");
-            }
+            // 一人可加入多支战队，已在某队也不妨碍继续求职，因此不再校验成员关系
             if (postRepository.findFirstByUserIdAndTypeAndStatus(
                     currentUserId, normalizedType, RecruitmentPost.STATUS_OPEN).isPresent()) {
                 throw new IllegalArgumentException("你已有求职帖，请先关闭后再发布");
@@ -295,9 +294,10 @@ public class RecruitmentPostService {
 
         if (!mine && open) {
             if (RecruitmentPost.TYPE_TEAM.equals(post.getType())) {
-                // 队伍帖：看"我"与该队伍之间有没有待处理记录；且队员同时只能申请一支战队
+                // 队伍帖：看"我"与该队伍之间有没有待处理记录；一人可加入多支战队，只需排除已在该队的情况
                 related = post.getTeamId() == null ? null : state.pendingByTeam.get(post.getTeamId());
-                canApply = related == null && !state.inAnyTeam && !state.hasPendingApply;
+                canApply = related == null
+                        && !state.myTeamIds.contains(post.getTeamId());
             } else {
                 // 求职帖：看"我"作为队长有没有已经邀请/已被该选手申请
                 related = state.pendingInviteToUser.get(post.getUserId());
@@ -334,7 +334,9 @@ public class RecruitmentPostService {
             return state;
         }
 
-        state.inAnyTeam = !teamMemberRepository.findByUserId(currentUserId).isEmpty();
+        state.myTeamIds = teamMemberRepository.findByUserId(currentUserId).stream()
+                .map(TeamMember::getTeamId)
+                .collect(Collectors.toSet());
         state.captainedTeamIds = teamRepository.findByCaptainId(currentUserId)
                 .filter(t -> t.getStatus() != null && t.getStatus() == 1)
                 .map(t -> (Set<Long>) new HashSet<>(Set.of(t.getId())))
@@ -343,7 +345,6 @@ public class RecruitmentPostService {
         for (TeamApplication app : applicationRepository.findByInitiatorUserIdAndStatus(
                 currentUserId, TeamApplication.STATUS_PENDING)) {
             if (TeamApplication.TYPE_APPLY.equals(app.getType())) {
-                state.hasPendingApply = true;
                 state.pendingByTeam.put(app.getTeamId(), app);
             } else {
                 state.pendingInviteToUser.put(app.getTargetUserId(), app);
@@ -362,9 +363,8 @@ public class RecruitmentPostService {
     }
 
     private static final class MyState {
-        private boolean inAnyTeam;
-        /** 我作为队员发出的、待处理的入队申请（全局同时只能 1 条） */
-        private boolean hasPendingApply;
+        /** 我已加入的全部战队，用于排除「已在该队」的重复申请 */
+        private Set<Long> myTeamIds = new HashSet<>();
         private Set<Long> captainedTeamIds = new HashSet<>();
         /** key: teamId —— 我与该队伍的待处理关系 */
         private final Map<Long, TeamApplication> pendingByTeam = new HashMap<>();

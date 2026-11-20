@@ -8,7 +8,7 @@ import { recruitmentPostApi, teamApi } from "@/lib/api";
 import { isLoggedIn } from "@/lib/auth";
 import { useNotify } from "@/components/DialogProvider";
 
-type Mode = "TEAM" | "PLAYER" | "NONE" | null;
+type Mode = "TEAM" | "PLAYER" | null;
 
 export default function RecruitNewPage() {
   const notify = useNotify();
@@ -23,22 +23,19 @@ export default function RecruitNewPage() {
       router.replace("/login");
       return;
     }
-    Promise.all([
-      teamApi.myCaptainedTeams().catch(() => ({ data: { data: [] } })),
-      teamApi.myTeam().catch(() => ({ data: { data: null } })),
-    ]).then(([captainedRes, myTeamRes]) => {
-      const captained = captainedRes.data.data || [];
-      const myTeam = myTeamRes.data.data;
-      if (captained.length > 0) {
-        setMode("TEAM");
-        setTeamName(captained[0].name);
-      } else if (!myTeam) {
-        setMode("PLAYER");
-      } else {
-        // 已加入战队但不是队长：既不能替队伍招人，也不该再找队伍
-        setMode("NONE");
-      }
-    });
+    // 队长可替队伍招人；其他人（含已在某支战队的）都可以发求职 —— 一人可加入多支战队
+    teamApi
+      .myCaptainedTeams()
+      .then((captainedRes) => {
+        const captained = captainedRes.data.data || [];
+        if (captained.length > 0) {
+          setMode("TEAM");
+          setTeamName(captained[0].name);
+        } else {
+          setMode("PLAYER");
+        }
+      })
+      .catch(() => setMode("PLAYER"));
   }, [router]);
 
   const submit = async () => {
@@ -66,20 +63,6 @@ export default function RecruitNewPage() {
         <h2 className="mb-6 text-2xl font-bold">发布信息</h2>
 
         {mode === null && <p className="text-zinc-500">加载中...</p>}
-
-        {mode === "NONE" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-            <p className="text-zinc-300">
-              你已加入战队但不是队长，无法替队伍发布招募；也已经组队，无需发布求职信息。
-            </p>
-            <Link
-              href="/recruit"
-              className="mt-4 inline-block text-sm text-red-500 hover:underline"
-            >
-              返回人才市场 →
-            </Link>
-          </div>
-        )}
 
         {(mode === "TEAM" || mode === "PLAYER") && (
           <>

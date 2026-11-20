@@ -35,9 +35,9 @@ import java.util.stream.Collectors;
  * 3. 战队页直接点"申请加入"（APPLY，postId 为 null）
  *
  * 关键规则：
- * - 队员同时只能有 1 条 PENDING 的 APPLY；要申请其它战队必须先撤回。
+ * - 一人可加入多支战队；待处理记录按「战队」维度去重，同一支队伍同时只能有 1 条。
  * - APPLY 的处理权限实时判定当前队长（team.captainId），不用记录里的 targetUserId 快照。
- * - 同意入队后连带作废该用户其它 PENDING 记录、关闭其求职帖。
+ * - 同意入队后关闭该用户的求职帖（不再作废其在其它队伍的记录）。
  * - 队伍无人数上限，因此同意入队时不校验人数，也不关闭招募帖。
  */
 @Service
@@ -93,13 +93,6 @@ public class TeamApplicationService {
             if (team.getCaptainId().equals(currentUserId)) {
                 throw new IllegalArgumentException("你是该战队队长，无需申请");
             }
-            if (!teamMemberRepository.findByUserId(currentUserId).isEmpty()) {
-                throw new IllegalArgumentException("你已加入其他战队");
-            }
-            if (applicationRepository.findFirstByInitiatorUserIdAndTypeAndStatus(
-                    currentUserId, TeamApplication.TYPE_APPLY, TeamApplication.STATUS_PENDING).isPresent()) {
-                throw new IllegalArgumentException("你已有一支战队的入队申请待处理，请先撤回后再申请");
-            }
             playerId = currentUserId;
             initiatorId = currentUserId;
             // 存队长快照仅用于展示，处理权限实时看 team.captainId
@@ -118,9 +111,6 @@ public class TeamApplicationService {
                     .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
             if (target.getStatus() == null || target.getStatus() != 1) {
                 throw new IllegalArgumentException("该用户已被禁用，无法邀请");
-            }
-            if (!teamMemberRepository.findByUserId(targetUserId).isEmpty()) {
-                throw new IllegalArgumentException("该用户已加入其他战队");
             }
             playerId = targetUserId;
             initiatorId = currentUserId;
@@ -212,8 +202,9 @@ public class TeamApplicationService {
         if (player.getStatus() == null || player.getStatus() != 1) {
             throw new IllegalArgumentException("该用户已被禁用，无法加入");
         }
-        if (!teamMemberRepository.findByUserId(playerId).isEmpty()) {
-            throw new IllegalArgumentException("该用户已加入其他战队");
+        // 一人可加入多支战队，只拦「已在同一支队伍」的重复入队
+        if (teamMemberRepository.existsByTeamIdAndUserId(team.getId(), playerId)) {
+            throw new IllegalArgumentException("该用户已是该战队成员");
         }
 
         app.setStatus(TeamApplication.STATUS_ACCEPTED);
@@ -226,8 +217,7 @@ public class TeamApplicationService {
                 .role("MEMBER")
                 .build());
 
-        // 连带：作废该用户其它待处理记录、关闭其求职帖。招募帖不关闭（队伍无人数上限）
-        cancelOtherPending(playerId, app.getId());
+        // 一人可加入多支战队：这里只关闭求职帖，不再作废该用户在其它队伍的待处理记录
         closePlayerAd(playerId);
 
         if (TeamApplication.TYPE_APPLY.equals(app.getType())) {
@@ -298,12 +288,6 @@ public class TeamApplicationService {
         return toVOs(List.of(app), currentUserId).get(0);
     }
 
-    /** 供 TeamService 踢人时调用：作废该用户的全部待处理记录 */
-    @Transactional
-    public void cancelAllPendingForUser(Long userId) {
-        cancelOtherPending(userId, null);
-    }
-
     // ==================== 内部 ====================
 
     private Long playerOf(TeamApplication app) {
@@ -365,31 +349,6 @@ public class TeamApplicationService {
                 .findByTeamIdAndStatusOrderByCreatedAtDesc(teamId, TeamApplication.STATUS_PENDING)
                 .stream()
                 .anyMatch(a -> playerId.equals(a.getInitiatorUserId()) || playerId.equals(a.getTargetUserId()));
-    }
-
-    private void cancelOtherPending(Long playerId, Long exceptId) {
-        List<TeamApplication> candidates = new ArrayList<>();
-        candidates.addAll(applicationRepository.findByInitiatorUserIdAndStatus(
-                playerId, TeamApplication.STATUS_PENDING));
-        candidates.addAll(applicationRepository.findByTargetUserIdAndStatus(
-                playerId, TeamApplication.STATUS_PENDING));
-
-        Set<Long> seen = new HashSet<>();
-        LocalDateTime now = LocalDateTime.now();
-        for (TeamApplication a : candidates) {
-            if (!seen.add(a.getId())) {
-                continue;
-            }
-            if (!TeamApplication.STATUS_PENDING.equals(a.getStatus())) {
-                continue;
-            }
-            if (exceptId != null && exceptId.equals(a.getId())) {
-                continue;
-            }
-            a.setStatus(TeamApplication.STATUS_CANCELLED);
-            a.setHandledAt(now);
-            applicationRepository.save(a);
-        }
     }
 
     private void closePlayerAd(Long playerId) {
