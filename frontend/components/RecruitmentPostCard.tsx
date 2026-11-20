@@ -40,7 +40,7 @@ export default function RecruitmentPostCard({
     if (!post.teamId) return;
     const ok = await ask({
       title: "申请加入战队",
-      message: `确认申请加入「${post.teamName}」？\n注意：同一时间只能有一支战队的入队申请待处理。`,
+      message: `确认申请加入「${post.teamName}」？\n你可以同时加入多支战队，加入后可在「我的战队」切换当前活跃队伍。`,
       okText: "确认申请",
     });
     if (!ok) return;

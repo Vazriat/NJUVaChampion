@@ -60,9 +60,18 @@ public class PublicUserController {
                 .displayPreference(user.getDisplayPreference())
                 .createdAt(user.getCreatedAt());
 
-        List<TeamMember> memberships = teamMemberRepository.findByUserId(user.getId());
-        if (!memberships.isEmpty()) {
-            TeamMember tm = memberships.get(0);
+        // 一人可属多队，对外展示优先用当前活跃战队
+        TeamMember tm = null;
+        if (user.getActiveTeamId() != null) {
+            tm = teamMemberRepository
+                    .findByTeamIdAndUserId(user.getActiveTeamId(), user.getId())
+                    .orElse(null);
+        }
+        if (tm == null) {
+            List<TeamMember> memberships = teamMemberRepository.findByUserId(user.getId());
+            tm = memberships.isEmpty() ? null : memberships.get(0);
+        }
+        if (tm != null) {
             Team team = teamRepository.findById(tm.getTeamId()).orElse(null);
             if (team != null) {
                 builder.team(new UserVO.TeamInfo(team.getId(), team.getName(), tm.getRole()));

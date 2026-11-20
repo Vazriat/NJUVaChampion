@@ -23,6 +23,8 @@ public class TeamVO {
     private Integer memberCount;
     private LocalDateTime createdAt;
     private List<MemberVO> members;
+    /** 仅 /teams/mine 返回时有效：是否为当前活跃战队 */
+    private Boolean active;
 
     @Data
     @NoArgsConstructor

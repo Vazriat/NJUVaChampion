@@ -54,6 +54,10 @@ export default function TeamDetailPage() {
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [expandedMatchId, setExpandedMatchId] = useState<number | null>(null);
   const [matchDetailCache, setMatchDetailCache] = useState<Record<number, any>>({});
+  // 队长编辑战队简介
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState("");
+  const [savingDesc, setSavingDesc] = useState(false);
 
   const ask = useConfirm();
   const notify = useNotify();
@@ -121,7 +125,7 @@ export default function TeamDetailPage() {
   const handleJoin = async () => {
     const ok = await ask({
       title: "申请加入战队",
-      message: `确认申请加入「${team?.name}」？\n注意：同一时间只能有一支战队的入队申请待处理。`,
+      message: `确认申请加入「${team?.name}」？\n你可以同时加入多支战队，加入后可在「我的战队」切换当前活跃队伍。`,
       okText: "确认申请",
     });
     if (!ok) return;
@@ -139,7 +143,12 @@ export default function TeamDetailPage() {
     const ok = await ask({ title: "退出战队", message: "确认退出该战队？", okText: "确认退出", danger: true });
     if (!ok) return;
     setActionLoading(true);
-    try { await teamApi.leave(Number(id)); router.push("/teams"); }
+    try {
+      await teamApi.leave(Number(id));
+      // 一人可同时属于多支战队，退出当前这支不代表没队伍了，原地刷新即可
+      fetchTeam();
+      notify("已退出该战队", "success");
+    }
     catch (err: any) { notify(err.response?.data?.message || "操作失败", "error"); }
     finally { setActionLoading(false); }
   };
@@ -184,6 +193,30 @@ export default function TeamDetailPage() {
     }
     catch (err: any) { notify(err.response?.data?.message || "撤回失败", "error"); }
     finally { setProcessingId(null); }
+  };
+
+  const startEditDesc = () => {
+    setDescDraft(team?.description || "");
+    setEditingDesc(true);
+  };
+
+  const handleSaveDesc = async () => {
+    if (descDraft.trim().length > 500) {
+      notify("简介不能超过500个字符", "error");
+      return;
+    }
+    setSavingDesc(true);
+    try {
+      const res = await teamApi.update(Number(id), { description: descDraft.trim() });
+      const updated = res.data.data;
+      setTeam((prev) => (prev ? { ...prev, description: updated?.description ?? null } : prev));
+      setEditingDesc(false);
+      notify("战队简介已更新", "success");
+    } catch (err: any) {
+      notify(err.response?.data?.message || "保存失败", "error");
+    } finally {
+      setSavingDesc(false);
+    }
   };
 
   if (loading) {
@@ -254,8 +287,56 @@ export default function TeamDetailPage() {
         </div>
 
         <div className="mb-8">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">战队简介</h2>
-          <p className="text-zinc-300">{team.description || ""}</p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-zinc-500">战队简介</h2>
+            {isCaptain && team.status === 1 && !editingDesc && (
+              <button
+                type="button"
+                onClick={startEditDesc}
+                className="rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-400 transition hover:border-red-500 hover:text-red-400 max-md:min-h-11"
+              >
+                编辑
+              </button>
+            )}
+          </div>
+
+          {editingDesc ? (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 max-md:p-3">
+              <textarea
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="介绍一下你的战队：风格、目标、招募要求……"
+                className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-red-500"
+              />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="text-xs text-zinc-600">{descDraft.length}/500</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDesc(false)}
+                    disabled={savingDesc}
+                    className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-zinc-500 disabled:opacity-50 max-md:min-h-11"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDesc}
+                    disabled={savingDesc}
+                    className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold transition hover:bg-red-700 disabled:opacity-50 max-md:min-h-11"
+                  >
+                    {savingDesc ? "保存中..." : "保存"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap text-zinc-300">
+              {team.description || (isCaptain ? "还没有简介，点「编辑」补充一段。" : "")}
+            </p>
+          )}
         </div>
 
         {/* 该队伍的招募信息：任何人可见，可当场申请加入 */}

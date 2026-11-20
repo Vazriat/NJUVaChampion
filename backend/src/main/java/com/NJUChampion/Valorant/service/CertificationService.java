@@ -258,19 +258,66 @@ public class CertificationService {
                 .findFirstByUserIdAndStatusOrderByCreatedAtDesc(userId, "APPROVED");
     }
 
+    /**
+     * 保存 base64 图片。
+     *
+     * 早前这里固定写 .png，导致上传 JPEG 时文件后缀与真实格式不符：
+     * /uploads 由 Spring 静态资源按后缀推断 Content-Type，返回 image/png 给一段 JPEG 数据，
+     * 部分浏览器（尤其 Safari）会直接不渲染。这里改为按真实类型落盘。
+     */
     private String saveFile(String base64Data, Long userId, String prefix) {
+        String mime = null;
+        String data = base64Data.trim();
+        if (data.startsWith("data:")) {
+            int comma = data.indexOf(',');
+            if (comma > 0) {
+                String header = data.substring(5, comma);
+                int semi = header.indexOf(';');
+                mime = semi > 0 ? header.substring(0, semi) : header;
+                data = data.substring(comma + 1);
+            }
+        }
+
+        byte[] bytes;
         try {
-            String data = base64Data;
-            if (data.contains(",")) data = data.substring(data.indexOf(",") + 1);
-            byte[] bytes = Base64.getDecoder().decode(data);
+            // MIME 解码器容忍换行等非 base64 字符；严格解码器遇到换行会抛异常
+            bytes = Base64.getMimeDecoder().decode(data.replaceAll("\\s", ""));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("图片编码无法识别，请重新选择文件后重试");
+        }
+        if (bytes.length == 0) {
+            throw new IllegalArgumentException("图片内容为空，请重新选择文件");
+        }
+
+        String ext = detectExtension(mime, bytes);
+        try {
             Path dir = Paths.get(uploadDir, "certifications", String.valueOf(userId));
             Files.createDirectories(dir);
-            Path filePath = dir.resolve(prefix + ".png");
+            Path filePath = dir.resolve(prefix + ext);
             Files.deleteIfExists(filePath);
             Files.write(filePath, bytes);
-            return "/uploads/certifications/" + userId + "/" + prefix + ".png";
+            return "/uploads/certifications/" + userId + "/" + prefix + ext;
         } catch (IOException e) {
             throw new RuntimeException("\u4fdd\u5b58\u6587\u4ef6\u5931\u8d25", e);
         }
+    }
+
+    /** 优先用 data URL 里的 MIME，缺失或不认识时按文件头魔数兜底 */
+    private String detectExtension(String mime, byte[] b) {
+        if (mime != null) {
+            String m = mime.toLowerCase(Locale.ROOT);
+            if (m.contains("jpeg") || m.contains("jpg")) return ".jpg";
+            if (m.contains("png")) return ".png";
+            if (m.contains("webp")) return ".webp";
+            if (m.contains("gif")) return ".gif";
+            if (m.contains("heic") || m.contains("heif")) return ".heic";
+            if (m.contains("pdf")) return ".pdf";
+        }
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return ".jpg";
+        if (b.length >= 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') return ".png";
+        if (b.length >= 4 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F') return ".gif";
+        if (b.length >= 12 && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return ".webp";
+        if (b.length >= 5 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F') return ".pdf";
+        return ".png";
     }
 }

@@ -7,13 +7,16 @@ import { authApi, teamApi, notificationApi, TeamVO } from "@/lib/api";
 import { User, getUser, setUser, removeToken, isLoggedIn } from "@/lib/auth";
 import BannerCard from "@/components/BannerCard";
 import NotificationPanel from "@/components/NotificationPanel";
+import { useNotify } from "@/components/DialogProvider";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUserState] = useState<User | null>(null);
-  const [myTeam, setMyTeam] = useState<TeamVO | null>(null);
+  const [myTeams, setMyTeams] = useState<TeamVO[]>([]);
+  const [activatingId, setActivatingId] = useState<number | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const notify = useNotify();
 
   useEffect(() => {
     if (!isLoggedIn()) {
@@ -39,7 +42,7 @@ export default function DashboardPage() {
         setUserState(res.data.data);
         setUser(res.data.data);
       }),
-      teamApi.myTeam().then((res) => setMyTeam(res.data.data)).catch(() => {}),
+      teamApi.myTeams().then((res) => setMyTeams(res.data.data || [])).catch(() => {}),
       // 自带 catch：取未读数失败不能拖垮整个 Promise.all
       notificationApi
         .unreadCount()
@@ -54,6 +57,19 @@ export default function DashboardPage() {
   const handleLogout = () => {
     removeToken();
     router.replace("/login");
+  };
+
+  const handleActivate = async (teamId: number) => {
+    setActivatingId(teamId);
+    try {
+      await teamApi.activate(teamId);
+      const res = await teamApi.myTeams();
+      setMyTeams(res.data.data || []);
+    } catch (err: any) {
+      notify(err.response?.data?.message || "切换失败", "error");
+    } finally {
+      setActivatingId(null);
+    }
   };
 
   if (loading) {
@@ -114,7 +130,7 @@ export default function DashboardPage() {
             className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-red-600/20 text-xl text-red-400">🏆</div>
             <h3 className="text-lg font-semibold group-hover:text-red-400">战队管理</h3>
-            <p className="mt-1 text-sm text-zinc-500">创建战队、查看队员、加入或退出</p>
+            <p className="mt-1 text-sm text-zinc-500">创建或加入多支战队，切换当前活跃队伍</p>
           </Link>
 
           <Link href="/recruit"
@@ -183,20 +199,67 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {myTeam && (
+        {myTeams.length > 0 && (
           <>
-            <h3 className="mb-4 mt-12 text-sm font-semibold text-zinc-500">所属战队</h3>
-            <Link href={`/teams/${myTeam.id}?from=dashboard`}
-              className="group flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-red-500/50">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-red-600/20 text-2xl font-bold text-red-400">
-                {myTeam.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1">
-                <h4 className="text-lg font-semibold group-hover:text-red-400">{myTeam.name}</h4>
-                <p className="text-sm text-zinc-500">队长：{myTeam.captainName} · 队员 {myTeam.memberCount} 人</p>
-              </div>
-              <span className="text-zinc-600 group-hover:text-red-400">→</span>
-            </Link>
+            <div className="mb-4 mt-12 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-zinc-500">我的战队</h3>
+              <p className="text-xs text-zinc-600">可同时加入多支战队，「当前活跃」用于平台内默认身份</p>
+            </div>
+            <div className="space-y-3">
+              {myTeams.map((team) => (
+                <div
+                  key={team.id}
+                  className={
+                    "flex items-center gap-4 rounded-xl border p-5 transition max-md:flex-col max-md:items-stretch max-md:gap-3 max-md:p-4 " +
+                    (team.active
+                      ? "border-red-500/60 bg-red-950/20"
+                      : "border-zinc-800 bg-zinc-900 hover:border-red-500/50")
+                  }
+                >
+                  <Link
+                    href={`/teams/${team.id}?from=dashboard`}
+                    className="group flex min-w-0 flex-1 items-center gap-4"
+                  >
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-red-600/20 text-2xl font-bold text-red-400">
+                      {team.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="flex items-center gap-2 text-lg font-semibold group-hover:text-red-400">
+                        <span className="truncate">{team.name}</span>
+                        {team.active && (
+                          <span className="shrink-0 rounded bg-red-600/20 px-2 py-0.5 text-xs font-medium text-red-400">
+                            当前活跃
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-sm text-zinc-500">
+                        队长：{team.captainName} · 队员 {team.memberCount} 人
+                      </p>
+                    </div>
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-3 max-md:justify-end">
+                    {team.active ? (
+                      <span className="text-xs text-zinc-600">平台内默认身份</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={activatingId === team.id}
+                        onClick={() => handleActivate(team.id)}
+                        className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 transition hover:border-red-500 hover:text-red-400 disabled:opacity-50 max-md:min-h-11"
+                      >
+                        {activatingId === team.id ? "切换中..." : "设为当前"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/teams/${team.id}?from=dashboard`}
+                      className="text-zinc-600 transition hover:text-red-400"
+                    >
+                      →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
           </>
         )}
 

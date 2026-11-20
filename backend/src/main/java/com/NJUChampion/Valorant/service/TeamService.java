@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +28,9 @@ public class TeamService {
      */
     public static final int ROSTER_SIZE = 5;
 
+    /** teams.description 的列长度 */
+    private static final int MAX_DESCRIPTION_LENGTH = 500;
+
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final UserRepository userRepository;
@@ -37,7 +41,6 @@ public class TeamService {
     private final SwissStandingRepository swissStandingRepository;
     private final CompetitionTeamRepository competitionTeamRepository;
     private final LeagueStandingRepository leagueStandingRepository;
-    private final TeamApplicationService applicationService;
     private final NotificationService notificationService;
 
     @Transactional
@@ -51,10 +54,7 @@ public class TeamService {
                 .isPresent()) {
             throw new IllegalArgumentException("你已经拥有一个战队");
         }
-        if (teamMemberRepository.findByUserId(captainId).stream()
-                .anyMatch(tm -> "CAPTAIN".equals(tm.getRole()) || "MEMBER".equals(tm.getRole()))) {
-            throw new IllegalArgumentException("你已加入其他战队，无法创建");
-        }
+        // 一人可加入多支战队：已作为队员在别的队伍里，也允许再创建自己的战队
 
         Team team = Team.builder()
                 .name(req.getName())
@@ -71,7 +71,32 @@ public class TeamService {
                 .build();
         teamMemberRepository.save(captain);
 
+        // 新建的战队自动成为当前活跃战队
+        setActiveTeam(captainId, team.getId());
+
         return toVO(team);
+    }
+
+    /** 队长修改战队资料（目前只有简介） */
+    @Transactional
+    public TeamVO updateProfile(Long teamId, Long currentUserId, String description) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new IllegalArgumentException("战队不存在"));
+        if (team.getStatus() == null || team.getStatus() != 1) {
+            throw new IllegalArgumentException("战队已解散，无法修改");
+        }
+        if (team.getCaptainId() == null || !team.getCaptainId().equals(currentUserId)) {
+            throw new IllegalArgumentException("只有队长可以修改战队简介");
+        }
+        if (description != null) {
+            String normalized = description.trim();
+            if (normalized.length() > MAX_DESCRIPTION_LENGTH) {
+                throw new IllegalArgumentException("简介不能超过" + MAX_DESCRIPTION_LENGTH + "个字符");
+            }
+            team.setDescription(normalized.isEmpty() ? null : normalized);
+            teamRepository.save(team);
+        }
+        return toVODetail(team);
     }
 
     public List<TeamVO> listAll() {
@@ -104,8 +129,11 @@ public class TeamService {
 
         teamMemberRepository.deleteByTeamIdAndUserId(teamId, targetUserId);
 
-        // 连带：作废该用户在人才市场的全部待处理申请与邀请，避免"已被踢出却仍被别的队同意"的错位
-        applicationService.cancelAllPendingForUser(targetUserId);
+        // 被踢的人若以该队为活跃战队，需要重新落一个
+        if (teamId.equals(activeTeamIdOf(targetUserId))) {
+            setActiveTeam(targetUserId, null);
+            resolveActiveTeamId(targetUserId);
+        }
 
         notificationService.notifyOther(currentUserId, targetUserId,
                 UserNotification.TYPE_TEAM_DISMISSED,
@@ -124,16 +152,104 @@ public class TeamService {
         }
 
         teamMemberRepository.deleteByTeamIdAndUserId(teamId, userId);
+
+        if (teamId.equals(activeTeamIdOf(userId))) {
+            setActiveTeam(userId, null);
+            resolveActiveTeamId(userId);
+        }
     }
 
-    public TeamVO getMyTeam(Long userId) {
+    /**
+     * 当前活跃战队。一人可加入多支战队，这里返回「默认身份」对应的那一支：
+     * 优先 activeTeamId；该值失效（退队/被踢/战队解散）时回退到最早加入且仍存续的战队。
+     * 没有任何战队时返回 null。
+     */
+    @Transactional
+    public Long resolveActiveTeamId(Long userId) {
         List<TeamMember> memberships = teamMemberRepository.findByUserId(userId);
         if (memberships.isEmpty()) {
-            throw new IllegalArgumentException("你尚未加入任何战队");
+            setActiveTeam(userId, null);
+            return null;
         }
-        Team team = teamRepository.findById(memberships.get(0).getTeamId())
+        Long active = activeTeamIdOf(userId);
+        if (active != null && memberships.stream().anyMatch(m -> active.equals(m.getTeamId()))) {
+            return active;
+        }
+        Long fallback = memberships.stream()
+                .sorted(Comparator.comparing(TeamMember::getJoinedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(TeamMember::getTeamId)
+                .filter(this::isActiveTeam)
+                .findFirst()
+                .orElse(null);
+        setActiveTeam(userId, fallback);
+        return fallback;
+    }
+
+    /** 切换活跃战队，只能切到自己已加入的战队 */
+    @Transactional
+    public TeamVO activateTeam(Long teamId, Long userId) {
+        Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("战队不存在"));
+        if (team.getStatus() == null || team.getStatus() != 1) {
+            throw new IllegalArgumentException("战队已解散");
+        }
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw new IllegalArgumentException("你不是该战队成员");
+        }
+        setActiveTeam(userId, teamId);
         return toVODetail(team);
+    }
+
+    /** 我加入的全部战队（已解散的不列出），带 active 标记 */
+    @Transactional
+    public List<TeamVO> listMyTeams(Long userId) {
+        List<TeamMember> memberships = teamMemberRepository.findByUserId(userId);
+        if (memberships.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Long activeId = resolveActiveTeamId(userId);
+        return memberships.stream()
+                .map(TeamMember::getTeamId)
+                .distinct()
+                .map(id -> teamRepository.findById(id).orElse(null))
+                .filter(Objects::nonNull)
+                .filter(t -> t.getStatus() != null && t.getStatus() == 1)
+                .map(t -> {
+                    TeamVO vo = toVO(t);
+                    vo.setActive(t.getId().equals(activeId));
+                    return vo;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public TeamVO getMyTeam(Long userId) {
+        Long teamId = resolveActiveTeamId(userId);
+        if (teamId == null) {
+            return null;
+        }
+        return teamRepository.findById(teamId).map(this::toVODetail).orElse(null);
+    }
+
+    private boolean isActiveTeam(Long teamId) {
+        return teamRepository.findById(teamId)
+                .map(t -> t.getStatus() != null && t.getStatus() == 1)
+                .orElse(false);
+    }
+
+    private Long activeTeamIdOf(Long userId) {
+        return userRepository.findById(userId).map(User::getActiveTeamId).orElse(null);
+    }
+
+    private void setActiveTeam(Long userId, Long teamId) {
+        userRepository.findById(userId).ifPresent(u -> {
+            if (Objects.equals(u.getActiveTeamId(), teamId)) {
+                return;
+            }
+            u.setActiveTeamId(teamId);
+            userRepository.save(u);
+        });
     }
 
     public List<TeamVO> getMyCaptainedTeams(Long userId) {
@@ -333,6 +449,8 @@ public class TeamService {
                 teamMemberRepository.deleteByTeamIdAndUserId(team.getId(), userId);
             }
         }
+        // 被禁用后不再保留活跃战队指针
+        setActiveTeam(userId, null);
     }
 
     /**

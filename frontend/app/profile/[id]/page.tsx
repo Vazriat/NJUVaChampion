@@ -21,8 +21,8 @@ export default function ProfilePage() {
 
   const currentUser = getUser();
   const isSelf = currentUser?.id === Number(id);
-  // 未入队 → 可发求职帖；是队长 → 可发招募帖；在队但不是队长 → 两者都不行
-  const canPublish = !user?.team || user.team.role === "CAPTAIN";
+  // 一人可加入多支战队：队长可替队伍招人，其他人（含已在某队的）都可以求职，因此登录后即可发布
+  const canPublish = !!user;
 
   const loadPosts = useCallback(() => {
     recruitmentPostApi
@@ -140,7 +140,10 @@ export default function ProfilePage() {
 
         {user.team && (
           <>
-            <h3 className="mb-4 mt-10 text-sm font-semibold text-zinc-500">所属战队</h3>
+            <div className="mb-4 mt-10 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold text-zinc-500">活跃战队</h3>
+              <p className="text-xs text-zinc-600">可能同时属于多支战队，此处展示其当前活跃的一支</p>
+            </div>
             <Link href={`/teams/${user.team.id}`}
               className="group flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-red-500/50">
               <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-red-600/20 text-2xl font-bold text-red-400">
@@ -175,9 +178,7 @@ export default function ProfilePage() {
             ) : (
               <div className="rounded-xl border border-dashed border-zinc-800 px-5 py-6 text-center">
                 <p className="text-sm text-zinc-500">
-                  {canPublish
-                    ? "你还没有发布招募或求职信息"
-                    : "你已在战队中且不是队长，无法替队伍发布招募"}
+                  {canPublish ? "你还没有发布招募或求职信息" : "暂无发布"}
                 </p>
                 {canPublish && (
                   <Link

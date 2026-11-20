@@ -81,6 +81,7 @@ HELP.md
 .vercel
 .run/
 .codegraph/
+.workbuddy/
 
 # ============ Docker / HTTPS ============
 certbot/
