@@ -153,17 +153,35 @@ export default function RecruitMinePage() {
                     <p className="text-sm">
                       {app.type === "APPLY" ? (
                         <>
-                          <span className="font-medium">{app.initiatorName}</span>
+                          <Link
+                            href={`/profile/${app.initiatorUserId}`}
+                            className="font-medium transition hover:text-red-400"
+                          >
+                            {app.initiatorName}
+                          </Link>
                           <span className="text-zinc-500"> 申请加入 </span>
-                          <span className="font-medium text-red-400">
+                          <Link
+                            href={`/teams/${app.teamId}`}
+                            className="font-medium text-red-400 transition hover:text-red-300"
+                          >
                             {app.teamName}
-                          </span>
+                          </Link>
                         </>
                       ) : (
                         <>
-                          <span className="font-medium text-red-400">{app.teamName}</span>
+                          <Link
+                            href={`/teams/${app.teamId}`}
+                            className="font-medium text-red-400 transition hover:text-red-300"
+                          >
+                            {app.teamName}
+                          </Link>
                           <span className="text-zinc-500"> 邀请 </span>
-                          <span className="font-medium">{app.targetName}</span>
+                          <Link
+                            href={`/profile/${app.targetUserId}`}
+                            className="font-medium transition hover:text-red-400"
+                          >
+                            {app.targetName}
+                          </Link>
                         </>
                       )}
                     </p>
@@ -233,14 +251,29 @@ export default function RecruitMinePage() {
                       {app.type === "APPLY" ? (
                         <>
                           <span className="text-zinc-500">我申请加入 </span>
-                          <span className="font-medium text-red-400">{app.teamName}</span>
+                          <Link
+                            href={`/teams/${app.teamId}`}
+                            className="font-medium text-red-400 transition hover:text-red-300"
+                          >
+                            {app.teamName}
+                          </Link>
                         </>
                       ) : (
                         <>
                           <span className="text-zinc-500">我邀请 </span>
-                          <span className="font-medium">{app.targetName}</span>
+                          <Link
+                            href={`/profile/${app.targetUserId}`}
+                            className="font-medium transition hover:text-red-400"
+                          >
+                            {app.targetName}
+                          </Link>
                           <span className="text-zinc-500"> 加入 </span>
-                          <span className="font-medium text-red-400">{app.teamName}</span>
+                          <Link
+                            href={`/teams/${app.teamId}`}
+                            className="font-medium text-red-400 transition hover:text-red-300"
+                          >
+                            {app.teamName}
+                          </Link>
                         </>
                       )}
                     </p>
@@ -307,7 +340,7 @@ export default function RecruitMinePage() {
                         ? `队伍招募 · ${post.teamName}`
                         : "选手求职"}
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-300 line-clamp-4">
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-300">
                       {post.content}
                     </p>
                     <p className="mt-2 text-xs text-zinc-600">
