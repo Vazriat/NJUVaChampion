@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { teamApplicationApi, RecruitmentPostVO } from "@/lib/api";
 import { useConfirm, useNotify } from "@/components/DialogProvider";
+
+/**
+ * 卡片折叠时显示 4 行。三列布局下每行约 18–20 个汉字，4 行约 80 字，
+ * 阈值取 80 并额外看行数——只按字符数判断会漏掉「短但分很多段」的内容。
+ */
+const CLAMP_THRESHOLD = 80;
+const CLAMP_LINES = 4;
 
 /**
  * 人才市场帖子卡片。自包含：内部处理"申请加入 / 邀请入队"的确认与请求，
@@ -18,8 +26,13 @@ export default function RecruitmentPostCard({
   onChanged: () => void;
 }) {
   const [acting, setActing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const ask = useConfirm();
   const notify = useNotify();
+
+  const isLong =
+    (post.content?.length ?? 0) > CLAMP_THRESHOLD ||
+    (post.content?.split("\n").length ?? 0) > CLAMP_LINES;
 
   const statusLabel = (status: string | null) => {
     switch (status) {
@@ -83,28 +96,89 @@ export default function RecruitmentPostCard({
   };
 
   return (
-    <div className="flex flex-col rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
+    <div
+      className={
+        "flex flex-col rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4 " +
+        // 展开时独占一行：否则 grid 的 stretch 会把同列其它卡片一起拉高，中间留一大片空白
+        (expanded ? "sm:col-span-2 lg:col-span-3" : "")
+      }
+    >
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600/20 text-lg font-bold text-red-400">
-          {(post.type === "TEAM" ? post.teamName || "队" : post.displayName || "选")
-            .charAt(0)
-            .toUpperCase()}
-        </div>
+        {post.type === "TEAM" && post.teamId ? (
+          <Link
+            href={`/teams/${post.teamId}`}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600/20 text-lg font-bold text-red-400 transition hover:bg-red-600/30"
+            title="查看战队"
+          >
+            {(post.teamName || "队").charAt(0).toUpperCase()}
+          </Link>
+        ) : (
+          <Link
+            href={`/profile/${post.userId}`}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600/20 text-lg font-bold text-red-400 transition hover:bg-red-600/30"
+            title="查看主页"
+          >
+            {(post.type === "TEAM" ? post.teamName || "队" : post.displayName || "选").charAt(0).toUpperCase()}
+          </Link>
+        )}
         <div className="min-w-0">
-          <h3 className="truncate font-semibold">
-            {post.type === "TEAM" ? post.teamName : post.displayName}
-          </h3>
-          <p className="truncate text-xs text-zinc-500">
-            {post.type === "TEAM" ? `队长：${post.displayName}` : `@${post.username}`}
-          </p>
+          {post.type === "TEAM" && post.teamId ? (
+            <Link
+              href={`/teams/${post.teamId}`}
+              className="block truncate font-semibold transition hover:text-red-400"
+            >
+              {post.teamName}
+            </Link>
+          ) : (
+            <Link
+              href={`/profile/${post.userId}`}
+              className="block truncate font-semibold transition hover:text-red-400"
+            >
+              {post.type === "TEAM" ? post.teamName : post.displayName}
+            </Link>
+          )}
+          {post.type === "TEAM" ? (
+            <Link
+              href={`/profile/${post.userId}`}
+              className="block truncate text-xs text-zinc-500 transition hover:text-red-400"
+            >
+              队长：{post.displayName}
+            </Link>
+          ) : (
+            <Link
+              href={`/profile/${post.userId}`}
+              className="block truncate text-xs text-zinc-500 transition hover:text-red-400"
+            >
+              @{post.username}
+            </Link>
+          )}
         </div>
       </div>
 
-      <p className="mb-4 flex-1 whitespace-pre-wrap break-words text-sm text-zinc-400 line-clamp-4">
+      <p
+        className={
+          "whitespace-pre-wrap break-words text-sm text-zinc-400 " +
+          (expanded
+            ? // 展开后限高滚动：超长内容不至于把整页顶飞，「收起」按钮也始终可见
+              "mb-2 max-h-[60vh] overflow-y-auto pr-1 max-md:max-h-[50vh]"
+            : "mb-1 line-clamp-4")
+        }
+      >
         {post.content}
       </p>
 
-      <div className="flex items-center justify-between gap-3">
+      {/* 内容被折叠时给出展开入口，否则长文只能看到前 4 行且无从得知 */}
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mb-2 self-start text-xs text-red-400 transition hover:text-red-300 max-md:min-h-11"
+        >
+          {expanded ? "收起" : "展开全文"}
+        </button>
+      )}
+
+      <div className="mt-auto flex items-center justify-between gap-3 pt-2">
         <span className="text-xs text-zinc-600">
           {post.createdAt ? new Date(post.createdAt).toLocaleDateString("zh-CN") : ""}
         </span>
