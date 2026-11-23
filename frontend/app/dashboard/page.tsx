@@ -118,6 +118,16 @@ export default function DashboardPage() {
           <p className="mt-1 text-zinc-500">选择你要进入的模块</p>
         </div>
 
+        {/*
+          移动端与平板（<1024px）的流式宣传栏。
+          上面的侧栏是 hidden lg:block + fixed，小屏直接不渲染；
+          这里用 lg:hidden 与之严格互补——不要换成 md:hidden，
+          否则 768–1023px 区间会出现「侧栏已隐藏、流式版也没显示」的空档。
+        */}
+        <div className="lg:hidden">
+          <BannerCard />
+        </div>
+
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/hall"
             className="group rounded-xl border border-zinc-800 bg-zinc-900 p-6 transition hover:border-red-500/50 max-md:p-4">
@@ -197,6 +207,11 @@ export default function DashboardPage() {
             </h3>
             <p className="mt-1 text-sm text-zinc-500">入队申请、审核结果等消息</p>
           </Link>
+        </div>
+
+        {/* 移动端与平板的流式最新通知，与右侧 fixed 侧栏互补；无通知时组件返回 null，用 empty:hidden 避免留下空隙 */}
+        <div className="mt-10 empty:hidden lg:hidden">
+          <NotificationPanel />
         </div>
 
         {myTeams.length > 0 && (
