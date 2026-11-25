@@ -127,7 +127,23 @@ export default function VerifyPage() {
     }).catch(() => {}).finally(() => { if (!silent) setLoading(false); });
   };
 
-  const getRec = (type: string) => records.find((r: any) => r.type === type);
+  /**
+   * 取某类型的"当前"认证记录。
+   *
+   * 同一类型可能有多条历史记录（重新提交后旧的变 SUPERSEDED、被撤销的变 REVOKED），
+   * 后端按 createdAt 倒序返回全部。这里不能直接取第一条当"当前状态"：
+   * 若最新一条是已撤销/已失效的记录，卡片会显示成"未申请"，展开后又是空白。
+   * 优先级：审核中 > 已通过 > 最新一条。
+   */
+  const getRec = (type: string) => {
+    const list = records.filter((r: any) => r.type === type);
+    return list.find((r: any) => r.status === "PENDING")
+      || list.find((r: any) => r.status === "APPROVED")
+      || list[0];
+  };
+
+  /** 除已通过、审核中外，其余状态都允许重新提交申请 */
+  const canApply = (rec: any) => !rec || (rec.status !== "APPROVED" && rec.status !== "PENDING");
 
   const handleApply = async () => {
     const type = form._type || "";
@@ -191,6 +207,8 @@ export default function VerifyPage() {
     if (rec.status === "APPROVED") return <span className="text-green-400">{CHECK} 已通过</span>;
     if (rec.status === "PENDING") return <span className="text-yellow-400">{HOURGLASS} 审核中</span>;
     if (rec.status === "REJECTED" || rec.status === "DELETED") return <span className="text-red-400">{CROSS} 已驳回</span>;
+    if (rec.status === "REVOKED") return <span className="text-red-400">{CROSS} 已撤销</span>;
+    if (rec.status === "SUPERSEDED") return <span className="text-zinc-500">已失效</span>;
     return <span className="text-zinc-600">— 未申请</span>;
   };
 
@@ -256,7 +274,8 @@ export default function VerifyPage() {
                         </div>
                       )}
                       {rec?.status === "REJECTED" && <p className="mt-1 text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
-                      {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && st.type === "STUDENT" && (
+                      {rec?.status === "PENDING" && <p className="mt-1 text-xs text-yellow-400">审核中，通过后自动生效。</p>}
+                      {canApply(rec) && st.type === "STUDENT" && (
                         <div className="mt-2 space-y-2">
                           <input value={form[st.type + "_name"] || ""} onChange={e => setForm({...form, [st.type + "_name"]: e.target.value, _type: st.type})}
                             placeholder="姓名" className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-white outline-none focus:border-red-500 max-md:py-2.5 max-md:text-base" />
@@ -272,7 +291,7 @@ export default function VerifyPage() {
                           <button onClick={handleApply} disabled={applying} className="w-full rounded-lg bg-red-600 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 max-md:py-3 max-md:text-sm">{applying ? "提交中..." : "提交申请"}</button>
                         </div>
                       )}
-                      {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && st.type === "ALUMNI" && (
+                      {canApply(rec) && st.type === "ALUMNI" && (
                         <div className="mt-2 space-y-2">
                           <input type="number" min="1900" max={new Date().getFullYear() + 1}
                             value={form[st.type + "_year"] || ""} onChange={e => setForm({...form, [st.type + "_year"]: e.target.value, _type: st.type})}
@@ -293,7 +312,7 @@ export default function VerifyPage() {
 
           {/* 段位认证 */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-            <button onClick={() => setExpanded(expanded === "rank" ? null : "rank")}
+            <button onClick={() => { setUpdatingRank(false); setExpanded(expanded === "rank" ? null : "rank"); }}
               className="flex w-full items-center justify-between p-4 text-left transition hover:bg-zinc-800/50">
               <div className="flex items-center gap-3">
                 <span className="text-xl">🏆</span>
@@ -342,7 +361,16 @@ export default function VerifyPage() {
                     </div>
                   )}
                   {rec?.status === "REJECTED" && <p className="text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
-                  {(!rec || rec.status === "REJECTED" || rec.status === "DELETED" || updatingRank) && rec?.status !== "PENDING" && (
+                  {rec?.status === "PENDING" && (
+                    <p className="text-xs text-yellow-400">段位认证审核中，管理员审核通过后自动生效。</p>
+                  )}
+                  {rec?.status === "REVOKED" && (
+                    <p className="text-xs text-red-400">此前的段位认证已被撤销，可重新提交。</p>
+                  )}
+                  {rec?.status === "SUPERSEDED" && (
+                    <p className="text-xs text-zinc-500">此前的段位认证已被新的申请取代。</p>
+                  )}
+                  {(canApply(rec) || updatingRank) && (
                     <div className="space-y-2">
                       {rec?.status === "APPROVED" && (
                         <button onClick={() => setUpdatingRank(false)}
@@ -391,7 +419,8 @@ export default function VerifyPage() {
                     </div>
                   )}
                   {rec?.status === "REJECTED" && <p className="text-xs text-red-400">{rec.rejectReason || "无原因"}</p>}
-                  {(!rec || rec.status === "REJECTED" || rec.status === "DELETED") && (
+                  {rec?.status === "PENDING" && <p className="text-xs text-yellow-400">裁判认证审核中，通过后自动生效。</p>}
+                  {canApply(rec) && (
                     <div className="space-y-2">
                       <textarea value={form["REFEREE_desc"] || ""} onChange={e => setForm({...form, "REFEREE_desc": e.target.value, _type: "REFEREE"})}
                         placeholder="说明（如裁判经验、资质等）" rows={3}

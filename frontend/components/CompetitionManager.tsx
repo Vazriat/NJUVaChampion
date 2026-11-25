@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { adminApi, adminCompetitionApi, adminRankReviewApi, competitionApi } from "@/lib/api";
-import { useConfirm } from "@/components/DialogProvider";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 
 const FORMAT_OPTIONS = [
   { value: "SINGLE_ELIM", label: "单败淘汰" },
@@ -20,6 +20,7 @@ const STATUS_MAP: Record<string, string> = {
 
 export default function CompetitionManager() {
   const ask = useConfirm();
+  const notify = useNotify();
   const [comps, setComps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
@@ -34,6 +35,8 @@ export default function CompetitionManager() {
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>([]);
   const [rankReview, setRankReview] = useState<any[]>([]);
   const [rankReviewLoading, setRankReviewLoading] = useState(false);
+  const [teamRatings, setTeamRatings] = useState<Record<number, any>>({});
+  const [sortMode, setSortMode] = useState<"none" | "desc" | "asc">("none");
 
   const showMsg = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3000); };
 
@@ -63,8 +66,17 @@ export default function CompetitionManager() {
           .then((rr) => setRankReview(rr.data.data || []))
           .catch(() => setRankReview([]))
           .finally(() => setRankReviewLoading(false));
+        adminApi.listTeamRatings("score")
+          .then((rr) => {
+            const map: Record<number, any> = {};
+            (rr.data.data || []).forEach((t: any) => { map[t.teamId] = t; });
+            setTeamRatings(map);
+          })
+          .catch(() => setTeamRatings({}));
+        setSortMode("none");
       } else {
         setRankReview([]);
+        setTeamRatings({});
       }
     } catch (e: any) {
       showMsg(e.response?.data?.message || "加载失败");
@@ -107,6 +119,22 @@ export default function CompetitionManager() {
       setRankReview((prev) => prev.filter((p) => p.userId !== userId));
       showMsg("已通过该选手");
     } catch { showMsg("操作失败"); }
+  };
+
+  const handleNotifyPending = async () => {
+    if (!selected || rankReview.length === 0) return;
+    const ok = await ask({
+      title: "发送段位提醒",
+      message: `将向 ${rankReview.length} 名待审核选手发送站内通知，提醒他们完成段位认证。已通过审核的选手不会收到。`,
+      okText: "发送提醒",
+    });
+    if (!ok) return;
+    try {
+      const res = await adminRankReviewApi.notifyCompetitionPending(selected.id);
+      notify(`已通知 ${res.data.data?.sent ?? 0} 名选手`, "success");
+    } catch (e: any) {
+      notify(e.response?.data?.message || "发送失败", "error");
+    }
   };
 
   const handleGroup = async () => {
@@ -159,6 +187,20 @@ export default function CompetitionManager() {
   };
 
   const canManageTeams = selected && (selected.status === "SETUP" || selected.status === "REGISTRATION");
+
+  const registeredTeams: any[] = selected?.registeredTeams || [];
+  const orderedTeams = [...registeredTeams];
+  if (sortMode !== "none") {
+    orderedTeams.sort((a, b) => {
+      const sa = teamRatings[a.teamId]?.score ?? 0;
+      const sb = teamRatings[b.teamId]?.score ?? 0;
+      return sortMode === "desc" ? sb - sa : sa - sb;
+    });
+  }
+
+  const cycleSortMode = () => {
+    setSortMode((m) => (m === "none" ? "desc" : m === "desc" ? "asc" : "none"));
+  };
 
   return (
     <div>
@@ -274,7 +316,13 @@ export default function CompetitionManager() {
               <>
                 <div className="mb-5 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-semibold">段位审核</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold">段位审核</p>
+                      {rankReview.length > 0 && (
+                        <button onClick={handleNotifyPending}
+                          className="rounded border border-amber-600 px-2 py-0.5 text-xs text-amber-400 hover:bg-amber-600/20 max-md:min-h-11 max-md:px-3">一键提醒</button>
+                      )}
+                    </div>
                     <span className="text-xs text-zinc-500">{rankReview.length} 名选手需更新段位</span>
                   </div>
                   {rankReviewLoading ? (
@@ -335,19 +383,34 @@ export default function CompetitionManager() {
                 </div>
 
                 <div className="mb-5 space-y-2">
-                  <p className="text-sm font-medium">队伍分配</p>
-                  {(selected.registeredTeams || []).map((rt: any) => (
-                    <div key={rt.teamId} className="flex items-center justify-between rounded-lg bg-zinc-800/50 px-4 py-2">
-                      <span className="text-sm">{rt.teamName}</span>
-                      <select value={assignment[rt.teamId] ?? 0}
-                        onChange={(e) => setAssignment(prev => ({ ...prev, [rt.teamId]: Number(e.target.value) }))}
-                        className="rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-xs text-white outline-none">
-                        {groups.map((g, i) => (
-                          <option key={i} value={i}>{g.name.trim() || `第${i + 1}组`}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">队伍分配</p>
+                    <button onClick={cycleSortMode}
+                      className="text-xs text-blue-400 hover:underline max-md:min-h-11 max-md:px-2">
+                      {sortMode === "none" ? "按评分排序" : sortMode === "desc" ? "评分 ↓ 高到低" : "评分 ↑ 低到高"}
+                    </button>
+                  </div>
+                  {orderedTeams.map((rt: any) => {
+                    const rating = teamRatings[rt.teamId];
+                    return (
+                      <div key={rt.teamId} className="flex items-center justify-between rounded-lg bg-zinc-800/50 px-4 py-2">
+                        <div className="min-w-0">
+                          <span className="text-sm">{rt.teamName}</span>
+                          <div className="mt-0.5 truncate text-xs text-zinc-500">
+                            评分 {rating?.score ?? "—"}
+                            {rating?.topRanks?.length ? ` · ${rating.topRanks.join(" / ")}` : ""}
+                          </div>
+                        </div>
+                        <select value={assignment[rt.teamId] ?? 0}
+                          onChange={(e) => setAssignment(prev => ({ ...prev, [rt.teamId]: Number(e.target.value) }))}
+                          className="rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-xs text-white outline-none shrink-0">
+                          {groups.map((g, i) => (
+                            <option key={i} value={i}>{g.name.trim() || `第${i + 1}组`}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <button onClick={handleGroup}

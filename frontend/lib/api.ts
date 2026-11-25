@@ -487,9 +487,11 @@ export const adminRankReviewApi = {
   tournamentReview: (tournamentId: number) => api.get(`/admin/tournaments/${tournamentId}/rank-review`),
   passTournamentUser: (tournamentId: number, userId: number) => api.post(`/admin/tournaments/${tournamentId}/rank-review/pass`, { userId }),
   unpassTournamentUser: (tournamentId: number, userId: number) => api.delete(`/admin/tournaments/${tournamentId}/rank-review/pass`, { params: { userId } }),
+  notifyTournamentPending: (tournamentId: number) => api.post(`/admin/tournaments/${tournamentId}/rank-review/notify`),
   competitionReview: (competitionId: number) => api.get(`/admin/competitions/${competitionId}/rank-review`),
   passCompetitionUser: (competitionId: number, userId: number) => api.post(`/admin/competitions/${competitionId}/rank-review/pass`, { userId }),
   unpassCompetitionUser: (competitionId: number, userId: number) => api.delete(`/admin/competitions/${competitionId}/rank-review/pass`, { params: { userId } }),
+  notifyCompetitionPending: (competitionId: number) => api.post(`/admin/competitions/${competitionId}/rank-review/notify`),
 }
 
 // ====== 定向通知（发给本人的消息） ======
