@@ -23,6 +23,7 @@ public class RankReviewService {
     private final CertificationRepository certificationRepository;
     private final UserRepository userRepository;
     private final RankReviewOverrideRepository rankReviewOverrideRepository;
+    private final NotificationService notificationService;
 
     public List<Map<String, Object>> listTournamentReview(Long tournamentId) {
         Tournament tournament = tournamentRepository.findById(tournamentId)
@@ -95,6 +96,55 @@ public class RankReviewService {
     @Transactional
     public void unpassCompetitionUser(Long competitionId, Long userId) {
         rankReviewOverrideRepository.deleteByCompetitionIdAndUserId(competitionId, userId);
+    }
+
+    /**
+     * 给赛事待审核名单里的选手批量发送站内通知。
+     * 名单实时计算，已点过"通过"（override）或段位有效的选手不会收到。
+     *
+     * @return 实际发送人数
+     */
+    @Transactional
+    public int notifyTournamentPending(Long tournamentId) {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new IllegalArgumentException("赛事不存在"));
+        return notifyPending(listTournamentReview(tournamentId), tournament.getName(), "赛事");
+    }
+
+    /**
+     * 给活动待审核名单里的选手批量发送站内通知。
+     *
+     * @return 实际发送人数
+     */
+    @Transactional
+    public int notifyCompetitionPending(Long competitionId) {
+        Competition competition = competitionRepository.findById(competitionId)
+                .orElseThrow(() -> new IllegalArgumentException("活动不存在"));
+        return notifyPending(listCompetitionReview(competitionId), competition.getName(), "活动");
+    }
+
+    private int notifyPending(List<Map<String, Object>> pending, String activityName, String scopeLabel) {
+        int sent = 0;
+        for (Map<String, Object> player : pending) {
+            if (!(player.get("userId") instanceof Long userId)) {
+                continue;
+            }
+            String rank = (String) player.get("rank");
+            String content;
+            if (rank == null || rank.isBlank()) {
+                content = "你报名的" + scopeLabel + "「" + activityName + "」正在进行段位审核，"
+                        + "你还没有通过段位认证。请在分组开始前前往认证中心提交段位认证，"
+                        + "否则可能影响参赛资格。";
+            } else {
+                content = "你报名的" + scopeLabel + "「" + activityName + "」正在进行段位审核，"
+                        + "你当前的段位认证（" + rank + "）通过时间早于活动创建时间，"
+                        + "请重新提交最新段位认证，以免影响分组与参赛。";
+            }
+            notificationService.notifyUser(userId, UserNotification.TYPE_RANK_REVIEW_REQUIRED,
+                    "请更新段位认证", content, UserNotification.REF_CERTIFICATION, null);
+            sent++;
+        }
+        return sent;
     }
 
     private List<Map<String, Object>> buildReview(List<Long> teamIds, LocalDateTime referenceTime,

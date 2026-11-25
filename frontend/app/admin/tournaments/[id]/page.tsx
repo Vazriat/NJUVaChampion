@@ -8,7 +8,7 @@ import { adminApi, adminTournamentApi, adminRankReviewApi } from "@/lib/api";
 import GameRecordWizard from "@/components/GameRecordWizard";
 import { adminResultSubmissionApi } from "@/lib/api";
 import { getUser, isLoggedIn } from "@/lib/auth";
-import { useConfirm } from "@/components/DialogProvider";
+import { useConfirm, useNotify } from "@/components/DialogProvider";
 
 const STATUS_MAP: Record<string, string> = {
   SETUP: "筹备中", REGISTRATION: "报名中", PROGRESSION: "进行中", ENDED: "已结束",
@@ -21,6 +21,7 @@ const FORMAT_LABEL: Record<string, string> = {
 
 export default function AdminTournamentDetailPage() {
   const ask = useConfirm();
+  const notify = useNotify();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [tournament, setTournament] = useState<any>(null);
@@ -123,6 +124,22 @@ export default function AdminTournamentDetailPage() {
     } catch { showMsg("操作失败"); }
   };
 
+  const handleNotifyPending = async () => {
+    if (!tournament || rankReview.length === 0) return;
+    const ok = await ask({
+      title: "发送段位提醒",
+      message: `将向 ${rankReview.length} 名待审核选手发送站内通知，提醒他们完成段位认证。已通过审核的选手不会收到。`,
+      okText: "发送提醒",
+    });
+    if (!ok) return;
+    try {
+      const res = await adminRankReviewApi.notifyTournamentPending(tournament.id);
+      notify(`已通知 ${res.data.data?.sent ?? 0} 名选手`, "success");
+    } catch (err: any) {
+      notify(err.response?.data?.message || "发送失败", "error");
+    }
+  };
+
   const handleBulkAddTeams = async () => {
     if (selectedTeamIds.length === 0) return;
     try {
@@ -201,7 +218,13 @@ export default function AdminTournamentDetailPage() {
         {t.status === "REGISTRATION" && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">段位审核</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold">段位审核</p>
+                {rankReview.length > 0 && (
+                  <button onClick={handleNotifyPending}
+                    className="rounded border border-amber-600 px-2 py-0.5 text-xs text-amber-400 hover:bg-amber-600/20 max-md:min-h-11 max-md:px-3">一键提醒</button>
+                )}
+              </div>
               <span className="text-xs text-zinc-500">{rankReview.length} 名选手需更新段位</span>
             </div>
             {rankReviewLoading ? (

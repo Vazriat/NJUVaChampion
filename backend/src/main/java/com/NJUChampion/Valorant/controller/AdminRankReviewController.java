@@ -38,6 +38,11 @@ public class AdminRankReviewController {
         return Result.success();
     }
 
+    @PostMapping("/tournaments/{tournamentId}/rank-review/notify")
+    public Result<Map<String, Integer>> notifyTournamentPending(@PathVariable Long tournamentId) {
+        return Result.success(Map.of("sent", rankReviewService.notifyTournamentPending(tournamentId)));
+    }
+
     @GetMapping("/competitions/{competitionId}/rank-review")
     public Result<List<Map<String, Object>>> competitionReview(@PathVariable Long competitionId) {
         return Result.success(rankReviewService.listCompetitionReview(competitionId));
@@ -59,5 +64,10 @@ public class AdminRankReviewController {
                                               @RequestParam Long userId) {
         rankReviewService.unpassCompetitionUser(competitionId, userId);
         return Result.success();
+    }
+
+    @PostMapping("/competitions/{competitionId}/rank-review/notify")
+    public Result<Map<String, Integer>> notifyCompetitionPending(@PathVariable Long competitionId) {
+        return Result.success(Map.of("sent", rankReviewService.notifyCompetitionPending(competitionId)));
     }
 }

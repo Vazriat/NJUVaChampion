@@ -41,11 +41,15 @@ public class UserNotification {
     public static final String TYPE_TEAM_DISMISSED = "TEAM_DISMISSED";
     /** 帖子被管理员下架 */
     public static final String TYPE_POST_TAKEN_DOWN = "POST_TAKEN_DOWN";
+    /** 报名的活动/赛事段位审核未通过，需更新段位认证 */
+    public static final String TYPE_RANK_REVIEW_REQUIRED = "RANK_REVIEW_REQUIRED";
 
     /** 关联对象类型，供前端决定跳转目标 */
     public static final String REF_TEAM_APPLICATION = "TEAM_APPLICATION";
     public static final String REF_RECRUITMENT_POST = "RECRUITMENT_POST";
     public static final String REF_TEAM = "TEAM";
+    /** 认证中心（段位提醒跳转目标） */
+    public static final String REF_CERTIFICATION = "CERTIFICATION";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

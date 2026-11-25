@@ -23,6 +23,8 @@ function typeLabel(type: string) {
       return "被移出战队";
     case "POST_TAKEN_DOWN":
       return "被下架";
+    case "RANK_REVIEW_REQUIRED":
+      return "段位提醒";
     default:
       return "消息";
   }
@@ -37,6 +39,8 @@ function typeClass(type: string) {
     case "TEAM_DISMISSED":
     case "POST_TAKEN_DOWN":
       return "bg-red-600/20 text-red-400";
+    case "RANK_REVIEW_REQUIRED":
+      return "bg-amber-600/20 text-amber-400";
     default:
       return "bg-zinc-800 text-zinc-400";
   }
@@ -48,6 +52,7 @@ function targetHref(n: UserNotificationVO) {
   if (n.refType === "TEAM_APPLICATION" || n.refType === "RECRUITMENT_POST") {
     return "/recruit/mine";
   }
+  if (n.refType === "CERTIFICATION") return "/verify";
   return null;
 }
 

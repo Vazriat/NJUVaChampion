@@ -279,6 +279,7 @@
 | GET | /api/admin/tournaments/{id}/rank-review | 段位审核列表（段位认证早于赛事/父活动创建时间的选手） |
 | POST | /api/admin/tournaments/{id}/rank-review/pass | 通过/豁免某选手 { userId } |
 | DELETE | /api/admin/tournaments/{id}/rank-review/pass?userId= | 取消豁免 |
+| POST | /api/admin/tournaments/{id}/rank-review/notify | 给当前待审核名单批量发站内通知（站内消息 type=RANK_REVIEW_REQUIRED，跳转认证中心），返回 { sent } 实际发送人数 |
 
 ### 报名活动管理 /api/admin/competitions
 
@@ -294,6 +295,7 @@
 | GET | /api/admin/competitions/{id}/rank-review | 活动分组前段位审核列表（以活动创建时间为基准） |
 | POST | /api/admin/competitions/{id}/rank-review/pass | 通过/豁免某选手 { userId } |
 | DELETE | /api/admin/competitions/{id}/rank-review/pass?userId= | 取消豁免 |
+| POST | /api/admin/competitions/{id}/rank-review/notify | 给当前待审核名单批量发站内通知，返回 { sent } 实际发送人数 |
 
 ### 比赛小局 /api/admin/matches
 
