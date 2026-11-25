@@ -391,3 +391,36 @@ https://www.bilibili.com/blackboard/live/live-activity-player.html?cid={roomId}&
 ```
 
 不需要做图片代理或转存，加这一个属性就够。直播列表的 `keyframe` 封面同理。
+
+### 22. 认证状态枚举必须全量对齐，否则卡片"点了没反应"
+
+`certifications.status` 实际有 6 种值：
+
+| 状态 | 含义 |
+|------|------|
+| `PENDING` | 待审核 |
+| `APPROVED` | 已通过 |
+| `REJECTED` | 已驳回 |
+| `DELETED` | 用户删除 |
+| `REVOKED` | 管理员撤销 |
+| `SUPERSEDED` | 被新申请取代（通过新段位时旧记录自动置为此值） |
+
+**症状**：认证中心里某张卡片点开只有一条空边框，看不到任何表单，用户描述为"按钮点不动"。
+
+**根因**：`app/verify/page.tsx` 原先只判断前 4 种。`REVOKED` / `SUPERSEDED` 掉进
+`statusBadge` 的 default 分支显示"— 未申请"，而展开区的渲染条件
+`(!rec || REJECTED || DELETED)` 也不成立 → 渲染出一个空 div。
+
+这是**静默失败**：没有报错、没有日志，本地库没有这类记录时根本复现不出来。
+最常见的触发场景是**段位认证被管理员撤销**（`REVOKED` 成为该类型最新一条记录）。
+
+**新增/修改状态时必须同步三处**：
+
+1. `statusBadge()` 加文案分支
+2. 展开区的渲染条件统一用 `canApply(rec)`（除 `APPROVED`/`PENDING` 外都允许重新提交）
+3. `getRec()` 的取值优先级：`PENDING` > `APPROVED` > 最新一条。
+   **不能**直接 `records.find(r => r.type === type)` —— 后端按 `createdAt` 倒序返回全量历史，
+   取第一条会把已撤销的旧记录当成"当前状态"。
+
+`REJECTED` / `DELETED` / `REVOKED` / `SUPERSEDED` 都要能看到表单，`PENDING` 要给"审核中"提示。
+
