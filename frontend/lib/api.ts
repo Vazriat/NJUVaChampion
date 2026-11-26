@@ -239,6 +239,7 @@ export const adminApi = {
 // ====== 赛事接口 ======
 export const tournamentApi = {
   list: () => api.get("/tournaments"),
+  mine: () => api.get("/tournaments/mine"),
   detail: (id: number) => api.get(`/tournaments/${id}`),
   playerStats: (id: number) => api.get(`/tournaments/${id}/player-stats`),
   register: (tournamentId: number, teamId: number) =>

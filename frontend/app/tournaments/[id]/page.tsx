@@ -65,6 +65,7 @@ export default function TournamentDetailPage() {
   const [isReferee, setIsReferee] = useState(getUser()?.referee === true);
   const [refereeMode, setRefereeModeState] = useState(getRefereeMode());
   const [mySubmissions, setMySubmissions] = useState<any[]>([]);
+  const [myTeamIds, setMyTeamIds] = useState<number[]>([]);
   const [submitChoice, setSubmitChoice] = useState<any>(null);
   const [editSubmission, setEditSubmission] = useState<any>(null);
   const [matchStreams, setMatchStreams] = useState<LiveStreamVO[]>([]);
@@ -92,6 +93,11 @@ export default function TournamentDetailPage() {
 
   /** 可申报赛果的身份：裁判（需开启裁判模式）或本场参赛队队长 */
   const canSubmitResult = (m: any) => (isReferee && refereeMode) || isCaptainOfMatch(m);
+
+  /** 我所在的战队是否参加了本赛事 */
+  const isParticipating = (tournament?.registeredTeams || []).some(
+    (rt: any) => myTeamIds.includes(rt.teamId)
+  );
   const handleRefereeSubmit = async (m: any) => {
     // 点击时按需拉取我的申报，避免挂载时异步拉取未完成导致的漏判
     let mine = mySubmissions.find(s => s.matchId === m.id);
@@ -141,6 +147,9 @@ export default function TournamentDetailPage() {
         resultSubmissionApi.my().then(r => setMySubmissions(r.data.data || [])).catch(() => {});
       }
     }).catch(() => {});
+    teamApi.myTeams()
+      .then(r => setMyTeamIds((r.data.data || []).map((t: any) => t.id)))
+      .catch(() => {});
     fetch();
   }, [id, router]);
 
@@ -288,9 +297,15 @@ export default function TournamentDetailPage() {
               )}
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
-              <span className={"rounded-full px-4 py-1.5 text-sm font-medium " + (STATUS_COLOR[tournament.status as keyof typeof STATUS_COLOR] || "") + " bg-white/5 border border-white/10"}>
-                {STATUS_MAP[tournament.status as keyof typeof STATUS_MAP]}
-              </span>
+              {isParticipating && tournament.status === "PROGRESSION" ? (
+                <span className="rounded-full border border-red-500/40 bg-red-600/20 px-4 py-1.5 text-sm font-medium text-red-400">
+                  参与中
+                </span>
+              ) : (
+                <span className={"rounded-full px-4 py-1.5 text-sm font-medium " + (STATUS_COLOR[tournament.status as keyof typeof STATUS_COLOR] || "") + " bg-white/5 border border-white/10"}>
+                  {STATUS_MAP[tournament.status as keyof typeof STATUS_MAP]}
+                </span>
+              )}
               <div className="flex items-center gap-4 text-xs text-zinc-500">
                 <span>{tournament.registeredCount}/{tournament.maxTeams} 队</span>
                 <span>{FORMAT_LABEL[tournament.format as keyof typeof FORMAT_LABEL] || tournament.format}</span>
@@ -345,23 +360,32 @@ export default function TournamentDetailPage() {
               {(tournament.registeredTeams ?? []).length === 0 ? (
                 <p className="text-sm text-zinc-500">暂无报名队伍</p>
               ) : (
-                (tournament.registeredTeams ?? []).map((rt: any) => (
+                (tournament.registeredTeams ?? []).map((rt: any) => {
+                  const mine = myTeamIds.includes(rt.teamId);
+                  return (
                   <div key={rt.id}
-                    className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
+                    className={"flex items-center justify-between rounded-xl border px-4 py-3 " +
+                      (mine ? "border-red-500/40 bg-red-600/5" : "border-zinc-800 bg-zinc-900")}>
                     <div className="flex items-center gap-3">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-xs font-bold text-zinc-400">
                         #{rt.seed}
                       </span>
                       <div>
-                        <Link href={"/teams/" + rt.teamId} className="font-medium text-sm hover:text-red-400 transition">
-                          {rt.teamName}
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link href={"/teams/" + rt.teamId} className="font-medium text-sm hover:text-red-400 transition">
+                            {rt.teamName}
+                          </Link>
+                          {mine && tournament.status === "PROGRESSION" && (
+                            <span className="rounded bg-red-600/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400">参与中</span>
+                          )}
+                        </div>
                         <p className="text-xs text-zinc-500">队长：{rt.captainName}</p>
                       </div>
                     </div>
                     <span className="text-xs text-zinc-500">{rt.memberCount} 人</span>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </section>

@@ -21,8 +21,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -628,6 +630,73 @@ public class TournamentService {
         return tournamentRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 我的比赛：当前用户加入的战队正在报名/进行中的赛事。
+     *
+     * 只返回 REGISTRATION 与 PROGRESSION——已结束的赛事不属于"正在参与"。
+     * myTeams 是"我在这个赛事里代表哪几支队"，一人多队时可能有多支。
+     */
+    public List<Map<String, Object>> listMine(Long userId) {
+        List<Long> teamIds = teamMemberRepository.findByUserId(userId).stream()
+                .map(TeamMember::getTeamId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (teamIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, String> teamNames = teamRepository.findAllById(teamIds).stream()
+                .collect(Collectors.toMap(Team::getId, Team::getName, (a, b) -> a));
+
+        Map<Long, Set<Long>> myTeamsByTournament = new LinkedHashMap<>();
+        Map<Long, Tournament> tournamentsById = new HashMap<>();
+        for (TournamentTeam entry : tournamentTeamRepository.findByTeamIdIn(teamIds)) {
+            Tournament t = tournamentRepository.findById(entry.getTournamentId()).orElse(null);
+            if (t == null) {
+                continue;
+            }
+            if (!"REGISTRATION".equals(t.getStatus()) && !"PROGRESSION".equals(t.getStatus())) {
+                continue;
+            }
+            myTeamsByTournament.computeIfAbsent(t.getId(), k -> new LinkedHashSet<>()).add(entry.getTeamId());
+            tournamentsById.putIfAbsent(t.getId(), t);
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<Long, Set<Long>> entry : myTeamsByTournament.entrySet()) {
+            Tournament t = tournamentsById.get(entry.getKey());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("tournamentId", t.getId());
+            m.put("name", t.getName());
+            m.put("status", t.getStatus());
+            m.put("format", t.getFormat());
+            m.put("maxTeams", t.getMaxTeams());
+            m.put("registeredCount", tournamentTeamRepository.countByTournamentId(t.getId()));
+            m.put("myTeamIds", new ArrayList<>(entry.getValue()));
+            m.put("myTeams", entry.getValue().stream()
+                    .map(id -> teamNames.getOrDefault(id, "未知战队"))
+                    .collect(Collectors.toList()));
+            m.put("createdAt", t.getCreatedAt());
+            result.add(m);
+        }
+        // 进行中的排在报名中的前面，同级按创建时间倒序
+        result.sort((a, b) -> {
+            int pa = "PROGRESSION".equals(a.get("status")) ? 0 : 1;
+            int pb = "PROGRESSION".equals(b.get("status")) ? 0 : 1;
+            if (pa != pb) {
+                return Integer.compare(pa, pb);
+            }
+            java.time.LocalDateTime ca = (java.time.LocalDateTime) a.get("createdAt");
+            java.time.LocalDateTime cb = (java.time.LocalDateTime) b.get("createdAt");
+            if (ca == null && cb == null) return 0;
+            if (ca == null) return 1;
+            if (cb == null) return -1;
+            return cb.compareTo(ca);
+        });
+        return result;
     }
 
     public TournamentVO getById(Long tournamentId) {

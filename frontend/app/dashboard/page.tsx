@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { authApi, teamApi, notificationApi, TeamVO } from "@/lib/api";
+import { authApi, teamApi, notificationApi, tournamentApi, TeamVO } from "@/lib/api";
 import { User, getUser, setUser, removeToken, isLoggedIn } from "@/lib/auth";
 import BannerCard from "@/components/BannerCard";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUserState] = useState<User | null>(null);
   const [myTeams, setMyTeams] = useState<TeamVO[]>([]);
+  const [myTournaments, setMyTournaments] = useState<any[]>([]);
   const [activatingId, setActivatingId] = useState<number | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,11 @@ export default function DashboardPage() {
         setUser(res.data.data);
       }),
       teamApi.myTeams().then((res) => setMyTeams(res.data.data || [])).catch(() => {}),
+      // 自带 catch：没有比赛或接口失败都不能影响页面其他部分
+      tournamentApi
+        .mine()
+        .then((res) => setMyTournaments(res.data.data || []))
+        .catch(() => {}),
       // 自带 catch：取未读数失败不能拖垮整个 Promise.all
       notificationApi
         .unreadCount()
@@ -117,6 +123,30 @@ export default function DashboardPage() {
           <h2 className="text-xl font-semibold">欢迎回来，{user.displayName || user.displayGameId || user.username}</h2>
           <p className="mt-1 text-zinc-500">选择你要进入的模块</p>
         </div>
+
+        {/* 我的比赛：没有正在参与的比赛时整个模块不渲染 */}
+        {myTournaments.length > 0 && (
+          <div className="mb-8">
+            <h3 className="mb-2 text-sm font-semibold text-zinc-500">我的比赛</h3>
+            <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
+              {myTournaments.map((t: any) => (
+                <Link key={t.tournamentId} href={`/tournaments/${t.tournamentId}`}
+                  className="flex items-center justify-between gap-4 border-b border-zinc-800 px-4 py-3 transition last:border-b-0 hover:bg-zinc-800/60 max-md:px-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-zinc-200">{t.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-zinc-500">
+                      {(t.myTeams || []).join("、")} · {t.registeredCount}/{t.maxTeams} 队
+                    </p>
+                  </div>
+                  <span className={"shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium " +
+                    (t.status === "PROGRESSION" ? "bg-green-600/15 text-green-400" : "bg-blue-600/15 text-blue-400")}>
+                    {t.status === "PROGRESSION" ? "进行中" : "报名中"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/*
           移动端与平板（<1024px）的流式宣传栏。
