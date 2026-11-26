@@ -265,6 +265,7 @@
 | POST | /api/admin/tournaments | 创建赛事（联赛可选 hasPlayoffs / playoffFormat / playoffSize） |
 | POST | /api/admin/tournaments/{id}/publish | 发布赛事（SETUP -> REGISTRATION） |
 | POST | /api/admin/tournaments/{id}/start | 开始赛事，生成对阵表（REGISTRATION -> PROGRESSION） |
+| POST | /api/admin/tournaments/{id}/redraw | 重新抽签：清空对阵表并按当前队伍重新随机生成首轮。仅 PROGRESSION + 单败/双败 + 一场未打时可用，否则返回 400 |
 | POST | /api/admin/tournaments/{id}/register | 管理员手动添加单个队伍 | { teamId } |
 | POST | /api/admin/tournaments/{id}/batch-register | 管理员批量添加队伍 | { teamIds: [id1, id2, ...] } |
 | POST | /api/admin/tournaments/{id}/unregister | 管理员手动移除队伍 | { teamId } |

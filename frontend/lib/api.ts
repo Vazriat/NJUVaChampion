@@ -338,6 +338,7 @@ export const adminTournamentApi = {
     api.post("/admin/tournaments", data),
   publish: (id: number) => api.post(`/admin/tournaments/${id}/publish`),
   start: (id: number) => api.post(`/admin/tournaments/${id}/start`),
+  redraw: (id: number) => api.post(`/admin/tournaments/${id}/redraw`),
   delete: (id: number) => api.delete(`/admin/tournaments/${id}`),
   batchRegister: (id: number, teamIds: number[]) =>
     api.post(`/admin/tournaments/${id}/batch-register`, { teamIds }),
