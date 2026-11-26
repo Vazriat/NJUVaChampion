@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/** 裁判端：赛果申报（需通过裁判认证；接口在身份认证门槛内） */
+/** 赛果申报：认证裁判或本场参赛队队长可提交（接口在身份认证门槛内） */
 @RestController
 @RequestMapping("/api/result-submissions")
 @RequiredArgsConstructor

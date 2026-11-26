@@ -9,8 +9,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 赛果申报单：裁判完整录入的"赛果草稿"，管理员审核通过后才落库到正式比赛数据。
+ * 赛果申报单：裁判或参赛队队长完整录入的"赛果草稿"，管理员审核通过后才落库到正式比赛数据。
  * payload 为 JSON 快照（boType/team1Wins/team2Wins/note/games[]），payloadVersion 支持结构演进。
+ *
+ * 提交人统一存在 refereeId 字段（历史列名），真实身份由 submitterRole 区分：
+ * REFEREE = 通过裁判认证的用户，CAPTAIN = 该场比赛参赛队的队长。
  */
 @Data
 @NoArgsConstructor
@@ -19,6 +22,11 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "match_result_submissions")
 public class MatchResultSubmission {
+
+    /** 申报人是认证裁判 */
+    public static final String ROLE_REFEREE = "REFEREE";
+    /** 申报人是本场参赛队队长 */
+    public static final String ROLE_CAPTAIN = "CAPTAIN";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,8 +38,13 @@ public class MatchResultSubmission {
     @Column(name = "tournament_id", nullable = false)
     private Long tournamentId;
 
+    /** 提交人 userId（裁判或队长），列名为历史遗留的 referee_id */
     @Column(name = "referee_id", nullable = false)
     private Long refereeId;
+
+    /** REFEREE / CAPTAIN */
+    @Column(name = "submitter_role", length = 20)
+    private String submitterRole;
 
     /** PENDING / APPROVED / REJECTED / CANCELLED */
     @Column(nullable = false, length = 20)

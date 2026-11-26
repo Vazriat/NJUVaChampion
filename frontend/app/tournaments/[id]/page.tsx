@@ -76,6 +76,22 @@ export default function TournamentDetailPage() {
 
   // 申报入口：跟踪本次申报，避免无提示重复申报
   const openSubmitWizard = (m: any) => setSubmitMatch(m);
+
+  /**
+   * 本场比赛的队长身份。
+   * 一人可同时是多队队长，所以只看这场对阵的两支队伍有没有他当队长的队，
+   * 不能只判"他是不是某支队的队长"。
+   */
+  const isCaptainOfMatch = (m: any) => {
+    if (!currentUser || !m) return false;
+    return (tournament?.registeredTeams || []).some(
+      (rt: any) => rt.captainId === currentUser.id
+        && (rt.teamId === m.team1Id || rt.teamId === m.team2Id)
+    );
+  };
+
+  /** 可申报赛果的身份：裁判（需开启裁判模式）或本场参赛队队长 */
+  const canSubmitResult = (m: any) => (isReferee && refereeMode) || isCaptainOfMatch(m);
   const handleRefereeSubmit = async (m: any) => {
     // 点击时按需拉取我的申报，避免挂载时异步拉取未完成导致的漏判
     let mine = mySubmissions.find(s => s.matchId === m.id);
@@ -92,7 +108,7 @@ export default function TournamentDetailPage() {
       return;
     }
     if (m.hasPendingSubmission) {
-      notify("该比赛已有裁判申报待审核，无法重复申报", "error");
+      notify("该比赛已有申报待审核，无法重复申报", "error");
       return;
     }
     if (mine && mine.status === "APPROVED") {
@@ -502,25 +518,27 @@ export default function TournamentDetailPage() {
             ) : detailMatch.hasPendingSubmission ? (
               <span className="mb-3 inline-block rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] text-yellow-400">已申报 · 待审核</span>
             ) : null}
-            {isReferee && (
+            {(isReferee || canSubmitResult(detailMatch)) && (
               <div className="mb-4 flex gap-2 max-md:flex-col">
-                {refereeMode && (detailMatch.status === "PENDING" || detailMatch.status === "COMPLETED") && (
+                {canSubmitResult(detailMatch) && (detailMatch.status === "PENDING" || detailMatch.status === "COMPLETED") && (
                   <button onClick={() => { handleRefereeSubmit(detailMatch); setDetailMatch(null); }}
                     className="flex-1 rounded-lg bg-orange-600 py-2 text-sm font-semibold hover:bg-orange-700 max-md:min-h-11">
-                    申报赛果（裁判）
+                    申报赛果（{isReferee && refereeMode ? "裁判" : "队长"}）
                   </button>
                 )}
-                {activeStream ? (
-                  <button onClick={() => handleEndLive(activeStream.id)}
-                    className="flex-1 rounded-lg border border-red-700 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-600/20 max-md:min-h-11">
-                    直播中 · 结束直播
-                  </button>
-                ) : (
-                  <StartLiveButton
-                    matchId={detailMatch.id}
-                    onStarted={() => refreshStreams(detailMatch.id)}
-                    className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-semibold transition hover:bg-red-700 disabled:opacity-50 max-md:min-h-11"
-                  />
+                {isReferee && (
+                  activeStream ? (
+                    <button onClick={() => handleEndLive(activeStream.id)}
+                      className="flex-1 rounded-lg border border-red-700 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-600/20 max-md:min-h-11">
+                      直播中 · 结束直播
+                    </button>
+                  ) : (
+                    <StartLiveButton
+                      matchId={detailMatch.id}
+                      onStarted={() => refreshStreams(detailMatch.id)}
+                      className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-semibold transition hover:bg-red-700 disabled:opacity-50 max-md:min-h-11"
+                    />
+                  )
                 )}
               </div>
             )}

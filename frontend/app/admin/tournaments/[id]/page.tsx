@@ -402,7 +402,7 @@ export default function AdminTournamentDetailPage() {
                   <div>
                     <span className="text-zinc-200">{s.team1Name} <span className="text-zinc-500">{s.team1Wins} : {s.team2Wins}</span> {s.team2Name}</span>
                     <div className="mt-0.5 text-xs text-zinc-500">
-                      裁判：{s.refereeName || ("#" + s.refereeId)} · BO{s.boType} · {s.gameCount} 局 · {(s.screenshotPaths || []).length} 张截图
+                      {s.submitterLabel || "裁判"}：{s.refereeName || ("#" + s.refereeId)} · BO{s.boType} · {s.gameCount} 局 · {(s.screenshotPaths || []).length} 张截图
                       {s.note && <span> · 备注：{s.note}</span>}
                     </div>
                   </div>
@@ -503,10 +503,10 @@ export default function AdminTournamentDetailPage() {
           <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 max-md:p-4 safe-bottom max-md:max-h-[92dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:rounded-t-2xl">
             <h3 className="mb-3 text-sm font-semibold">驳回申报</h3>
             <p className="mb-3 text-xs text-zinc-500">
-              {rejectTarget.team1Name} vs {rejectTarget.team2Name}（裁判：{rejectTarget.refereeName || "#" + rejectTarget.refereeId}）
+              {rejectTarget.team1Name} vs {rejectTarget.team2Name}（{rejectTarget.submitterLabel || "裁判"}：{rejectTarget.refereeName || "#" + rejectTarget.refereeId}）
             </p>
             <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3}
-              placeholder="驳回原因（必填，将展示给裁判）"
+              placeholder="驳回原因（必填，将展示给申报人）"
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-white outline-none focus:border-red-500" />
             <div className="mt-4 flex gap-3">
               <button onClick={() => setRejectTarget(null)}
