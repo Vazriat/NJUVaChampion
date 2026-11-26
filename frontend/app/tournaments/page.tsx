@@ -32,6 +32,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function TournamentsPage() {
   const router = useRouter();
   const [tournaments, setTournaments] = useState<TournamentVO[]>([]);
+  const [myTournamentIds, setMyTournamentIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,9 +41,15 @@ export default function TournamentsPage() {
       router.replace("/login");
       return;
     }
-    tournamentApi
-      .list()
-      .then((res) => setTournaments(res.data.data))
+    Promise.all([
+      tournamentApi.list(),
+      // 失败不能拖垮列表：拿不到就当作没有参赛
+      tournamentApi.mine().catch(() => ({ data: { data: [] } }) as any),
+    ])
+      .then(([listRes, mineRes]) => {
+        setTournaments(listRes.data.data || []);
+        setMyTournamentIds((mineRes.data.data || []).map((m: any) => m.tournamentId));
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [router]);
@@ -63,7 +70,10 @@ export default function TournamentsPage() {
         {loading && <p className="text-zinc-500">加载中...</p>}
 
         <div className="space-y-4">
-          {tournaments.filter(t => searchQuery === "" || t.name.toLowerCase().includes(searchQuery.toLowerCase())).map((t) => (
+          {tournaments.filter(t => searchQuery === "" || t.name.toLowerCase().includes(searchQuery.toLowerCase())).map((t) => {
+            const mine = myTournamentIds.includes(t.id);
+            const participating = mine && t.status === "PROGRESSION";
+            return (
             <Link
               key={t.id}
               href={`/tournaments/${t.id}`}
@@ -76,8 +86,8 @@ export default function TournamentsPage() {
                     <p className="mt-1 text-sm text-zinc-400">{t.description}</p>
                   )}
                 </div>
-                <span className={`rounded px-3 py-1 text-xs font-medium ${STATUS_COLOR[t.status] || "bg-zinc-800 text-zinc-400"}`}>
-                  {STATUS_MAP[t.status] || t.status}
+                <span className={`rounded px-3 py-1 text-xs font-medium ${participating ? "text-red-400 bg-red-600/15" : (STATUS_COLOR[t.status] || "bg-zinc-800 text-zinc-400")}`}>
+                  {participating ? "参与中" : (STATUS_MAP[t.status] || t.status)}
                 </span>
               </div>
 
@@ -89,7 +99,8 @@ export default function TournamentsPage() {
                 )}
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
 
         {!loading && tournaments.length === 0 && (
