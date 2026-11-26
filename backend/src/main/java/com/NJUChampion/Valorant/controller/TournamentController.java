@@ -23,6 +23,12 @@ public class TournamentController {
         return Result.success(tournamentService.listAll());
     }
 
+    /** 我的比赛：我所在战队正在报名/进行中的赛事 */
+    @GetMapping("/mine")
+    public Result<List<Map<String, Object>>> mine(@AuthenticationPrincipal User user) {
+        return Result.success(tournamentService.listMine(user.getId()));
+    }
+
     @GetMapping("/{id}")
     public Result<TournamentVO> detail(@PathVariable Long id) {
         return Result.success(tournamentService.getById(id));

@@ -172,6 +172,7 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/tournaments | 赛事列表 |
+| GET | /api/tournaments/mine | 我的比赛：当前用户所在战队处于 REGISTRATION / PROGRESSION 的赛事，返回 tournamentId/name/status/format/maxTeams/registeredCount/myTeamIds/myTeams；按进行中优先、创建时间倒序 |
 | GET | /api/tournaments/{id} | 赛事详情（含报名队伍、对阵表、联赛积分榜 leagueStandings；对阵含 team1Wins/team2Wins 小局胜局数、team1Score/team2Score 总比分、hasPendingSubmission 待审核申报标记，赛事含 groupName） |
 | GET | /api/tournaments/{id}/player-stats | 参赛选手在该赛事的数据表（acs/kd/kpr/首杀率/存活率/回合助攻等） |
 | GET | /api/tournaments/{id}/announcements | 该赛事已发布的通知列表 |
