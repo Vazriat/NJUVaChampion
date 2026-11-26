@@ -32,6 +32,12 @@ public class AdminTournamentController {
         return Result.success(tournamentService.start(id));
     }
 
+    /** 重新抽签：仅当赛程已生成且一场未打时允许，否则返回 400。 */
+    @PostMapping("/{id}/redraw")
+    public Result<TournamentVO> redraw(@PathVariable Long id) {
+        return Result.success(tournamentService.redraw(id));
+    }
+
     @PostMapping("/{id}/register")
     public Result<Void> registerTeam(@PathVariable Long id, @RequestBody Map<String, Long> body) {
         Long teamId = body.get("teamId");

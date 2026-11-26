@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -158,6 +159,40 @@ public class TournamentService {
         return toVO(tournament);
     }
 
+    /**
+     * 重新抽签：清空整张对阵表并按当前参赛队伍重新生成。
+     *
+     * 只允许在「赛程已生成、但一场结果都没有」时执行——一旦有比赛打完或申报落库，
+     * 败者组归属、后续轮次都已有依赖，重排会让数据自相矛盾，必须人工处理。
+     */
+    @Transactional
+    public TournamentVO redraw(Long tournamentId) {
+        Tournament tournament = getTournament(tournamentId);
+        if (!"PROGRESSION".equals(tournament.getStatus())) {
+            throw new IllegalArgumentException("只有进行中的赛事可以重新抽签");
+        }
+        String format = tournament.getFormat();
+        if (!"SINGLE_ELIM".equals(format) && !"DOUBLE_ELIM".equals(format)) {
+            throw new IllegalArgumentException("只有单败/双败淘汰赛支持重新抽签");
+        }
+
+        List<TournamentMatch> matches = tournamentMatchRepository
+                .findByTournamentIdOrderByRoundAscPositionAsc(tournamentId);
+        boolean played = matches.stream()
+                .anyMatch(m -> !"PENDING".equals(m.getStatus()) || m.getWinnerId() != null);
+        if (played) {
+            throw new IllegalArgumentException("已有比赛结果，无法重新抽签");
+        }
+
+        tournamentMatchRepository.deleteAll(matches);
+        if ("DOUBLE_ELIM".equals(format)) {
+            generateDoubleElimBracket(tournament);
+        } else {
+            generateBracket(tournament);
+        }
+        return toVO(tournament);
+    }
+
     // ========== Single Elimination ==========
 
     private void handleSingleElimMatchResult(Tournament tournament, TournamentMatch match) {
@@ -179,14 +214,7 @@ public class TournamentService {
         int totalTeams = registeredTeams.size();
         int totalRounds = getTotalRounds(totalTeams);
 
-        int[] seedOrder = getSeedOrder(totalTeams);
-        List<Long> seededTeamIds = new ArrayList<>();
-        for (int seed : seedOrder) {
-            if (seed <= registeredTeams.size()) {
-                TournamentTeam tt = registeredTeams.get(seed - 1);
-                seededTeamIds.add(tt.getTeamId());
-            }
-        }
+        List<Long> seededTeamIds = shuffledTeamIds(registeredTeams);
 
         int matchesInFirstRound = totalTeams / 2;
         for (int pos = 0; pos < matchesInFirstRound; pos++) {
@@ -244,14 +272,7 @@ public class TournamentService {
         List<TournamentTeam> registeredTeams = tournamentTeamRepository.findByTournamentId(tournamentId);
         int totalTeams = registeredTeams.size();
 
-        int[] seedOrder = getSeedOrder(totalTeams);
-        List<Long> seededTeamIds = new ArrayList<>();
-        for (int seed : seedOrder) {
-            if (seed <= registeredTeams.size()) {
-                TournamentTeam tt = registeredTeams.get(seed - 1);
-                seededTeamIds.add(tt.getTeamId());
-            }
-        }
+        List<Long> seededTeamIds = shuffledTeamIds(registeredTeams);
 
         generateDoubleElimBracketInternal(tournamentId, totalTeams, seededTeamIds);
     }
@@ -862,17 +883,20 @@ public class TournamentService {
         return (int) (Math.log(totalTeams) / Math.log(2));
     }
 
-    private int[] getSeedOrder(int totalTeams) {
-        int[] order = new int[totalTeams];
-        int left = 0, right = totalTeams - 1;
-        int seed = 1;
-        while (left <= right) {
-            order[left++] = seed++;
-            if (left <= right) {
-                order[right--] = seed++;
-            }
-        }
-        return order;
+    /**
+     * 首轮随机抽签。
+     *
+     * 旧的 getSeedOrder() 返回 [1,3,5,7,8,6,4,2]，但调用方是按下标当"第 i+1 号种子"用的，
+     * 结果 8 队首轮实际排成 1v2 / 3v4 / 5v6 / 7v8，与代码注释声明的 1v8 / 4v5 / 3v6 / 2v7 完全不符；
+     * 4 队更严重，第一轮就让 1、2 号种子互杀。
+     * 现在直接随机洗牌，抽签结果即首轮对阵，不再假装有种子保护。
+     */
+    private List<Long> shuffledTeamIds(List<TournamentTeam> registeredTeams) {
+        List<Long> teamIds = registeredTeams.stream()
+                .map(TournamentTeam::getTeamId)
+                .collect(Collectors.toCollection(ArrayList::new));
+        Collections.shuffle(teamIds);
+        return teamIds;
     }
 
 

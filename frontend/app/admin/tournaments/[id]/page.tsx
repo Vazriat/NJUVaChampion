@@ -101,6 +101,24 @@ export default function AdminTournamentDetailPage() {
     catch (err: any) { showMsg(err.response?.data?.message || "操作失败"); }
   };
 
+  const handleRedraw = async () => {
+    if (!tournament) return;
+    const ok = await ask({
+      title: "重新抽签",
+      message: "将清空整张对阵表并按当前参赛队伍重新随机生成首轮。只有在一场比赛都没有结果时才能执行，操作不可撤销。",
+      okText: "重新抽签",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await adminTournamentApi.redraw(tournament.id);
+      notify("已重新抽签", "success");
+      load();
+    } catch (err: any) {
+      notify(err.response?.data?.message || "重新抽签失败", "error");
+    }
+  };
+
   const handleRemoveTeam = async (teamId: number) => {
     const ok = await ask({ title: "移除参赛队伍", message: "确定从赛事中移除该队伍？", okText: "确认移除", danger: true });
     if (!ok) return;
@@ -212,6 +230,12 @@ export default function AdminTournamentDetailPage() {
         {t.status === "REGISTRATION" && (
           <button onClick={handleStart}
             className="w-full rounded-lg bg-green-600 py-3 text-sm font-semibold hover:bg-green-700">开始比赛（生成对阵表）</button>
+        )}
+        {t.status === "PROGRESSION" && (t.format === "SINGLE_ELIM" || t.format === "DOUBLE_ELIM") && (
+          <button onClick={handleRedraw}
+            className="w-full rounded-lg border border-amber-700 py-3 text-sm font-semibold text-amber-400 hover:bg-amber-600/20 max-md:min-h-11">
+            重新抽签（仅首轮未开打时可用）
+          </button>
         )}
 
         {/* 段位审核 */}
