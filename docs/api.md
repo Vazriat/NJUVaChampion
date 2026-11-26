@@ -307,13 +307,25 @@
 | POST | /api/admin/matches/{matchId}/finalize | 结算比赛，推进赛程 | { team1Wins, team2Wins }（校验：仅按所选 BO 限制，胜者须达 BO 半数+1 胜） |
 | GET | /api/admin/matches/{matchId}/detail | 比赛详情（含小局与选手数据；另含 pendingSubmission / approvedSubmission 申报信息，供录入弹窗提示） |
 
-### 赛果申报（裁判上报 + 管理员审核）
+### 赛果申报（裁判 / 队长上报 + 管理员审核）
 
-**流程**：已通过裁判认证（REFEREE 认证）的用户完整录入赛果（BO/总比分/每局比分/截图/选手数据）→ 提交申报（PENDING）→ 管理员审核（可修正后通过，或驳回附原因）→ 通过后由后端将申报内容**落库到正式比赛数据**并推进赛程。
+**流程**：**已通过裁判认证（REFEREE 认证）的用户**，或**本场比赛参赛队的队长**，完整录入赛果（BO/总比分/每局比分/截图/选手数据）→ 提交申报（PENDING）→ 管理员审核（可修正后通过，或驳回附原因）→ 通过后由后端将申报内容**落库到正式比赛数据**并推进赛程。
+
+**申报资格**（`ResultSubmissionService.resolveSubmitterRole`）：
+
+| 身份 | 条件 | 记录值 |
+|------|------|--------|
+| 裁判 | 存在 REFEREE + APPROVED 认证 | `submitterRole = REFEREE` |
+| 队长 | 该场比赛 team1Id / team2Id 中任一队的 `captainId` 等于本人 | `submitterRole = CAPTAIN` |
+| 其他 | — | 拒绝，抛出「仅通过裁判认证的用户，或本场比赛参赛队的队长可以申报赛果」 |
+
+- 一人可同时是多队队长，判定只看**这场对阵的两支队伍**，不看"是否是某队队长"
+- 同一场比赛只允许一条 PENDING 申报，裁判和队长同时提交时先到先得
+- 队长申报**不直接落库**，与裁判申报走同一套管理员审核流程
 
 **状态机**：PENDING → APPROVED / REJECTED；本人可撤销 PENDING → CANCELLED；驳回后可重新申报。
 
-**裁判端 /api/result-submissions**（需 REFEREE 认证；仍在身份认证门槛内）：
+**申报端 /api/result-submissions**（需 REFEREE 认证或本场队长；仍在身份认证门槛内）：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|

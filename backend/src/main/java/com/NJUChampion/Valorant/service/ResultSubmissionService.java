@@ -42,7 +42,7 @@ public class ResultSubmissionService {
     @Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
-    // ===== 裁判资格（集中判定，未来指派制只改这里） =====
+    // ===== 申报资格（集中判定，未来指派制只改这里） =====
 
     public boolean isReferee(Long userId) {
         return certificationRepository
@@ -50,14 +50,40 @@ public class ResultSubmissionService {
                 .isPresent();
     }
 
-    // ===== 裁判端：申报 =====
+    /**
+     * 判定申报人身份：认证裁判优先，其次本场参赛队队长；都不是返回 null。
+     *
+     * 队长判定只看这场比赛的两支队伍（一人可同时是多队队长，不能只判"他是不是某队队长"）。
+     */
+    public String resolveSubmitterRole(Long userId, TournamentMatch match) {
+        if (isReferee(userId)) {
+            return MatchResultSubmission.ROLE_REFEREE;
+        }
+        return isCaptainOfMatch(userId, match) ? MatchResultSubmission.ROLE_CAPTAIN : null;
+    }
+
+    private boolean isCaptainOfMatch(Long userId, TournamentMatch match) {
+        for (Long teamId : new Long[]{match.getTeam1Id(), match.getTeam2Id()}) {
+            if (teamId == null) {
+                continue;
+            }
+            Team team = teamRepository.findById(teamId).orElse(null);
+            if (team != null && userId.equals(team.getCaptainId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ===== 申报：裁判或参赛队队长 =====
 
     @Transactional
-    public MatchResultSubmission create(Long refereeId, CreateResultSubmissionRequest req) {
-        if (!isReferee(refereeId)) {
-            throw new IllegalArgumentException("仅通过裁判认证的用户可以申报赛果");
-        }
+    public MatchResultSubmission create(Long submitterId, CreateResultSubmissionRequest req) {
         TournamentMatch match = getMatch(req.getMatchId());
+        String role = resolveSubmitterRole(submitterId, match);
+        if (role == null) {
+            throw new IllegalArgumentException("仅通过裁判认证的用户，或本场比赛参赛队的队长可以申报赛果");
+        }
         Tournament tournament = getTournament(match.getTournamentId());
         if (!"PROGRESSION".equals(tournament.getStatus())) {
             throw new IllegalArgumentException("赛事不在进行中，无法申报赛果");
@@ -73,7 +99,8 @@ public class ResultSubmissionService {
         MatchResultSubmission sub = MatchResultSubmission.builder()
                 .matchId(match.getId())
                 .tournamentId(tournament.getId())
-                .refereeId(refereeId)
+                .refereeId(submitterId)
+                .submitterRole(role)
                 .status("PENDING")
                 .boType(req.getBoType())
                 .team1Wins(req.getTeam1Wins())
@@ -216,6 +243,10 @@ public class ResultSubmissionService {
         m.put("tournamentId", s.getTournamentId());
         m.put("refereeId", s.getRefereeId());
         userRepository.findById(s.getRefereeId()).ifPresent(u -> m.put("refereeName", u.getUsername()));
+        // submitterRole 为历史数据兜底：submitter_role 列是后加的，老记录一律按裁判处理
+        String role = s.getSubmitterRole() != null ? s.getSubmitterRole() : MatchResultSubmission.ROLE_REFEREE;
+        m.put("submitterRole", role);
+        m.put("submitterLabel", MatchResultSubmission.ROLE_CAPTAIN.equals(role) ? "队长" : "裁判");
         m.put("boType", s.getBoType());
         m.put("team1Wins", s.getTeam1Wins());
         m.put("team2Wins", s.getTeam2Wins());
