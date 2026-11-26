@@ -1189,6 +1189,7 @@ public class TournamentService {
                     .teamId(tt.getTeamId())
                     .teamName(team != null ? team.getName() : "未知战队")
                     .teamLogo(team != null ? team.getLogo() : null)
+                    .captainId(team != null ? team.getCaptainId() : null)
                     .captainName(team != null && team.getCaptainId() != null ?
                         userRepository.findById(team.getCaptainId()).map(u -> u.getUsername()).orElse(null) : null)
                     .description(team != null ? team.getDescription() : null)

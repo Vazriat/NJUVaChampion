@@ -48,6 +48,8 @@ public class TournamentVO {
         private Long teamId;
         private String teamName;
         private String teamLogo;
+        /** 队长 userId，前端据此判断当前用户能否申报赛果 */
+        private Long captainId;
         private String captainName;
         private String description;
         private Integer memberCount;
